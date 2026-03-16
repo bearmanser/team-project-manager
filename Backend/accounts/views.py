@@ -1,4 +1,4 @@
-﻿import json
+import json
 import secrets
 
 from django.contrib.auth import authenticate, get_user_model
@@ -239,3 +239,4 @@ def github_repos_view(request):
         return _json_error(str(exc), exc.status_code)
 
     return JsonResponse({"repos": [_serialize_repo(repo) for repo in repos]})
+

@@ -1,4 +1,4 @@
-﻿import base64
+import base64
 import hmac
 import json
 from datetime import datetime, timedelta, timezone
@@ -70,14 +70,21 @@ def decode_access_token(token: str) -> dict[str, Any]:
     return payload
 
 
+def _extract_token(request) -> str:
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        return auth_header.split(" ", 1)[1].strip()
+
+    return (request.GET.get("token") or "").strip()
+
+
 def jwt_required(view_func):
     @wraps(view_func)
     def wrapped(request, *args, **kwargs):
-        auth_header = request.headers.get("Authorization", "")
-        if not auth_header.startswith("Bearer "):
+        token = _extract_token(request)
+        if not token:
             return JsonResponse({"error": "Authentication required."}, status=401)
 
-        token = auth_header.split(" ", 1)[1].strip()
         try:
             payload = decode_access_token(token)
             user_id = int(payload["sub"])
