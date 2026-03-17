@@ -48,3 +48,14 @@ export function InviteIcon({ size = 18, strokeWidth = 1.7 }: IconProps) {
         </svg>
     );
 }
+
+export function MoreIcon({ size = 18 }: IconProps) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="6.5" cy="12" r="1.5" fill="currentColor" />
+            <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+            <circle cx="17.5" cy="12" r="1.5" fill="currentColor" />
+        </svg>
+    );
+}
+

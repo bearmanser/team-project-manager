@@ -33,7 +33,6 @@ import { OrganizationOverviewPage } from "./pages/OrganizationOverviewPage";
 import { OrganizationProjectsPage } from "./pages/OrganizationProjectsPage";
 import { OrganizationSettingsPage } from "./pages/OrganizationSettingsPage";
 import { OrganizationUsersPage } from "./pages/OrganizationUsersPage";
-import { ProfilePage } from "./pages/ProfilePage";
 import { ProjectBoardPage } from "./pages/ProjectBoardPage";
 import { ProjectBugsPage } from "./pages/ProjectBugsPage";
 import { ProjectSettingsPage } from "./pages/ProjectSettingsPage";
@@ -43,6 +42,7 @@ import type {
     Notification,
     OrganizationSummary,
     ProjectDetail,
+    PriorityLevel,
     ProjectRole,
     TaskStatus,
     User,
@@ -54,7 +54,6 @@ import type {
     OrganizationSection,
     OrganizationUser,
     ProjectSection,
-    TopView,
 } from "./view-models";
 
 const TOKEN_STORAGE_KEY = "team-project-manager.jwt";
@@ -88,12 +87,14 @@ const initialTaskForm = {
     title: "",
     description: "",
     status: "todo" as TaskStatus,
+    priority: "medium" as PriorityLevel,
 };
 
 const initialBugForm = {
     title: "",
     description: "",
     status: "open" as BugStatus,
+    priority: "medium" as PriorityLevel,
 };
 
 function getFriendlyError(error: unknown): string {
@@ -160,6 +161,67 @@ function parseStoredNumber(key: string): number | null {
     return Number.isFinite(parsed) ? parsed : null;
 }
 
+const ORGANIZATIONS_PATH = "/organizations";
+const LOGIN_PATH = "/login";
+
+type AppRoute =
+    | { kind: "login" }
+    | { kind: "organizations" }
+    | { kind: "organization"; organizationId: number; section: OrganizationSection }
+    | { kind: "project"; projectId: number; section: ProjectSection }
+    | { kind: "githubCallback" };
+
+function normalizePath(pathname: string): string {
+    if (!pathname || pathname === "/") {
+        return "/";
+    }
+
+    return pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+}
+
+function parseRoute(pathname: string): AppRoute {
+    const normalizedPath = normalizePath(pathname);
+    if (normalizedPath === "/oauth/github/callback") {
+        return { kind: "githubCallback" };
+    }
+    if (normalizedPath === LOGIN_PATH) {
+        return { kind: "login" };
+    }
+    if (normalizedPath === "/" || normalizedPath === ORGANIZATIONS_PATH) {
+        return { kind: "organizations" };
+    }
+
+    const organizationMatch = normalizedPath.match(/^\/organizations\/(\d+)(?:\/(projects|users|settings))?$/);
+    if (organizationMatch) {
+        return {
+            kind: "organization",
+            organizationId: Number(organizationMatch[1]),
+            section: (organizationMatch[2] as OrganizationSection | undefined) ?? "projects",
+        };
+    }
+
+    const projectMatch = normalizedPath.match(/^\/projects\/(\d+)(?:\/(board|tasks|bugs|settings))?$/);
+    if (projectMatch) {
+        return {
+            kind: "project",
+            projectId: Number(projectMatch[1]),
+            section: (projectMatch[2] as ProjectSection | undefined) ?? "board",
+        };
+    }
+
+    return { kind: "organizations" };
+}
+
+function getOrganizationPath(organizationId: number, section: OrganizationSection = "projects"): string {
+    return section === "projects"
+        ? `/organizations/${organizationId}`
+        : `/organizations/${organizationId}/${section}`;
+}
+
+function getProjectPath(projectId: number, section: ProjectSection = "board"): string {
+    return section === "board" ? `/projects/${projectId}` : `/projects/${projectId}/${section}`;
+}
+
 function App() {
     const [authMode, setAuthMode] = useState<"signup" | "login">("login");
     const [signupForm, setSignupForm] = useState(initialSignupForm);
@@ -173,7 +235,6 @@ function App() {
         parseStoredNumber(SELECTED_PROJECT_STORAGE_KEY),
     );
     const [selectedProject, setSelectedProject] = useState<ProjectDetail | null>(null);
-    const [topView, setTopView] = useState<TopView>("organizations");
     const [organizationSection, setOrganizationSection] = useState<OrganizationSection>("projects");
     const [projectSection, setProjectSection] = useState<ProjectSection>("board");
     const [organizationUsers, setOrganizationUsers] = useState<OrganizationUser[]>([]);
@@ -212,7 +273,6 @@ function App() {
             workspace?.projects.filter((project) => project.organizationId === currentOrganization?.id) ?? [],
         [currentOrganization?.id, workspace],
     );
-    const profileOrganization = currentOrganization ?? workspace?.organizations[0] ?? null;
 
     const organizationNavItems: NavItem<OrganizationSection>[] = useMemo(
         () => [
@@ -243,14 +303,14 @@ function App() {
                 description: "Drag tasks between delivery stages.",
             },
             {
-                id: "bugs",
-                label: "Bugs",
-                description: "Triaged issues with inline status updates.",
-            },
-            {
                 id: "tasks",
                 label: "Tasks",
-                description: "Compact task list with inline status changes.",
+                description: "Compact task list with inline status and priority changes.",
+            },
+            {
+                id: "bugs",
+                label: "Bugs",
+                description: "Triaged issues with inline status and priority updates.",
             },
             {
                 id: "settings",
@@ -288,16 +348,38 @@ function App() {
         setSelectedProjectId(projectId);
     }
 
+    function navigateToPath(path: string, replace = false): void {
+        const normalizedPath = normalizePath(path);
+        const currentPath = normalizePath(window.location.pathname);
+        if (normalizedPath === currentPath && !replace) {
+            return;
+        }
+
+        if (replace) {
+            window.history.replaceState({}, document.title, normalizedPath);
+        } else {
+            window.history.pushState({}, document.title, normalizedPath);
+        }
+    }
+
+    function clearProjectSelection(): void {
+        rememberProjectSelection(null);
+        setSelectedProject(null);
+        setProjectSection("board");
+    }
+
     function clearSession(): void {
         storeToken(null);
         rememberOrganizationSelection(null);
         rememberProjectSelection(null);
         setWorkspace(null);
         setSelectedProject(null);
-        setTopView("organizations");
+        setOrganizationSection("projects");
+        setProjectSection("board");
         setNotice(null);
         setError(null);
         setNotificationOpen(false);
+        navigateToPath(LOGIN_PATH, true);
     }
 
     async function loadProjectDetail(sessionToken: string, projectId: number): Promise<ProjectDetail> {
@@ -322,7 +404,7 @@ function App() {
             projectOverride?: ProjectDetail | null;
             quiet?: boolean;
         } = {},
-    ): Promise<void> {
+    ): Promise<{ resolvedOrganizationId: number | null; resolvedProjectId: number | null }> {
         if (!options.quiet) {
             setBusyLabel("Loading workspace");
         }
@@ -356,7 +438,14 @@ function App() {
             if (!options.quiet) {
                 setBusyLabel(null);
             }
-            return;
+
+            return {
+                resolvedOrganizationId:
+                    options.projectOverride?.id === resolvedProjectId
+                        ? options.projectOverride.organizationId
+                        : workspaceData.projects.find((project) => project.id === resolvedProjectId)?.organizationId ?? null,
+                resolvedProjectId,
+            };
         }
 
         rememberProjectSelection(null);
@@ -375,6 +464,63 @@ function App() {
 
         if (!options.quiet) {
             setBusyLabel(null);
+        }
+
+        return {
+            resolvedOrganizationId,
+            resolvedProjectId: null,
+        };
+    }
+
+    async function syncFromPath(sessionToken: string, options: { quiet?: boolean } = {}): Promise<void> {
+        const route = parseRoute(window.location.pathname);
+        setNotificationOpen(false);
+
+        if (route.kind === "login") {
+            navigateToPath(ORGANIZATIONS_PATH, true);
+            await syncFromPath(sessionToken, options);
+            return;
+        }
+
+        if (route.kind === "organizations") {
+            setOrganizationSection("projects");
+            clearProjectSelection();
+            rememberOrganizationSelection(null);
+            await hydrateWorkspace(sessionToken, {
+                preferredOrganizationId: null,
+                preferredProjectId: null,
+                quiet: options.quiet,
+            });
+            return;
+        }
+
+        if (route.kind === "organization") {
+            setOrganizationSection(route.section);
+            clearProjectSelection();
+            const result = await hydrateWorkspace(sessionToken, {
+                preferredOrganizationId: route.organizationId,
+                preferredProjectId: null,
+                quiet: options.quiet,
+            });
+            if (result.resolvedOrganizationId !== route.organizationId) {
+                navigateToPath(ORGANIZATIONS_PATH, true);
+            }
+            return;
+        }
+
+        if (route.kind === "project") {
+            setProjectSection(route.section);
+            const result = await hydrateWorkspace(sessionToken, {
+                preferredOrganizationId: null,
+                preferredProjectId: route.projectId,
+                quiet: options.quiet,
+            });
+            if (result.resolvedProjectId !== route.projectId) {
+                navigateToPath(
+                    result.resolvedOrganizationId ? getOrganizationPath(result.resolvedOrganizationId) : ORGANIZATIONS_PATH,
+                    true,
+                );
+            }
         }
     }
 
@@ -423,14 +569,14 @@ function App() {
 
     async function bootstrapWorkspace(): Promise<void> {
         const sessionToken = window.localStorage.getItem(TOKEN_STORAGE_KEY);
-        const isGitHubCallback = window.location.pathname === "/oauth/github/callback";
+        const route = parseRoute(window.location.pathname);
         const params = new URLSearchParams(window.location.search);
 
-        if (isGitHubCallback) {
+        if (route.kind === "githubCallback") {
             const providerError = params.get("error_description") ?? params.get("error");
             if (providerError) {
                 setError(providerError);
-                window.history.replaceState({}, document.title, "/");
+                navigateToPath(ORGANIZATIONS_PATH, true);
                 setIsBooting(false);
                 return;
             }
@@ -441,7 +587,7 @@ function App() {
             if (!sessionToken || !code || !state) {
                 clearSession();
                 setError("Finish signing in before connecting GitHub.");
-                window.history.replaceState({}, document.title, "/");
+                navigateToPath(LOGIN_PATH, true);
                 setIsBooting(false);
                 return;
             }
@@ -449,13 +595,13 @@ function App() {
             setBusyLabel("Connecting GitHub");
             try {
                 await completeGitHubOauth(sessionToken, { code, state });
-                await hydrateWorkspace(sessionToken, { quiet: true });
+                navigateToPath(ORGANIZATIONS_PATH, true);
+                await syncFromPath(sessionToken, { quiet: true });
                 setNotice("GitHub connected. Open an organization and add a project from the + button.");
             } catch (reason) {
                 clearSession();
                 setError(getFriendlyError(reason));
             } finally {
-                window.history.replaceState({}, document.title, "/");
                 setBusyLabel(null);
                 setIsBooting(false);
             }
@@ -463,12 +609,18 @@ function App() {
         }
 
         if (!sessionToken) {
+            if (route.kind !== "login") {
+                navigateToPath(LOGIN_PATH, true);
+            }
             setIsBooting(false);
             return;
         }
 
         try {
-            await hydrateWorkspace(sessionToken, { quiet: true });
+            if (route.kind === "login") {
+                navigateToPath(ORGANIZATIONS_PATH, true);
+            }
+            await syncFromPath(sessionToken, { quiet: true });
         } catch (reason) {
             clearSession();
             setError(getFriendlyError(reason));
@@ -480,6 +632,21 @@ function App() {
     useEffect(() => {
         void bootstrapWorkspace();
     }, []);
+
+    useEffect(() => {
+        if (!token) {
+            return;
+        }
+
+        const sessionToken = token;
+
+        function handlePopState(): void {
+            void syncFromPath(sessionToken, { quiet: true });
+        }
+
+        window.addEventListener("popstate", handlePopState);
+        return () => window.removeEventListener("popstate", handlePopState);
+    }, [token]);
 
     useEffect(() => {
         if (!error && !notice) {
@@ -521,10 +688,11 @@ function App() {
         };
 
         const handleDeleted = () => {
-            void hydrateWorkspace(token, {
-                preferredOrganizationId: selectedOrganizationId,
-                quiet: true,
-            });
+            navigateToPath(
+                selectedOrganizationId ? getOrganizationPath(selectedOrganizationId) : ORGANIZATIONS_PATH,
+                true,
+            );
+            void syncFromPath(token, { quiet: true });
         };
 
         stream.addEventListener("project.updated", handleUpdated);
@@ -601,14 +769,14 @@ function App() {
             storeToken(response.accessToken);
             setSignupForm(initialSignupForm);
             setLoginForm({ identifier: response.user.email, password: "" });
-            setTopView("organizations");
+            navigateToPath(ORGANIZATIONS_PATH, true);
 
             if (connectGitHub) {
                 await beginGitHubConnection(response.accessToken);
                 return;
             }
 
-            await hydrateWorkspace(response.accessToken, { quiet: true });
+            await syncFromPath(response.accessToken, { quiet: true });
             setNotice("Account created. Add an organization when you are ready.");
         } catch (reason) {
             clearSession();
@@ -630,8 +798,8 @@ function App() {
             });
             storeToken(response.accessToken);
             setLoginForm(initialLoginForm);
-            setTopView("organizations");
-            await hydrateWorkspace(response.accessToken, { quiet: true });
+            navigateToPath(ORGANIZATIONS_PATH, true);
+            await syncFromPath(response.accessToken, { quiet: true });
             setNotice("Welcome back.");
         } catch (reason) {
             clearSession();
@@ -674,10 +842,8 @@ function App() {
             });
             setCreateOrganizationForm(initialOrganizationForm);
             setShowCreateOrganizationForm(false);
-            await hydrateWorkspace(token, {
-                preferredOrganizationId: response.organization.id,
-                quiet: true,
-            });
+            navigateToPath(getOrganizationPath(response.organization.id), true);
+            await syncFromPath(token, { quiet: true });
             setNotice("Organization added.");
         } catch (reason) {
             setError(getFriendlyError(reason));
@@ -704,13 +870,8 @@ function App() {
             });
             setCreateProjectForm(initialProjectForm);
             setShowCreateProjectForm(false);
-            setProjectSection("board");
-            await hydrateWorkspace(token, {
-                preferredOrganizationId: currentOrganization.id,
-                preferredProjectId: response.project.id,
-                projectOverride: response.project,
-                quiet: true,
-            });
+            navigateToPath(getProjectPath(response.project.id), true);
+            await syncFromPath(token, { quiet: true });
             setNotice("Project added.");
         } catch (reason) {
             setError(getFriendlyError(reason));
@@ -743,7 +904,7 @@ function App() {
         }
     }
 
-    async function handleOpenProject(projectId: number): Promise<void> {
+    function openProject(projectId: number, section: ProjectSection = "board"): void {
         if (!token) {
             return;
         }
@@ -751,34 +912,37 @@ function App() {
         setBusyLabel("Opening project");
         setError(null);
         setNotice(null);
-
-        try {
-            await loadProjectDetail(token, projectId);
-            setTopView("organizations");
-            setProjectSection("board");
-            setNotificationOpen(false);
-        } catch (reason) {
-            setError(getFriendlyError(reason));
-        } finally {
-            setBusyLabel(null);
-        }
+        setNotificationOpen(false);
+        navigateToPath(getProjectPath(projectId, section));
+        void syncFromPath(token, { quiet: true }).finally(() => setBusyLabel(null));
     }
 
     function openOrganization(organizationId: number, section: OrganizationSection = "projects"): void {
-        setTopView("organizations");
-        setOrganizationSection(section);
-        setSelectedProject(null);
-        rememberProjectSelection(null);
-        rememberOrganizationSelection(organizationId);
+        if (!token) {
+            return;
+        }
+
         setNotificationOpen(false);
+        navigateToPath(getOrganizationPath(organizationId, section));
+        void syncFromPath(token, { quiet: true });
     }
 
     function openOrganizationOverview(): void {
-        setTopView("organizations");
-        setSelectedProject(null);
-        rememberProjectSelection(null);
-        rememberOrganizationSelection(null);
+        if (!token) {
+            return;
+        }
+
         setNotificationOpen(false);
+        navigateToPath(ORGANIZATIONS_PATH);
+        void syncFromPath(token, { quiet: true });
+    }
+
+    function openCreateTaskForm(status: TaskStatus): void {
+        setCreateTaskForm({
+            ...initialTaskForm,
+            status,
+        });
+        setShowCreateTaskForm(true);
     }
 
     async function handleCreateTask(): Promise<void> {
@@ -793,6 +957,7 @@ function App() {
                     title: createTaskForm.title.trim(),
                     description: createTaskForm.description.trim(),
                     status: createTaskForm.status,
+                    priority: createTaskForm.priority,
                     assigneeIds: [],
                 }),
             "Task added.",
@@ -813,6 +978,18 @@ function App() {
         );
     }
 
+    async function handleUpdateTaskPriority(taskId: number, priority: PriorityLevel): Promise<void> {
+        if (!token) {
+            return;
+        }
+
+        await runProjectMutation(
+            "Updating task priority",
+            () => updateTask(token, taskId, { priority }),
+            "Task updated.",
+        );
+    }
+
     async function handleCreateBug(): Promise<void> {
         if (!token || !selectedProject) {
             return;
@@ -825,6 +1002,7 @@ function App() {
                     title: createBugForm.title.trim(),
                     description: createBugForm.description.trim(),
                     status: createBugForm.status,
+                    priority: createBugForm.priority,
                 }),
             "Bug report added.",
         );
@@ -840,6 +1018,18 @@ function App() {
         await runProjectMutation(
             "Updating bug report",
             () => updateBugReport(token, bugId, { status }),
+            "Bug report updated.",
+        );
+    }
+
+    async function handleUpdateBugPriority(bugId: number, priority: PriorityLevel): Promise<void> {
+        if (!token) {
+            return;
+        }
+
+        await runProjectMutation(
+            "Updating bug priority",
+            () => updateBugReport(token, bugId, { priority }),
             "Bug report updated.",
         );
     }
@@ -872,24 +1062,15 @@ function App() {
         try {
             const currentOrganizationId = selectedProject.organizationId;
             await deleteProject(token, selectedProject.id);
-            rememberProjectSelection(null);
-            setSelectedProject(null);
-            setProjectSection("board");
-            await hydrateWorkspace(token, {
-                preferredOrganizationId: currentOrganizationId,
-                quiet: true,
-            });
+            clearProjectSelection();
+            navigateToPath(currentOrganizationId ? getOrganizationPath(currentOrganizationId) : ORGANIZATIONS_PATH, true);
+            await syncFromPath(token, { quiet: true });
             setNotice("Project deleted.");
         } catch (reason) {
             setError(getFriendlyError(reason));
         } finally {
             setBusyLabel(null);
         }
-    }
-
-    function handleOpenProfile(): void {
-        setTopView("profile");
-        setNotificationOpen(false);
     }
 
     async function handleInviteProjectUser(projectId: number, identifier: string, role: ProjectRole): Promise<void> {
@@ -906,10 +1087,7 @@ function App() {
                 identifier,
                 role,
             });
-            await hydrateWorkspace(token, {
-                preferredOrganizationId: currentOrganization.id,
-                quiet: true,
-            });
+            await syncFromPath(token, { quiet: true });
             setNotice("User invited.");
         } catch (reason) {
             setError(getFriendlyError(reason));
@@ -918,18 +1096,15 @@ function App() {
         }
     }
 
-    const activeHeaderAction: "profile" | null = topView === "profile" ? "profile" : null;
-
     const topNav = (
         <TopNav
-            activeAction={activeHeaderAction}
             busyLabel={busyLabel}
             notifications={workspace?.notifications ?? []}
             notificationOpen={notificationOpen}
             unreadCount={unreadNotifications.length}
             user={user}
             onCloseNotifications={() => setNotificationOpen(false)}
-            onOpenProfile={handleOpenProfile}
+            onLogout={clearSession}
             onReadNotification={(notification) => void handleReadNotification(notification)}
             onToggleNotifications={() => setNotificationOpen((current) => !current)}
         />
@@ -1000,18 +1175,6 @@ function App() {
         );
     }
 
-    if (topView === "profile") {
-        return (
-            <AppShell topNav={topNav} banner={banner}>
-                <ProfilePage
-                    organization={profileOrganization}
-                    user={user}
-                    onConnectGitHub={() => void handleConnectGitHub()}
-                    onLogout={clearSession}
-                />
-            </AppShell>
-        );
-    }
 
     if (!currentOrganization) {
         return (
@@ -1034,19 +1197,25 @@ function App() {
             </AppShell>
         );
     }
-
     if (selectedProject) {
         const projectSidebar = (
             <SideNav
                 items={projectNavItems}
                 activeItem={projectSection}
-                onSelect={setProjectSection}
+                onSelect={(section) => openProject(selectedProject.id, section)}
                 topSlot={
                     <Stack gap="3">
+                        <Text color="#728198" fontSize="sm">
+                            {currentOrganization.name}
+                        </Text>
                         <select
                             value={String(selectedProject.id)}
                             style={sidebarSelectStyle}
-                            onChange={(event) => void handleOpenProject(Number(event.target.value))}
+                            onChange={(event) => {
+                                const nextProjectId = Number(event.target.value);
+                                event.target.blur();
+                                openProject(nextProjectId, projectSection);
+                            }}
                         >
                             {currentOrganizationProjects.map((project) => (
                                 <option key={project.id} value={project.id}>
@@ -1054,9 +1223,6 @@ function App() {
                                 </option>
                             ))}
                         </select>
-                        <Text color="#728198" fontSize="sm">
-                            {currentOrganization.name}
-                        </Text>
                     </Stack>
                 }
                 footerSlot={
@@ -1076,7 +1242,20 @@ function App() {
 
         let projectContent = (
             <ProjectBoardPage
+                createTaskForm={createTaskForm}
+                isCreateTaskOpen={showCreateTaskForm}
                 project={selectedProject}
+                onCreateTask={() => void handleCreateTask()}
+                onCreateTaskFormChange={(field, value) =>
+                    setCreateTaskForm((current) => ({
+                        ...current,
+                        [field]: value,
+                    }))
+                }
+                onOpenCreateTask={openCreateTaskForm}
+                onOpenTasksView={() => openProject(selectedProject.id, "tasks")}
+                onToggleCreateTaskForm={() => setShowCreateTaskForm((current) => !current)}
+                onUpdateTaskPriority={(taskId, priority) => void handleUpdateTaskPriority(taskId, priority)}
                 onUpdateTaskStatus={(taskId, status) => void handleUpdateTaskStatus(taskId, status)}
             />
         );
@@ -1095,6 +1274,7 @@ function App() {
                         }))
                     }
                     onToggleCreateForm={() => setShowCreateTaskForm((current) => !current)}
+                    onUpdateTaskPriority={(taskId, priority) => void handleUpdateTaskPriority(taskId, priority)}
                     onUpdateTaskStatus={(taskId, status) => void handleUpdateTaskStatus(taskId, status)}
                 />
             );
@@ -1114,6 +1294,7 @@ function App() {
                         }))
                     }
                     onToggleCreateForm={() => setShowCreateBugForm((current) => !current)}
+                    onUpdateBugPriority={(bugId, priority) => void handleUpdateBugPriority(bugId, priority)}
                     onUpdateBugStatus={(bugId, status) => void handleUpdateBugStatus(bugId, status)}
                 />
             );
@@ -1148,7 +1329,7 @@ function App() {
         <SideNav
             items={organizationNavItems}
             activeItem={organizationSection}
-            onSelect={setOrganizationSection}
+            onSelect={(section) => openOrganization(currentOrganization.id, section)}
             footerSlot={
                 <Button
                     w="full"
@@ -1182,7 +1363,7 @@ function App() {
                     [field]: value,
                 }))
             }
-            onOpenProject={(projectId) => void handleOpenProject(projectId)}
+            onOpenProject={(projectId) => openProject(projectId)}
             onToggleCreateForm={() => setShowCreateProjectForm((current) => !current)}
         />
     );
@@ -1220,6 +1401,25 @@ function App() {
 }
 
 export default App;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

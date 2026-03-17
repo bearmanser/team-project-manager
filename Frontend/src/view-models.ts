@@ -1,8 +1,7 @@
 import type { OrganizationSummary, ProjectRole, User } from "./types";
 
-export type TopView = "organizations" | "profile";
 export type OrganizationSection = "projects" | "users" | "settings";
-export type ProjectSection = "board" | "bugs" | "tasks" | "settings";
+export type ProjectSection = "board" | "tasks" | "bugs" | "settings";
 
 export type OrganizationUser = {
     id: number;

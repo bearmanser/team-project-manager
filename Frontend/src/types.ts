@@ -1,5 +1,6 @@
 export type TaskStatus = "todo" | "in_progress" | "in_review" | "done";
 export type BugStatus = "open" | "investigating" | "monitoring" | "closed";
+export type PriorityLevel = "low" | "medium" | "high" | "critical";
 export type ProjectRole = "owner" | "admin" | "member" | "viewer";
 export type OrganizationRole = "owner" | "member";
 
@@ -130,6 +131,7 @@ export type Task = {
     title: string;
     description: string;
     status: TaskStatus;
+    priority: PriorityLevel;
     creator: User;
     assignees: User[];
     bugReportId: number | null;
@@ -150,6 +152,7 @@ export type BugTaskSummary = {
     id: number;
     title: string;
     status: TaskStatus;
+    priority: PriorityLevel;
     assigneeCount: number;
     isResolutionTask: boolean;
 };
@@ -159,6 +162,7 @@ export type BugReport = {
     title: string;
     description: string;
     status: BugStatus;
+    priority: PriorityLevel;
     reporter: User;
     resolutionTaskId: number | null;
     resolutionTaskTitle: string;
@@ -240,3 +244,4 @@ export type DeleteProjectResponse = {
     success: boolean;
     projectId: number;
 };
+

@@ -57,6 +57,12 @@ BUG_STATUS_LABELS = {
     BugReport.STATUS_MONITORING: "Monitoring",
     BugReport.STATUS_CLOSED: "Closed",
 }
+PRIORITY_LABELS = {
+    Task.PRIORITY_LOW: "Low",
+    Task.PRIORITY_MEDIUM: "Medium",
+    Task.PRIORITY_HIGH: "High",
+    Task.PRIORITY_CRITICAL: "Critical",
+}
 TASK_STATUS_LABELS = {
     Task.STATUS_TODO: "Todo",
     Task.STATUS_IN_PROGRESS: "In Progress",
@@ -509,6 +515,7 @@ def _serialize_task_summary(task: Task, bug_report: BugReport | None = None) -> 
         "id": task.id,
         "title": task.title,
         "status": task.status,
+        "priority": task.priority,
         "assigneeCount": task.assignees.count(),
         "isResolutionTask": bool(bug and bug.resolution_task_id == task.id),
     }
@@ -528,6 +535,7 @@ def _serialize_task(
         "title": task.title,
         "description": task.description,
         "status": task.status,
+        "priority": task.priority,
         "creator": _serialize_user(task.creator),
         "assignees": [_serialize_user(user) for user in task.assignees.all()],
         "bugReportId": task.bug_report_id,
@@ -558,6 +566,7 @@ def _serialize_bug_report(
         "title": bug_report.title,
         "description": bug_report.description,
         "status": bug_report.status,
+        "priority": bug_report.priority,
         "reporter": _serialize_user(bug_report.reporter),
         "resolutionTaskId": bug_report.resolution_task_id,
         "resolutionTaskTitle": bug_report.resolution_task.title if bug_report.resolution_task else "",
@@ -1217,6 +1226,7 @@ def project_tasks_view(request, project_id: int):
     title = (payload.get("title") or "").strip()
     description = (payload.get("description") or "").strip()
     status = (payload.get("status") or Task.STATUS_TODO).strip() or Task.STATUS_TODO
+    priority = (payload.get("priority") or Task.PRIORITY_MEDIUM).strip() or Task.PRIORITY_MEDIUM
     assignee_ids = []
     for value in payload.get("assigneeIds") or []:
         try:
@@ -1230,6 +1240,8 @@ def project_tasks_view(request, project_id: int):
         return _json_error("Task title is required.")
     if status not in dict(Task.STATUS_CHOICES):
         return _json_error("Choose a valid task status.")
+    if priority not in dict(Task.PRIORITY_CHOICES):
+        return _json_error("Choose a valid task priority.")
 
     bug_report = None
     if bug_report_id:
@@ -1243,6 +1255,7 @@ def project_tasks_view(request, project_id: int):
         title=title,
         description=description,
         status=status,
+        priority=priority,
         creator=request.user,
     )
     assignees = _project_members_by_ids(project, assignee_ids)
@@ -1307,10 +1320,13 @@ def project_bugs_view(request, project_id: int):
     title = (payload.get("title") or "").strip()
     description = (payload.get("description") or "").strip()
     status = (payload.get("status") or BugReport.STATUS_OPEN).strip() or BugReport.STATUS_OPEN
+    priority = (payload.get("priority") or BugReport.PRIORITY_MEDIUM).strip() or BugReport.PRIORITY_MEDIUM
     if not title:
         return _json_error("Bug report title is required.")
     if status not in dict(BugReport.STATUS_CHOICES):
         return _json_error("Choose a valid bug report status.")
+    if priority not in dict(BugReport.PRIORITY_CHOICES):
+        return _json_error("Choose a valid bug report priority.")
 
     bug_report = BugReport.objects.create(
         project=project,
@@ -1318,6 +1334,7 @@ def project_bugs_view(request, project_id: int):
         description=description,
         reporter=request.user,
         status=status,
+        priority=priority,
     )
     _record_activity(
         project,
@@ -1390,6 +1407,23 @@ def task_update_view(request, task_id: int):
                 request.user,
                 "task.status_changed",
                 f"Moved task \"{task.title}\" from {previous_label} to {next_label}.",
+                task=task,
+                bug_report=task.bug_report,
+            )
+    if "priority" in payload:
+        next_priority = (payload.get("priority") or "").strip()
+        if next_priority not in dict(Task.PRIORITY_CHOICES):
+            return _json_error("Choose a valid task priority.")
+        if next_priority != task.priority:
+            previous_label = PRIORITY_LABELS.get(task.priority, task.priority)
+            next_label = PRIORITY_LABELS.get(next_priority, next_priority)
+            task.priority = next_priority
+            changed_fields.append("priority")
+            _record_activity(
+                project,
+                request.user,
+                "task.priority_changed",
+                f"Changed task \"{task.title}\" priority from {previous_label} to {next_label}.",
                 task=task,
                 bug_report=task.bug_report,
             )
@@ -1662,6 +1696,22 @@ def bug_update_view(request, bug_id: int):
                 f"Changed bug \"{bug_report.title}\" from {previous_label} to {next_label}.",
                 bug_report=bug_report,
             )
+    if "priority" in payload:
+        priority = (payload.get("priority") or "").strip()
+        if priority not in dict(BugReport.PRIORITY_CHOICES):
+            return _json_error("Choose a valid bug report priority.")
+        if priority != bug_report.priority:
+            previous_label = PRIORITY_LABELS.get(bug_report.priority, bug_report.priority)
+            next_label = PRIORITY_LABELS.get(priority, priority)
+            bug_report.priority = priority
+            changed.append("priority")
+            _record_activity(
+                project,
+                request.user,
+                "bug.priority_changed",
+                f"Changed bug \"{bug_report.title}\" priority from {previous_label} to {next_label}.",
+                bug_report=bug_report,
+            )
 
     if changed:
         bug_report.save()
@@ -1839,6 +1889,7 @@ def notification_read_view(request, notification_id: int):
     notification.is_read = True
     notification.save(update_fields=["is_read"])
     return JsonResponse({"notification": _serialize_notification(notification)})
+
 
 
 

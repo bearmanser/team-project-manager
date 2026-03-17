@@ -3,22 +3,31 @@ import { Box, Button, Flex, Heading, Input, Stack, Text, Textarea } from "@chakr
 import { ActionIcon } from "../components/ActionIcon";
 import { ModalFrame } from "../components/ModalFrame";
 import { PlusIcon } from "../components/icons";
+import { PriorityPill } from "../components/PriorityPill";
 import { StatusPill } from "../components/StatusPill";
 import { SurfaceCard } from "../components/SurfaceCard";
-import type { BugStatus, ProjectDetail } from "../types";
-import { formatShortDate, nativeSelectStyle } from "../utils";
+import type { BugStatus, PriorityLevel, ProjectDetail } from "../types";
+import {
+    formatShortDate,
+    nativeSelectStyle,
+    PRIORITY_OPTIONS,
+    getPriorityLabel,
+    sortBugsByPriority,
+} from "../utils";
 
 type ProjectBugsPageProps = {
     createBugForm: {
         title: string;
         description: string;
         status: BugStatus;
+        priority: PriorityLevel;
     };
     isCreateOpen: boolean;
     project: ProjectDetail;
     onCreateBug: () => void;
-    onCreateBugFormChange: (field: "title" | "description" | "status", value: string) => void;
+    onCreateBugFormChange: (field: "title" | "description" | "status" | "priority", value: string) => void;
     onToggleCreateForm: () => void;
+    onUpdateBugPriority: (bugId: number, priority: PriorityLevel) => void;
     onUpdateBugStatus: (bugId: number, status: BugStatus) => void;
 };
 
@@ -29,8 +38,11 @@ export function ProjectBugsPage({
     onCreateBug,
     onCreateBugFormChange,
     onToggleCreateForm,
+    onUpdateBugPriority,
     onUpdateBugStatus,
 }: ProjectBugsPageProps) {
+    const bugReports = sortBugsByPriority(project.bugReports);
+
     return (
         <Stack gap="6">
             <Flex justify="space-between" align={{ base: "stretch", md: "center" }} gap="4" wrap="wrap">
@@ -42,7 +54,7 @@ export function ProjectBugsPage({
                         {project.name}
                     </Heading>
                     <Text color="#b0bccf" maxW="2xl">
-                        Keep bug reports concise, update their status from the row, and create new reports only when you need one.
+                        Keep bug reports concise, update status and priority inline, and create new reports only when you need one.
                     </Text>
                 </Stack>
                 <Button minW="11" h="11" borderRadius="lg" bg="#2d6cdf" color="#f8fbff" onClick={onToggleCreateForm}>
@@ -53,8 +65,8 @@ export function ProjectBugsPage({
             </Flex>
 
             <SurfaceCard p="0" overflow="hidden">
-                {project.bugReports.length ? (
-                    project.bugReports.map((bug) => {
+                {bugReports.length ? (
+                    bugReports.map((bug) => {
                         const meta = [
                             bug.description || "No description",
                             `Reporter ${bug.reporter.username}`,
@@ -83,21 +95,37 @@ export function ProjectBugsPage({
                                     </Text>
                                 </Stack>
                                 <Flex gap="2" wrap="wrap" align="center">
+                                    <PriorityPill priority={bug.priority} />
                                     {bug.resolutionTaskTitle ? <StatusPill label={bug.resolutionTaskTitle} /> : null}
                                 </Flex>
-                                <Box as="span">
-                                    <select
-                                        value={bug.status}
-                                        style={{ ...nativeSelectStyle, minWidth: 170 }}
-                                        onChange={(event) => onUpdateBugStatus(bug.id, event.target.value as BugStatus)}
-                                    >
-                                        {Object.entries(project.bugStatusLabels).map(([value, label]) => (
-                                            <option key={value} value={value}>
-                                                {label}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </Box>
+                                <Flex gap="2" wrap="wrap" align="center">
+                                    <Box as="span">
+                                        <select
+                                            value={bug.priority}
+                                            style={{ ...nativeSelectStyle, minWidth: 150 }}
+                                            onChange={(event) => onUpdateBugPriority(bug.id, event.target.value as PriorityLevel)}
+                                        >
+                                            {PRIORITY_OPTIONS.map((priority) => (
+                                                <option key={priority} value={priority}>
+                                                    {getPriorityLabel(priority)}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </Box>
+                                    <Box as="span">
+                                        <select
+                                            value={bug.status}
+                                            style={{ ...nativeSelectStyle, minWidth: 170 }}
+                                            onChange={(event) => onUpdateBugStatus(bug.id, event.target.value as BugStatus)}
+                                        >
+                                            {Object.entries(project.bugStatusLabels).map(([value, label]) => (
+                                                <option key={value} value={value}>
+                                                    {label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </Box>
+                                </Flex>
                             </Flex>
                         );
                     })
@@ -113,7 +141,7 @@ export function ProjectBugsPage({
 
             <ModalFrame
                 title="Add bug report"
-                description="Capture the issue, then keep triage moving from the list itself."
+                description="Capture the issue, set its urgency, then keep triage moving from the list itself."
                 isOpen={isCreateOpen}
                 onClose={onToggleCreateForm}
             >
@@ -152,6 +180,17 @@ export function ProjectBugsPage({
                         {Object.entries(project.bugStatusLabels).map(([value, label]) => (
                             <option key={value} value={value}>
                                 {label}
+                            </option>
+                        ))}
+                    </select>
+                    <select
+                        value={createBugForm.priority}
+                        style={nativeSelectStyle}
+                        onChange={(event) => onCreateBugFormChange("priority", event.target.value)}
+                    >
+                        {PRIORITY_OPTIONS.map((priority) => (
+                            <option key={priority} value={priority}>
+                                {getPriorityLabel(priority)} priority
                             </option>
                         ))}
                     </select>

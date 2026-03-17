@@ -223,6 +223,7 @@ export function createTask(
         title: string;
         description: string;
         status: string;
+        priority: string;
         assigneeIds: number[];
         bugReportId?: number;
         markAsResolution?: boolean;
@@ -241,7 +242,7 @@ export function createTask(
 export function createBugReport(
     token: string,
     projectId: number,
-    payload: { title: string; description: string; status: string },
+    payload: { title: string; description: string; status: string; priority: string },
 ): Promise<ProjectResponse> {
     return request<ProjectResponse>(
         `/api/projects/${projectId}/bugs/`,
@@ -260,6 +261,7 @@ export function updateTask(
         title: string;
         description: string;
         status: string;
+        priority: string;
         assigneeIds: number[];
     }>,
 ): Promise<ProjectResponse> {
@@ -333,6 +335,7 @@ export function updateBugReport(
         title: string;
         description: string;
         status: string;
+        priority: string;
     }>,
 ): Promise<ProjectResponse> {
     return request<ProjectResponse>(
@@ -424,3 +427,4 @@ export function completeGitHubOauth(
         token,
     );
 }
+

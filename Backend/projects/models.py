@@ -115,12 +115,22 @@ class BugReport(models.Model):
     STATUS_INVESTIGATING = "investigating"
     STATUS_MONITORING = "monitoring"
     STATUS_CLOSED = "closed"
+    PRIORITY_LOW = "low"
+    PRIORITY_MEDIUM = "medium"
+    PRIORITY_HIGH = "high"
+    PRIORITY_CRITICAL = "critical"
 
     STATUS_CHOICES = [
         (STATUS_OPEN, "Open"),
         (STATUS_INVESTIGATING, "Investigating"),
         (STATUS_MONITORING, "Monitoring"),
         (STATUS_CLOSED, "Closed"),
+    ]
+    PRIORITY_CHOICES = [
+        (PRIORITY_LOW, "Low"),
+        (PRIORITY_MEDIUM, "Medium"),
+        (PRIORITY_HIGH, "High"),
+        (PRIORITY_CRITICAL, "Critical"),
     ]
 
     project = models.ForeignKey(
@@ -136,6 +146,11 @@ class BugReport(models.Model):
         related_name="reported_bugs",
     )
     status = models.CharField(max_length=24, choices=STATUS_CHOICES, default=STATUS_OPEN)
+    priority = models.CharField(
+        max_length=16,
+        choices=PRIORITY_CHOICES,
+        default=PRIORITY_MEDIUM,
+    )
     resolution_task = models.ForeignKey(
         "Task",
         on_delete=models.SET_NULL,
@@ -159,12 +174,22 @@ class Task(models.Model):
     STATUS_IN_PROGRESS = "in_progress"
     STATUS_IN_REVIEW = "in_review"
     STATUS_DONE = "done"
+    PRIORITY_LOW = "low"
+    PRIORITY_MEDIUM = "medium"
+    PRIORITY_HIGH = "high"
+    PRIORITY_CRITICAL = "critical"
 
     STATUS_CHOICES = [
         (STATUS_TODO, "Todo"),
         (STATUS_IN_PROGRESS, "In Progress"),
         (STATUS_IN_REVIEW, "In Review"),
         (STATUS_DONE, "Done"),
+    ]
+    PRIORITY_CHOICES = [
+        (PRIORITY_LOW, "Low"),
+        (PRIORITY_MEDIUM, "Medium"),
+        (PRIORITY_HIGH, "High"),
+        (PRIORITY_CRITICAL, "Critical"),
     ]
 
     project = models.ForeignKey(
@@ -182,6 +207,11 @@ class Task(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     status = models.CharField(max_length=24, choices=STATUS_CHOICES, default=STATUS_TODO)
+    priority = models.CharField(
+        max_length=16,
+        choices=PRIORITY_CHOICES,
+        default=PRIORITY_MEDIUM,
+    )
     creator = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -377,3 +407,4 @@ class Notification(models.Model):
 
     class Meta:
         ordering = ["-created_at", "-id"]
+

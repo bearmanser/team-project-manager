@@ -5,16 +5,16 @@ import { Box, Button, Flex, HStack, Image, Stack, Text } from "@chakra-ui/react"
 import type { Notification, User } from "../types";
 import { getInitials } from "../utils";
 import { ActionIcon } from "./ActionIcon";
+import { DropdownMenu } from "./DropdownMenu";
 import { NotificationPanel } from "./NotificationPanel";
 
 type TopNavProps = {
-    activeAction: "profile" | null;
     busyLabel: string | null;
     notifications: Notification[];
     notificationOpen: boolean;
     unreadCount: number;
     user: User | null;
-    onOpenProfile: () => void;
+    onLogout: () => void;
     onReadNotification: (notification: Notification) => void;
     onToggleNotifications: () => void;
     onCloseNotifications: () => void;
@@ -59,13 +59,12 @@ function HeaderActionButton({
 }
 
 export function TopNav({
-    activeAction,
     busyLabel,
     notifications,
     notificationOpen,
     unreadCount,
     user,
-    onOpenProfile,
+    onLogout,
     onReadNotification,
     onToggleNotifications,
     onCloseNotifications,
@@ -135,28 +134,41 @@ export function TopNav({
                         ) : null}
                     </Box>
 
-                    <Button
-                        aria-label="Profile"
-                        minW="11"
-                        h="11"
-                        px="0"
-                        borderRadius="full"
-                        overflow="hidden"
-                        borderWidth="1px"
-                        borderColor={activeAction === "profile" ? "#4b7ee8" : "#273140"}
-                        bg="#0f141b"
-                        onClick={onOpenProfile}
-                    >
-                        {user?.githubAvatarUrl ? (
-                            <Image src={user.githubAvatarUrl} alt={user.username} w="full" h="full" objectFit="cover" />
-                        ) : (
-                            <Flex align="center" justify="center" w="full" h="full" color="#f5f7fb" fontWeight="700">
-                                {getInitials(user?.username ?? "TP")}
-                            </Flex>
+                    <DropdownMenu
+                        width="160px"
+                        items={[
+                            {
+                                label: "Log out",
+                                onClick: onLogout,
+                                tone: "danger",
+                            },
+                        ]}
+                        renderTrigger={({ toggle }) => (
+                            <Button
+                                aria-label="Profile menu"
+                                minW="11"
+                                h="11"
+                                px="0"
+                                borderRadius="full"
+                                overflow="hidden"
+                                borderWidth="1px"
+                                borderColor="#273140"
+                                bg="#0f141b"
+                                onClick={toggle}
+                            >
+                                {user?.githubAvatarUrl ? (
+                                    <Image src={user.githubAvatarUrl} alt={user.username} w="full" h="full" objectFit="cover" />
+                                ) : (
+                                    <Flex align="center" justify="center" w="full" h="full" color="#f5f7fb" fontWeight="700">
+                                        {getInitials(user?.username ?? "TP")}
+                                    </Flex>
+                                )}
+                            </Button>
                         )}
-                    </Button>
+                    />
                 </HStack>
             </Flex>
         </Box>
     );
 }
+
