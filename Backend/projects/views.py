@@ -26,6 +26,7 @@ from .models import (
     BugReport,
     GitHubIssueLink,
     Notification,
+    Organization,
     Project,
     ProjectMembership,
     ProjectRepository,
@@ -116,8 +117,53 @@ def _serialize_available_repo(repo: dict) -> dict:
     }
 
 
+def _accessible_organizations(user) -> list[Organization]:
+    return list(
+        (
+            Organization.objects.filter(owner=user)
+            | Organization.objects.filter(projects__memberships__user=user)
+        )
+        .distinct()
+        .order_by("-updated_at", "-id")
+    )
+
+def _organization_member_count(organization: Organization) -> int:
+    user_ids = set(
+        ProjectMembership.objects.filter(project__organization=organization).values_list(
+            "user_id", flat=True
+        )
+    )
+    user_ids.add(organization.owner_id)
+    return len(user_ids)
+
+
+def _serialize_organization_summary(organization: Organization, user) -> dict:
+    return {
+        "id": organization.id,
+        "name": organization.name,
+        "description": organization.description,
+        "role": "owner" if organization.owner_id == user.id else "member",
+        "memberCount": _organization_member_count(organization),
+        "projectCount": organization.projects.count(),
+        "repoCount": ProjectRepository.objects.filter(project__organization=organization).count(),
+        "openBugCount": BugReport.objects.filter(project__organization=organization)
+        .exclude(status=BugReport.STATUS_CLOSED)
+        .count(),
+        "updatedAt": organization.updated_at.isoformat(),
+    }
+
+
+def _touch_organization(organization_id: int | None) -> None:
+    if organization_id is None:
+        return
+
+    Organization.objects.filter(id=organization_id).update(updated_at=timezone.now())
+
+
 def _touch_project(project: Project) -> None:
-    Project.objects.filter(id=project.id).update(updated_at=timezone.now())
+    now = timezone.now()
+    Project.objects.filter(id=project.id).update(updated_at=now)
+    _touch_organization(project.organization_id)
 
 
 def _record_activity(
@@ -144,7 +190,11 @@ def _record_activity(
 
 
 def _load_project(project_id: int, user):
-    project = Project.objects.filter(id=project_id).select_related("owner").first()
+    project = (
+        Project.objects.filter(id=project_id)
+        .select_related("owner", "organization")
+        .first()
+    )
     if project is None:
         return None, None, _json_error("Project not found.", 404)
 
@@ -524,6 +574,7 @@ def _serialize_bug_report(
 def _serialize_project_summary(project: Project, membership: ProjectMembership) -> dict:
     return {
         "id": project.id,
+        "organizationId": project.organization_id,
         "name": project.name,
         "description": project.description,
         "role": membership.role,
@@ -633,6 +684,8 @@ def _build_project_snapshot(
 
     return {
         "id": project.id,
+        "organizationId": project.organization_id,
+        "organizationName": project.organization.name if project.organization else "",
         "name": project.name,
         "description": project.description,
         "ownerId": project.owner_id,
@@ -663,10 +716,14 @@ def _build_project_snapshot(
 def workspace_view(request):
     memberships = list(
         ProjectMembership.objects.filter(user=request.user)
-        .select_related("project", "project__owner")
+        .select_related("project", "project__owner", "project__organization")
         .order_by("-project__updated_at")
     )
     projects = [_serialize_project_summary(item.project, item) for item in memberships]
+    organizations = [
+        _serialize_organization_summary(organization, request.user)
+        for organization in _accessible_organizations(request.user)
+    ]
     notifications = [
         _serialize_notification(notification)
         for notification in Notification.objects.filter(recipient=request.user)
@@ -688,6 +745,7 @@ def workspace_view(request):
     return JsonResponse(
         {
             "user": _serialize_user(request.user),
+            "organizations": organizations,
             "projects": projects,
             "notifications": notifications,
             "availableRepos": available_repos,
@@ -699,11 +757,46 @@ def workspace_view(request):
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
 @jwt_required
+def organizations_view(request):
+    if request.method == "GET":
+        return JsonResponse(
+            {
+                "organizations": [
+                    _serialize_organization_summary(organization, request.user)
+                    for organization in _accessible_organizations(request.user)
+                ]
+            }
+        )
+
+    try:
+        payload = _parse_json_body(request)
+    except ValueError as exc:
+        return _json_error(str(exc))
+
+    name = (payload.get("name") or "").strip()
+    description = (payload.get("description") or "").strip()
+    if not name:
+        return _json_error("Organization name is required.")
+
+    organization = Organization.objects.create(
+        name=name,
+        description=description,
+        owner=request.user,
+    )
+    return JsonResponse(
+        {"organization": _serialize_organization_summary(organization, request.user)},
+        status=201,
+    )
+
+
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+@jwt_required
 def projects_view(request):
     if request.method == "GET":
         memberships = list(
             ProjectMembership.objects.filter(user=request.user)
-            .select_related("project")
+            .select_related("project", "project__organization")
             .order_by("-project__updated_at")
         )
         return JsonResponse(
@@ -715,9 +808,19 @@ def projects_view(request):
     except ValueError as exc:
         return _json_error(str(exc))
 
+    organization_id = payload.get("organizationId")
     name = (payload.get("name") or "").strip()
     description = (payload.get("description") or "").strip()
     repository_ids = [str(item) for item in payload.get("repositoryIds") or [] if str(item).strip()]
+
+    try:
+        organization_id = int(organization_id)
+    except (TypeError, ValueError):
+        return _json_error("Choose an organization for the new project.")
+
+    organization = Organization.objects.filter(id=organization_id, owner=request.user).first()
+    if organization is None:
+        return _json_error("You can only create projects inside organizations you own.", 403)
 
     if not name:
         return _json_error("Project name is required.")
@@ -742,7 +845,12 @@ def projects_view(request):
         if repo not in selected_repos:
             selected_repos.append(repo)
 
-    project = Project.objects.create(name=name, description=description, owner=request.user)
+    project = Project.objects.create(
+        name=name,
+        description=description,
+        organization=organization,
+        owner=request.user,
+    )
     membership = ProjectMembership.objects.create(
         project=project,
         user=request.user,
@@ -766,7 +874,7 @@ def projects_view(request):
         project,
         request.user,
         "project.created",
-        f"Created project \"{project.name}\" and connected {len(selected_repos)} GitHub repos.",
+        f"Created project \"{project.name}\" inside \"{organization.name}\" and connected {len(selected_repos)} GitHub repos.",
     )
     return JsonResponse({"project": _build_project_snapshot(project, request.user, membership)}, status=201)
 
@@ -864,9 +972,10 @@ def project_delete_view(request, project_id: int):
         return _json_error("Only the project owner can delete the project.", 403)
 
     deleted_project_id = project.id
+    organization_id = project.organization_id
     project.delete()
+    _touch_organization(organization_id)
     return JsonResponse({"success": True, "projectId": deleted_project_id})
-
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -1730,3 +1839,7 @@ def notification_read_view(request, notification_id: int):
     notification.is_read = True
     notification.save(update_fields=["is_read"])
     return JsonResponse({"notification": _serialize_notification(notification)})
+
+
+
+

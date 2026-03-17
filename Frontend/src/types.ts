@@ -1,6 +1,7 @@
-﻿export type TaskStatus = "todo" | "in_progress" | "in_review" | "done";
+export type TaskStatus = "todo" | "in_progress" | "in_review" | "done";
 export type BugStatus = "open" | "investigating" | "monitoring" | "closed";
 export type ProjectRole = "owner" | "admin" | "member" | "viewer";
+export type OrganizationRole = "owner" | "member";
 
 export type User = {
     id: number;
@@ -37,8 +38,21 @@ export type Notification = {
     createdAt: string;
 };
 
+export type OrganizationSummary = {
+    id: number;
+    name: string;
+    description: string;
+    role: OrganizationRole;
+    memberCount: number;
+    projectCount: number;
+    repoCount: number;
+    openBugCount: number;
+    updatedAt: string;
+};
+
 export type ProjectSummary = {
     id: number;
+    organizationId: number | null;
     name: string;
     description: string;
     role: ProjectRole;
@@ -164,6 +178,8 @@ export type BoardColumn = {
 
 export type ProjectDetail = {
     id: number;
+    organizationId: number | null;
+    organizationName: string;
     name: string;
     description: string;
     ownerId: number;
@@ -201,6 +217,7 @@ export type GitHubConnectResponse = {
 
 export type WorkspaceResponse = {
     user: User;
+    organizations: OrganizationSummary[];
     projects: ProjectSummary[];
     notifications: Notification[];
     availableRepos: Repo[];
@@ -211,6 +228,10 @@ export type ProjectResponse = {
     project: ProjectDetail;
 };
 
+export type OrganizationResponse = {
+    organization: OrganizationSummary;
+};
+
 export type NotificationResponse = {
     notification: Notification;
 };
@@ -219,4 +240,3 @@ export type DeleteProjectResponse = {
     success: boolean;
     projectId: number;
 };
-

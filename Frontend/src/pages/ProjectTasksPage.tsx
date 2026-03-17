@@ -1,7 +1,8 @@
-﻿import { Button, Grid, Heading, Input, Stack, Text, Textarea } from "@chakra-ui/react";
+import { Box, Button, Flex, Heading, Input, Stack, Text, Textarea } from "@chakra-ui/react";
 
-import { SurfaceCard } from "../components/SurfaceCard";
+import { ModalFrame } from "../components/ModalFrame";
 import { StatusPill } from "../components/StatusPill";
+import { SurfaceCard } from "../components/SurfaceCard";
 import type { ProjectDetail, TaskStatus } from "../types";
 import { formatShortDate, nativeSelectStyle } from "../utils";
 
@@ -11,110 +12,166 @@ type ProjectTasksPageProps = {
         description: string;
         status: TaskStatus;
     };
+    isCreateOpen: boolean;
     project: ProjectDetail;
     onCreateTask: () => void;
     onCreateTaskFormChange: (field: "title" | "description" | "status", value: string) => void;
+    onToggleCreateForm: () => void;
     onUpdateTaskStatus: (taskId: number, status: TaskStatus) => void;
 };
 
 export function ProjectTasksPage({
     createTaskForm,
+    isCreateOpen,
     project,
     onCreateTask,
     onCreateTaskFormChange,
+    onToggleCreateForm,
     onUpdateTaskStatus,
 }: ProjectTasksPageProps) {
     return (
         <Stack gap="6">
-            <SurfaceCard p={{ base: "6", lg: "8" }}>
-                <Grid templateColumns={{ base: "1fr", xl: "0.8fr 1.2fr" }} gap="8">
-                    <Stack
-                        as="form"
-                        gap="4"
-                        onSubmit={(event) => {
-                            event.preventDefault();
-                            onCreateTask();
-                        }}
-                    >
-                        <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="#90a0b7">
-                            Create task
-                        </Text>
-                        <Input
-                            value={createTaskForm.title}
-                            onChange={(event) => onCreateTaskFormChange("title", event.target.value)}
-                            placeholder="Ship org-level user management"
-                            bg="#0f141b"
-                            borderColor="#2b3544"
-                            borderRadius="0"
-                            color="#f5f7fb"
-                        />
-                        <Textarea
-                            value={createTaskForm.description}
-                            onChange={(event) => onCreateTaskFormChange("description", event.target.value)}
-                            placeholder="Add the details teammates need."
-                            bg="#0f141b"
-                            borderColor="#2b3544"
-                            borderRadius="0"
-                            color="#f5f7fb"
-                            minH="140px"
-                        />
-                        <select
-                            value={createTaskForm.status}
-                            style={nativeSelectStyle}
-                            onChange={(event) => onCreateTaskFormChange("status", event.target.value)}
-                        >
-                            {project.boardColumns.map((column) => (
-                                <option key={column.id} value={column.id}>
-                                    {column.label}
-                                </option>
-                            ))}
-                        </select>
-                        <Button type="submit" borderRadius="0" bg="#2d6cdf" color="#f8fbff">
-                            Create task
-                        </Button>
-                    </Stack>
+            <Flex justify="space-between" align={{ base: "stretch", md: "center" }} gap="4" wrap="wrap">
+                <Stack gap="1">
+                    <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="#90a0b7">
+                        Tasks
+                    </Text>
+                    <Heading size="2xl" color="#f5f7fb">
+                        {project.name}
+                    </Heading>
+                    <Text color="#b0bccf" maxW="2xl">
+                        Keep tasks lightweight, update status inline, and add new work from the + button instead of a permanent create form.
+                    </Text>
+                </Stack>
+                <Button
+                    minW="12"
+                    h="12"
+                    borderRadius="full"
+                    bg="#2d6cdf"
+                    color="#f8fbff"
+                    fontSize="2xl"
+                    lineHeight="1"
+                    onClick={onToggleCreateForm}
+                >
+                    +
+                </Button>
+            </Flex>
 
-                    <Stack gap="4">
-                        <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="#90a0b7">
-                            Task list
+            <SurfaceCard p="0" overflow="hidden">
+                {project.tasks.length ? (
+                    project.tasks.map((task) => {
+                        const meta = [
+                            task.description || "No description",
+                            task.assignees.length
+                                ? `Assigned to ${task.assignees.map((assignee) => assignee.username).join(", ")}`
+                                : "Unassigned",
+                            `Updated ${formatShortDate(task.updatedAt)}`,
+                        ].join(" · ");
+
+                        return (
+                            <Flex
+                                key={task.id}
+                                px={{ base: "4", lg: "5" }}
+                                py="4"
+                                align={{ base: "flex-start", lg: "center" }}
+                                justify="space-between"
+                                gap="4"
+                                wrap="wrap"
+                                borderBottomWidth="1px"
+                                borderColor="#273140"
+                                _last={{ borderBottomWidth: "0" }}
+                            >
+                                <Stack gap="2" flex="1" minW="260px">
+                                    <Text color="#f5f7fb" fontWeight="700" whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis">
+                                        {task.title}
+                                    </Text>
+                                    <Text color="#90a0b7" fontSize="sm" whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis">
+                                        {meta}
+                                    </Text>
+                                </Stack>
+                                <Flex gap="2" wrap="wrap" align="center">
+                                    {task.bugReportTitle ? <StatusPill label={task.bugReportTitle} /> : null}
+                                    {task.isResolutionTask ? <StatusPill label="Resolution" /> : null}
+                                    {task.branchName ? <StatusPill label={task.branchName} /> : null}
+                                </Flex>
+                                <Box as="span">
+                                    <select
+                                        value={task.status}
+                                        style={{ ...nativeSelectStyle, minWidth: 170 }}
+                                        onChange={(event) =>
+                                            onUpdateTaskStatus(task.id, event.target.value as TaskStatus)
+                                        }
+                                    >
+                                        {project.boardColumns.map((column) => (
+                                            <option key={column.id} value={column.id}>
+                                                {column.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </Box>
+                            </Flex>
+                        );
+                    })
+                ) : (
+                    <Stack p="6" gap="2">
+                        <Text color="#f5f7fb" fontWeight="600">
+                            No tasks yet.
                         </Text>
-                        {project.tasks.length ? (
-                            project.tasks.map((task) => (
-                                <SurfaceCard key={task.id} p="4" bg="#0f141b">
-                                    <Stack gap="3">
-                                        <Heading size="sm" color="#f5f7fb">
-                                            {task.title}
-                                        </Heading>
-                                        <Text color="#90a0b7">{task.description || "No description yet."}</Text>
-                                        <Stack direction="row" wrap="wrap">
-                                            <StatusPill label={project.taskStatusLabels[task.status]} />
-                                            {task.branchName ? <StatusPill label={task.branchName} /> : null}
-                                        </Stack>
-                                        <Text color="#d8e1ee" fontSize="sm">
-                                            Updated {formatShortDate(task.updatedAt)}
-                                        </Text>
-                                        <select
-                                            value={task.status}
-                                            style={nativeSelectStyle}
-                                            onChange={(event) =>
-                                                onUpdateTaskStatus(task.id, event.target.value as TaskStatus)
-                                            }
-                                        >
-                                            {project.boardColumns.map((column) => (
-                                                <option key={column.id} value={column.id}>
-                                                    {column.label}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </Stack>
-                                </SurfaceCard>
-                            ))
-                        ) : (
-                            <Text color="#90a0b7">No tasks yet.</Text>
-                        )}
+                        <Text color="#90a0b7">Use the + button to add the first task.</Text>
                     </Stack>
-                </Grid>
+                )}
             </SurfaceCard>
+
+            <ModalFrame
+                title="Add task"
+                description="Capture the work, then manage the status directly from the list."
+                isOpen={isCreateOpen}
+                onClose={onToggleCreateForm}
+            >
+                <Stack
+                    as="form"
+                    gap="4"
+                    onSubmit={(event) => {
+                        event.preventDefault();
+                        onCreateTask();
+                    }}
+                >
+                    <Input
+                        value={createTaskForm.title}
+                        onChange={(event) => onCreateTaskFormChange("title", event.target.value)}
+                        placeholder="Ship org-level user management"
+                        bg="#0f141b"
+                        borderColor="#2b3544"
+                        borderRadius="0"
+                        color="#f5f7fb"
+                    />
+                    <Textarea
+                        value={createTaskForm.description}
+                        onChange={(event) => onCreateTaskFormChange("description", event.target.value)}
+                        placeholder="Add the details teammates need."
+                        bg="#0f141b"
+                        borderColor="#2b3544"
+                        borderRadius="0"
+                        color="#f5f7fb"
+                        minH="140px"
+                    />
+                    <select
+                        value={createTaskForm.status}
+                        style={nativeSelectStyle}
+                        onChange={(event) => onCreateTaskFormChange("status", event.target.value)}
+                    >
+                        {project.boardColumns.map((column) => (
+                            <option key={column.id} value={column.id}>
+                                {column.label}
+                            </option>
+                        ))}
+                    </select>
+                    <Button type="submit" borderRadius="full" bg="#2d6cdf" color="#f8fbff">
+                        Add task
+                    </Button>
+                </Stack>
+            </ModalFrame>
         </Stack>
     );
 }
+

@@ -1,4 +1,4 @@
-﻿import { Box, Button, Flex, Stack, Text } from "@chakra-ui/react";
+import { Box, Button, Flex, Stack, Text } from "@chakra-ui/react";
 
 import type { Notification } from "../types";
 import { formatDateTime } from "../utils";
@@ -6,37 +6,48 @@ import { SurfaceCard } from "./SurfaceCard";
 
 type NotificationPanelProps = {
     notifications: Notification[];
+    onClose: () => void;
     onReadNotification: (notification: Notification) => void;
 };
 
-export function NotificationPanel({ notifications, onReadNotification }: NotificationPanelProps) {
+export function NotificationPanel({
+    notifications,
+    onClose,
+    onReadNotification,
+}: NotificationPanelProps) {
     return (
         <SurfaceCard
             position="absolute"
             top="calc(100% + 12px)"
             right="0"
             zIndex="20"
-            w={{ base: "calc(100vw - 32px)", md: "360px" }}
+            w={{ base: "calc(100vw - 32px)", md: "380px" }}
             p="4"
         >
             <Stack gap="3">
-                <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="#90a0b7">
-                    Notifications
-                </Text>
+                <Flex align="center" justify="space-between" gap="3">
+                    <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="#90a0b7">
+                        Notifications
+                    </Text>
+                    <Button variant="ghost" color="#eef3fb" minW="8" h="8" px="0" onClick={onClose}>
+                        x
+                    </Button>
+                </Flex>
+
                 {notifications.length ? (
                     notifications.map((notification) => (
                         <Box
                             key={notification.id}
-                            borderWidth="1px"
-                            borderColor={notification.isRead ? "#273140" : "#3a74d8"}
-                            bg={notification.isRead ? "#0f141b" : "#111e34"}
-                            p="3"
+                            borderBottomWidth="1px"
+                            borderColor="#273140"
+                            pb="3"
+                            _last={{ borderBottomWidth: "0", pb: "0" }}
                         >
                             <Stack gap="2">
-                                <Text fontWeight="600" color="#f5f7fb">
+                                <Text color="#f5f7fb" fontWeight={notification.isRead ? "500" : "700"}>
                                     {notification.message}
                                 </Text>
-                                <Flex align="center" justify="space-between" gap="3">
+                                <Flex align="center" justify="space-between" gap="3" wrap="wrap">
                                     <Text fontSize="sm" color="#90a0b7">
                                         {formatDateTime(notification.createdAt)}
                                     </Text>
@@ -44,7 +55,7 @@ export function NotificationPanel({ notifications, onReadNotification }: Notific
                                         <Button
                                             size="xs"
                                             variant="outline"
-                                            borderRadius="0"
+                                            borderRadius="full"
                                             borderColor="#3a74d8"
                                             color="#dfe9ff"
                                             bg="transparent"

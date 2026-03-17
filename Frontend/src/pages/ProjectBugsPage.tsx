@@ -1,7 +1,8 @@
-﻿import { Button, Grid, Heading, Input, Stack, Text, Textarea } from "@chakra-ui/react";
+import { Box, Button, Flex, Heading, Input, Stack, Text, Textarea } from "@chakra-ui/react";
 
-import { SurfaceCard } from "../components/SurfaceCard";
+import { ModalFrame } from "../components/ModalFrame";
 import { StatusPill } from "../components/StatusPill";
+import { SurfaceCard } from "../components/SurfaceCard";
 import type { BugStatus, ProjectDetail } from "../types";
 import { formatShortDate, nativeSelectStyle } from "../utils";
 
@@ -11,112 +12,159 @@ type ProjectBugsPageProps = {
         description: string;
         status: BugStatus;
     };
+    isCreateOpen: boolean;
     project: ProjectDetail;
     onCreateBug: () => void;
     onCreateBugFormChange: (field: "title" | "description" | "status", value: string) => void;
+    onToggleCreateForm: () => void;
     onUpdateBugStatus: (bugId: number, status: BugStatus) => void;
 };
 
 export function ProjectBugsPage({
     createBugForm,
+    isCreateOpen,
     project,
     onCreateBug,
     onCreateBugFormChange,
+    onToggleCreateForm,
     onUpdateBugStatus,
 }: ProjectBugsPageProps) {
     return (
         <Stack gap="6">
-            <SurfaceCard p={{ base: "6", lg: "8" }}>
-                <Grid templateColumns={{ base: "1fr", xl: "0.8fr 1.2fr" }} gap="8">
-                    <Stack
-                        as="form"
-                        gap="4"
-                        onSubmit={(event) => {
-                            event.preventDefault();
-                            onCreateBug();
-                        }}
-                    >
-                        <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="#90a0b7">
-                            Report bug
-                        </Text>
-                        <Input
-                            value={createBugForm.title}
-                            onChange={(event) => onCreateBugFormChange("title", event.target.value)}
-                            placeholder="Board is not syncing live updates"
-                            bg="#0f141b"
-                            borderColor="#2b3544"
-                            borderRadius="0"
-                            color="#f5f7fb"
-                        />
-                        <Textarea
-                            value={createBugForm.description}
-                            onChange={(event) => onCreateBugFormChange("description", event.target.value)}
-                            placeholder="Describe the issue, impact, and current behavior."
-                            bg="#0f141b"
-                            borderColor="#2b3544"
-                            borderRadius="0"
-                            color="#f5f7fb"
-                            minH="140px"
-                        />
-                        <select
-                            value={createBugForm.status}
-                            style={nativeSelectStyle}
-                            onChange={(event) => onCreateBugFormChange("status", event.target.value)}
-                        >
-                            {Object.entries(project.bugStatusLabels).map(([value, label]) => (
-                                <option key={value} value={value}>
-                                    {label}
-                                </option>
-                            ))}
-                        </select>
-                        <Button type="submit" borderRadius="0" bg="#2d6cdf" color="#f8fbff">
-                            Create bug report
-                        </Button>
-                    </Stack>
+            <Flex justify="space-between" align={{ base: "stretch", md: "center" }} gap="4" wrap="wrap">
+                <Stack gap="1">
+                    <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="#90a0b7">
+                        Bugs
+                    </Text>
+                    <Heading size="2xl" color="#f5f7fb">
+                        {project.name}
+                    </Heading>
+                    <Text color="#b0bccf" maxW="2xl">
+                        Keep bug reports concise, update their status from the row, and create new reports from the + button when you actually need one.
+                    </Text>
+                </Stack>
+                <Button
+                    minW="12"
+                    h="12"
+                    borderRadius="full"
+                    bg="#2d6cdf"
+                    color="#f8fbff"
+                    fontSize="2xl"
+                    lineHeight="1"
+                    onClick={onToggleCreateForm}
+                >
+                    +
+                </Button>
+            </Flex>
 
-                    <Stack gap="4">
-                        <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="#90a0b7">
-                            Active bug reports
+            <SurfaceCard p="0" overflow="hidden">
+                {project.bugReports.length ? (
+                    project.bugReports.map((bug) => {
+                        const meta = [
+                            bug.description || "No description",
+                            `Reporter ${bug.reporter.username}`,
+                            `Updated ${formatShortDate(bug.updatedAt)}`,
+                        ].join(" · ");
+
+                        return (
+                            <Flex
+                                key={bug.id}
+                                px={{ base: "4", lg: "5" }}
+                                py="4"
+                                align={{ base: "flex-start", lg: "center" }}
+                                justify="space-between"
+                                gap="4"
+                                wrap="wrap"
+                                borderBottomWidth="1px"
+                                borderColor="#273140"
+                                _last={{ borderBottomWidth: "0" }}
+                            >
+                                <Stack gap="2" flex="1" minW="260px">
+                                    <Text color="#f5f7fb" fontWeight="700" whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis">
+                                        {bug.title}
+                                    </Text>
+                                    <Text color="#90a0b7" fontSize="sm" whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis">
+                                        {meta}
+                                    </Text>
+                                </Stack>
+                                <Flex gap="2" wrap="wrap" align="center">
+                                    {bug.resolutionTaskTitle ? <StatusPill label={bug.resolutionTaskTitle} /> : null}
+                                </Flex>
+                                <Box as="span">
+                                    <select
+                                        value={bug.status}
+                                        style={{ ...nativeSelectStyle, minWidth: 170 }}
+                                        onChange={(event) => onUpdateBugStatus(bug.id, event.target.value as BugStatus)}
+                                    >
+                                        {Object.entries(project.bugStatusLabels).map(([value, label]) => (
+                                            <option key={value} value={value}>
+                                                {label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </Box>
+                            </Flex>
+                        );
+                    })
+                ) : (
+                    <Stack p="6" gap="2">
+                        <Text color="#f5f7fb" fontWeight="600">
+                            No bug reports yet.
                         </Text>
-                        {project.bugReports.length ? (
-                            project.bugReports.map((bug) => (
-                                <SurfaceCard key={bug.id} p="4" bg="#0f141b">
-                                    <Stack gap="3">
-                                        <Heading size="sm" color="#f5f7fb">
-                                            {bug.title}
-                                        </Heading>
-                                        <Text color="#90a0b7">{bug.description || "No description yet."}</Text>
-                                        <Stack direction="row" wrap="wrap">
-                                            <StatusPill label={project.bugStatusLabels[bug.status]} />
-                                            {bug.resolutionTaskTitle ? (
-                                                <StatusPill label={bug.resolutionTaskTitle} />
-                                            ) : null}
-                                        </Stack>
-                                        <Text color="#d8e1ee" fontSize="sm">
-                                            Reporter: {bug.reporter.username} · Updated {formatShortDate(bug.updatedAt)}
-                                        </Text>
-                                        <select
-                                            value={bug.status}
-                                            style={nativeSelectStyle}
-                                            onChange={(event) =>
-                                                onUpdateBugStatus(bug.id, event.target.value as BugStatus)
-                                            }
-                                        >
-                                            {Object.entries(project.bugStatusLabels).map(([value, label]) => (
-                                                <option key={value} value={value}>
-                                                    {label}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </Stack>
-                                </SurfaceCard>
-                            ))
-                        ) : (
-                            <Text color="#90a0b7">No bug reports yet.</Text>
-                        )}
+                        <Text color="#90a0b7">Use the + button to add the first bug report.</Text>
                     </Stack>
-                </Grid>
+                )}
             </SurfaceCard>
+
+            <ModalFrame
+                title="Add bug report"
+                description="Capture the issue, then keep triage moving from the list itself."
+                isOpen={isCreateOpen}
+                onClose={onToggleCreateForm}
+            >
+                <Stack
+                    as="form"
+                    gap="4"
+                    onSubmit={(event) => {
+                        event.preventDefault();
+                        onCreateBug();
+                    }}
+                >
+                    <Input
+                        value={createBugForm.title}
+                        onChange={(event) => onCreateBugFormChange("title", event.target.value)}
+                        placeholder="Board is not syncing live updates"
+                        bg="#0f141b"
+                        borderColor="#2b3544"
+                        borderRadius="0"
+                        color="#f5f7fb"
+                    />
+                    <Textarea
+                        value={createBugForm.description}
+                        onChange={(event) => onCreateBugFormChange("description", event.target.value)}
+                        placeholder="Describe the issue, impact, and current behavior."
+                        bg="#0f141b"
+                        borderColor="#2b3544"
+                        borderRadius="0"
+                        color="#f5f7fb"
+                        minH="140px"
+                    />
+                    <select
+                        value={createBugForm.status}
+                        style={nativeSelectStyle}
+                        onChange={(event) => onCreateBugFormChange("status", event.target.value)}
+                    >
+                        {Object.entries(project.bugStatusLabels).map(([value, label]) => (
+                            <option key={value} value={value}>
+                                {label}
+                            </option>
+                        ))}
+                    </select>
+                    <Button type="submit" borderRadius="full" bg="#2d6cdf" color="#f8fbff">
+                        Add bug report
+                    </Button>
+                </Stack>
+            </ModalFrame>
         </Stack>
     );
 }

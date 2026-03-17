@@ -1,95 +1,147 @@
-﻿import { Button, Grid, Heading, Stack, Text } from "@chakra-ui/react";
+import { Button, Flex, Heading, Input, Stack, Text, Textarea } from "@chakra-ui/react";
 
+import { ModalFrame } from "../components/ModalFrame";
 import { SurfaceCard } from "../components/SurfaceCard";
-import type { ProjectSummary } from "../types";
+import type { OrganizationSummary } from "../types";
 import { formatShortDate } from "../utils";
-import type { OrganizationSummary } from "../view-models";
 
 type OrganizationOverviewPageProps = {
-    organization: OrganizationSummary;
-    projects: ProjectSummary[];
-    onEnterOrganization: () => void;
+    createOrganizationForm: {
+        name: string;
+        description: string;
+    };
+    isCreatingOrganization: boolean;
+    organizations: OrganizationSummary[];
+    showCreateForm: boolean;
+    onCreateOrganization: () => void;
+    onCreateOrganizationFormChange: (field: "name" | "description", value: string) => void;
+    onOpenOrganization: (organizationId: number) => void;
+    onToggleCreateForm: () => void;
 };
 
 export function OrganizationOverviewPage({
-    organization,
-    projects,
-    onEnterOrganization,
+    createOrganizationForm,
+    isCreatingOrganization,
+    organizations,
+    showCreateForm,
+    onCreateOrganization,
+    onCreateOrganizationFormChange,
+    onOpenOrganization,
+    onToggleCreateForm,
 }: OrganizationOverviewPageProps) {
     return (
         <Stack gap="6">
-            <SurfaceCard p={{ base: "6", lg: "8" }}>
-                <Grid templateColumns={{ base: "1fr", xl: "1.1fr 0.9fr" }} gap="8">
-                    <Stack gap="4">
-                        <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.18em" color="#90a0b7">
-                            Organization overview
-                        </Text>
-                        <Heading size="3xl" color="#f5f7fb">
-                            {organization.name}
-                        </Heading>
-                        <Text color="#b0bccf" fontSize="lg" maxW="2xl">
-                            {organization.description}
-                        </Text>
-                        <Button
-                            alignSelf="flex-start"
-                            borderRadius="0"
-                            bg="#2d6cdf"
-                            color="#f8fbff"
-                            onClick={onEnterOrganization}
-                        >
-                            Open organization
-                        </Button>
-                    </Stack>
-
-                    <Grid templateColumns="repeat(2, 1fr)" gap="4">
-                        {[
-                            { label: "Projects", value: organization.projectCount },
-                            { label: "Repositories", value: organization.repoCount },
-                            { label: "Open bugs", value: organization.openBugCount },
-                            { label: "Known users", value: organization.memberCount },
-                        ].map((stat) => (
-                            <SurfaceCard key={stat.label} p="5" bg="#0f141b">
-                                <Stack gap="2">
-                                    <Text color="#90a0b7" textTransform="uppercase" fontSize="xs" letterSpacing="0.14em">
-                                        {stat.label}
-                                    </Text>
-                                    <Text color="#f5f7fb" fontSize="3xl" fontWeight="700">
-                                        {stat.value}
-                                    </Text>
-                                </Stack>
-                            </SurfaceCard>
-                        ))}
-                    </Grid>
-                </Grid>
-            </SurfaceCard>
-
-            <SurfaceCard p={{ base: "6", lg: "8" }}>
-                <Stack gap="4">
-                    <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="#90a0b7">
-                        Active projects
+            <Flex justify="space-between" align={{ base: "stretch", md: "center" }} gap="4" wrap="wrap">
+                <Stack gap="1">
+                    <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.18em" color="#90a0b7">
+                        Organizations
                     </Text>
-                    <Grid templateColumns={{ base: "1fr", lg: "repeat(3, 1fr)" }} gap="4">
-                        {projects.length ? (
-                            projects.slice(0, 6).map((project) => (
-                                <SurfaceCard key={project.id} p="5" bg="#0f141b">
-                                    <Stack gap="2">
-                                        <Heading size="md" color="#f5f7fb">
-                                            {project.name}
-                                        </Heading>
-                                        <Text color="#90a0b7">{project.description || "No description yet."}</Text>
-                                        <Text color="#d8e1ee" fontSize="sm">
-                                            {project.repoCount} repo · {project.memberCount} members · updated{' '}
-                                            {formatShortDate(project.updatedAt)}
-                                        </Text>
-                                    </Stack>
-                                </SurfaceCard>
-                            ))
-                        ) : (
-                            <Text color="#90a0b7">No projects yet. Open the organization to create the first one.</Text>
-                        )}
-                    </Grid>
+                    <Heading size="2xl" color="#f5f7fb">
+                        Pick a workspace
+                    </Heading>
+                    <Text color="#b0bccf" maxW="2xl">
+                        Create organizations, group projects underneath them, and keep the top level focused on the workspaces you actually use.
+                    </Text>
                 </Stack>
+                <Button
+                    minW="12"
+                    h="12"
+                    borderRadius="full"
+                    bg="#2d6cdf"
+                    color="#f8fbff"
+                    fontSize="2xl"
+                    lineHeight="1"
+                    onClick={onToggleCreateForm}
+                >
+                    +
+                </Button>
+            </Flex>
+
+            <SurfaceCard p="0" overflow="hidden">
+                {organizations.length ? (
+                    organizations.map((organization) => (
+                        <Flex
+                            key={organization.id}
+                            px={{ base: "4", lg: "5" }}
+                            py="4"
+                            align={{ base: "flex-start", lg: "center" }}
+                            justify="space-between"
+                            gap="4"
+                            wrap="wrap"
+                            borderBottomWidth="1px"
+                            borderColor="#273140"
+                            _last={{ borderBottomWidth: "0" }}
+                        >
+                            <Stack gap="1" flex="1" minW="260px">
+                                <Heading size="md" color="#f5f7fb">
+                                    {organization.name}
+                                </Heading>
+                                <Text color="#90a0b7">
+                                    {organization.description || "No description yet."}
+                                </Text>
+                                <Text color="#728198" fontSize="sm">
+                                    {organization.projectCount} projects · {organization.repoCount} repos · {organization.memberCount} people · {organization.openBugCount} open bugs · updated {formatShortDate(organization.updatedAt)}
+                                </Text>
+                            </Stack>
+                            <Button
+                                borderRadius="full"
+                                variant="outline"
+                                borderColor="#2b3544"
+                                color="#eef3fb"
+                                onClick={() => onOpenOrganization(organization.id)}
+                            >
+                                Open
+                            </Button>
+                        </Flex>
+                    ))
+                ) : (
+                    <Stack p="6" gap="2">
+                        <Text color="#f5f7fb" fontWeight="600">
+                            No organizations yet.
+                        </Text>
+                        <Text color="#90a0b7">Use the + button to add the first one.</Text>
+                    </Stack>
+                )}
             </SurfaceCard>
+
+            <ModalFrame
+                title="Add organization"
+                description="Give the workspace a name and short description."
+                isOpen={showCreateForm}
+                onClose={onToggleCreateForm}
+            >
+                <Stack
+                    as="form"
+                    gap="4"
+                    onSubmit={(event) => {
+                        event.preventDefault();
+                        onCreateOrganization();
+                    }}
+                >
+                    <Input
+                        value={createOrganizationForm.name}
+                        onChange={(event) => onCreateOrganizationFormChange("name", event.target.value)}
+                        placeholder="Platform delivery"
+                        bg="#0f141b"
+                        borderColor="#2b3544"
+                        borderRadius="0"
+                        color="#f5f7fb"
+                    />
+                    <Textarea
+                        value={createOrganizationForm.description}
+                        onChange={(event) => onCreateOrganizationFormChange("description", event.target.value)}
+                        placeholder="Shared work across services, frontend, and ops."
+                        bg="#0f141b"
+                        borderColor="#2b3544"
+                        borderRadius="0"
+                        color="#f5f7fb"
+                        minH="120px"
+                    />
+                    <Button type="submit" borderRadius="full" bg="#2d6cdf" color="#f8fbff">
+                        {isCreatingOrganization ? "Adding..." : "Add organization"}
+                    </Button>
+                </Stack>
+            </ModalFrame>
         </Stack>
     );
 }

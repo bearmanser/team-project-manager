@@ -1,18 +1,8 @@
-﻿import type { ProjectRole, User } from "./types";
+import type { OrganizationSummary, ProjectRole, User } from "./types";
 
-export type TopView = "organizations" | "settings" | "profile";
+export type TopView = "organizations" | "profile";
 export type OrganizationSection = "projects" | "users" | "settings";
 export type ProjectSection = "board" | "bugs" | "tasks" | "settings";
-
-export type OrganizationSummary = {
-    id: string;
-    name: string;
-    description: string;
-    projectCount: number;
-    repoCount: number;
-    openBugCount: number;
-    memberCount: number;
-};
 
 export type OrganizationUser = {
     id: number;
@@ -26,3 +16,5 @@ export type NavItem<T extends string> = {
     label: string;
     description: string;
 };
+
+export type { OrganizationSummary };

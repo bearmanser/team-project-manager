@@ -1,4 +1,4 @@
-﻿import { Button, Grid, Heading, Input, Link, Stack, Text, Textarea } from "@chakra-ui/react";
+import { Button, Grid, Heading, Input, Link, Stack, Text, Textarea } from "@chakra-ui/react";
 
 import { SurfaceCard } from "../components/SurfaceCard";
 import type { ProjectDetail } from "../types";
@@ -27,20 +27,17 @@ export function ProjectSettingsPage({
 
     return (
         <Stack gap="6">
-            <SurfaceCard p={{ base: "6", lg: "8" }}>
-                <Stack gap="3">
-                    <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="#90a0b7">
-                        Project settings
-                    </Text>
-                    <Heading size="2xl" color="#f5f7fb">
-                        Configure {project.name}
-                    </Heading>
-                    <Text color="#b0bccf" maxW="2xl">
-                        Project settings now assume a single connected repository. Users are managed at the
-                        organization level and no longer modeled as their own project section.
-                    </Text>
-                </Stack>
-            </SurfaceCard>
+            <Stack gap="1">
+                <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="#90a0b7">
+                    Project settings
+                </Text>
+                <Heading size="2xl" color="#f5f7fb">
+                    {project.name}
+                </Heading>
+                <Text color="#b0bccf" maxW="2xl">
+                    Keep the essentials here: naming, description, repository reference, and deletion when the project no longer belongs in this organization.
+                </Text>
+            </Stack>
 
             <Grid templateColumns={{ base: "1fr", xl: "1fr 1fr" }} gap="4">
                 <SurfaceCard
@@ -73,8 +70,8 @@ export function ProjectSettingsPage({
                             color="#f5f7fb"
                             minH="140px"
                         />
-                        <Button type="submit" borderRadius="0" bg="#2d6cdf" color="#f8fbff">
-                            {busyLabel === "Saving project settings" ? busyLabel : "Save project settings"}
+                        <Button type="submit" borderRadius="full" bg="#2d6cdf" color="#f8fbff">
+                            {busyLabel === "Saving project settings" ? busyLabel : "Save changes"}
                         </Button>
                     </Stack>
                 </SurfaceCard>
@@ -100,8 +97,7 @@ export function ProjectSettingsPage({
                             )}
                             {project.repositories.length > 1 ? (
                                 <Text color="#ffc6ce">
-                                    This project still has legacy multi-repo data. The new UI treats the first repo as
-                                    the primary project repository.
+                                    This project still has legacy multi-repo data. The interface now treats the first repo as the primary one.
                                 </Text>
                             ) : null}
                         </Stack>
@@ -116,7 +112,7 @@ export function ProjectSettingsPage({
                                 Delete the entire project if it should no longer live inside this organization.
                             </Text>
                             <Button
-                                borderRadius="0"
+                                borderRadius="full"
                                 variant="outline"
                                 borderColor="#8c3a46"
                                 color="#ffc6ce"

@@ -1,9 +1,10 @@
-﻿import type {
+import type {
     AuthResponse,
     DeleteProjectResponse,
     GitHubConnectResponse,
     GitHubOAuthStartResponse,
     NotificationResponse,
+    OrganizationResponse,
     ProjectResponse,
     UserResponse,
     WorkspaceResponse,
@@ -84,18 +85,36 @@ export function getWorkspace(token: string): Promise<WorkspaceResponse> {
     return request<WorkspaceResponse>("/api/workspace/", {}, token);
 }
 
+export function createOrganization(
+    token: string,
+    payload: { name: string; description: string },
+): Promise<OrganizationResponse> {
+    return request<OrganizationResponse>(
+        "/api/organizations/",
+        {
+            method: "POST",
+            body: JSON.stringify(payload),
+        },
+        token,
+    );
+}
+
 export function getProject(token: string, projectId: number): Promise<ProjectResponse> {
     return request<ProjectResponse>(`/api/projects/${projectId}/`, {}, token);
 }
 
 export function createProject(
     token: string,
-    payload: { name: string; description: string; repositoryIds: string[] },
+    payload: { organizationId: number; name: string; description: string; repositoryIds: string[] },
 ): Promise<ProjectResponse> {
-    return request<ProjectResponse>("/api/projects/", {
-        method: "POST",
-        body: JSON.stringify(payload),
-    }, token);
+    return request<ProjectResponse>(
+        "/api/projects/",
+        {
+            method: "POST",
+            body: JSON.stringify(payload),
+        },
+        token,
+    );
 }
 
 export function updateProjectSettings(
@@ -103,16 +122,24 @@ export function updateProjectSettings(
     projectId: number,
     payload: { name: string; description: string },
 ): Promise<ProjectResponse> {
-    return request<ProjectResponse>(`/api/projects/${projectId}/settings/`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-    }, token);
+    return request<ProjectResponse>(
+        `/api/projects/${projectId}/settings/`,
+        {
+            method: "POST",
+            body: JSON.stringify(payload),
+        },
+        token,
+    );
 }
 
 export function deleteProject(token: string, projectId: number): Promise<DeleteProjectResponse> {
-    return request<DeleteProjectResponse>(`/api/projects/${projectId}/delete/`, {
-        method: "POST",
-    }, token);
+    return request<DeleteProjectResponse>(
+        `/api/projects/${projectId}/delete/`,
+        {
+            method: "POST",
+        },
+        token,
+    );
 }
 
 export function addProjectRepos(
@@ -120,10 +147,14 @@ export function addProjectRepos(
     projectId: number,
     payload: { repositoryIds: string[] },
 ): Promise<ProjectResponse> {
-    return request<ProjectResponse>(`/api/projects/${projectId}/repos/add/`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-    }, token);
+    return request<ProjectResponse>(
+        `/api/projects/${projectId}/repos/add/`,
+        {
+            method: "POST",
+            body: JSON.stringify(payload),
+        },
+        token,
+    );
 }
 
 export function removeProjectRepo(
@@ -131,9 +162,13 @@ export function removeProjectRepo(
     projectId: number,
     repositoryId: number,
 ): Promise<ProjectResponse> {
-    return request<ProjectResponse>(`/api/projects/${projectId}/repos/${repositoryId}/remove/`, {
-        method: "POST",
-    }, token);
+    return request<ProjectResponse>(
+        `/api/projects/${projectId}/repos/${repositoryId}/remove/`,
+        {
+            method: "POST",
+        },
+        token,
+    );
 }
 
 export function addProjectMember(
@@ -141,10 +176,14 @@ export function addProjectMember(
     projectId: number,
     payload: { identifier: string; role: string },
 ): Promise<ProjectResponse> {
-    return request<ProjectResponse>(`/api/projects/${projectId}/members/`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-    }, token);
+    return request<ProjectResponse>(
+        `/api/projects/${projectId}/members/`,
+        {
+            method: "POST",
+            body: JSON.stringify(payload),
+        },
+        token,
+    );
 }
 
 export function updateProjectMemberRole(
@@ -153,10 +192,14 @@ export function updateProjectMemberRole(
     membershipId: number,
     payload: { role: string },
 ): Promise<ProjectResponse> {
-    return request<ProjectResponse>(`/api/projects/${projectId}/members/${membershipId}/role/`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-    }, token);
+    return request<ProjectResponse>(
+        `/api/projects/${projectId}/members/${membershipId}/role/`,
+        {
+            method: "POST",
+            body: JSON.stringify(payload),
+        },
+        token,
+    );
 }
 
 export function removeProjectMember(
@@ -164,9 +207,13 @@ export function removeProjectMember(
     projectId: number,
     membershipId: number,
 ): Promise<ProjectResponse> {
-    return request<ProjectResponse>(`/api/projects/${projectId}/members/${membershipId}/remove/`, {
-        method: "POST",
-    }, token);
+    return request<ProjectResponse>(
+        `/api/projects/${projectId}/members/${membershipId}/remove/`,
+        {
+            method: "POST",
+        },
+        token,
+    );
 }
 
 export function createTask(
@@ -181,10 +228,14 @@ export function createTask(
         markAsResolution?: boolean;
     },
 ): Promise<ProjectResponse> {
-    return request<ProjectResponse>(`/api/projects/${projectId}/tasks/`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-    }, token);
+    return request<ProjectResponse>(
+        `/api/projects/${projectId}/tasks/`,
+        {
+            method: "POST",
+            body: JSON.stringify(payload),
+        },
+        token,
+    );
 }
 
 export function createBugReport(
@@ -192,10 +243,14 @@ export function createBugReport(
     projectId: number,
     payload: { title: string; description: string; status: string },
 ): Promise<ProjectResponse> {
-    return request<ProjectResponse>(`/api/projects/${projectId}/bugs/`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-    }, token);
+    return request<ProjectResponse>(
+        `/api/projects/${projectId}/bugs/`,
+        {
+            method: "POST",
+            body: JSON.stringify(payload),
+        },
+        token,
+    );
 }
 
 export function updateTask(
@@ -208,10 +263,14 @@ export function updateTask(
         assigneeIds: number[];
     }>,
 ): Promise<ProjectResponse> {
-    return request<ProjectResponse>(`/api/tasks/${taskId}/update/`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-    }, token);
+    return request<ProjectResponse>(
+        `/api/tasks/${taskId}/update/`,
+        {
+            method: "POST",
+            body: JSON.stringify(payload),
+        },
+        token,
+    );
 }
 
 export function addTaskComment(
@@ -219,10 +278,14 @@ export function addTaskComment(
     taskId: number,
     payload: { body: string },
 ): Promise<ProjectResponse> {
-    return request<ProjectResponse>(`/api/tasks/${taskId}/comments/`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-    }, token);
+    return request<ProjectResponse>(
+        `/api/tasks/${taskId}/comments/`,
+        {
+            method: "POST",
+            body: JSON.stringify(payload),
+        },
+        token,
+    );
 }
 
 export function addTaskIssueLink(
@@ -234,10 +297,14 @@ export function addTaskIssueLink(
         issueUrl?: string;
     },
 ): Promise<ProjectResponse> {
-    return request<ProjectResponse>(`/api/tasks/${taskId}/issues/`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-    }, token);
+    return request<ProjectResponse>(
+        `/api/tasks/${taskId}/issues/`,
+        {
+            method: "POST",
+            body: JSON.stringify(payload),
+        },
+        token,
+    );
 }
 
 export function createTaskBranch(
@@ -249,10 +316,14 @@ export function createTaskBranch(
         baseBranch?: string;
     },
 ): Promise<ProjectResponse> {
-    return request<ProjectResponse>(`/api/tasks/${taskId}/branch/`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-    }, token);
+    return request<ProjectResponse>(
+        `/api/tasks/${taskId}/branch/`,
+        {
+            method: "POST",
+            body: JSON.stringify(payload),
+        },
+        token,
+    );
 }
 
 export function updateBugReport(
@@ -264,10 +335,14 @@ export function updateBugReport(
         status: string;
     }>,
 ): Promise<ProjectResponse> {
-    return request<ProjectResponse>(`/api/bugs/${bugId}/update/`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-    }, token);
+    return request<ProjectResponse>(
+        `/api/bugs/${bugId}/update/`,
+        {
+            method: "POST",
+            body: JSON.stringify(payload),
+        },
+        token,
+    );
 }
 
 export function addBugComment(
@@ -275,10 +350,14 @@ export function addBugComment(
     bugId: number,
     payload: { body: string },
 ): Promise<ProjectResponse> {
-    return request<ProjectResponse>(`/api/bugs/${bugId}/comments/`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-    }, token);
+    return request<ProjectResponse>(
+        `/api/bugs/${bugId}/comments/`,
+        {
+            method: "POST",
+            body: JSON.stringify(payload),
+        },
+        token,
+    );
 }
 
 export function addBugIssueLink(
@@ -290,10 +369,14 @@ export function addBugIssueLink(
         issueUrl?: string;
     },
 ): Promise<ProjectResponse> {
-    return request<ProjectResponse>(`/api/bugs/${bugId}/issues/`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-    }, token);
+    return request<ProjectResponse>(
+        `/api/bugs/${bugId}/issues/`,
+        {
+            method: "POST",
+            body: JSON.stringify(payload),
+        },
+        token,
+    );
 }
 
 export function setBugResolutionTask(
@@ -301,19 +384,27 @@ export function setBugResolutionTask(
     bugId: number,
     payload: { taskId?: number | null },
 ): Promise<ProjectResponse> {
-    return request<ProjectResponse>(`/api/bugs/${bugId}/resolution/`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-    }, token);
+    return request<ProjectResponse>(
+        `/api/bugs/${bugId}/resolution/`,
+        {
+            method: "POST",
+            body: JSON.stringify(payload),
+        },
+        token,
+    );
 }
 
 export function markNotificationRead(
     token: string,
     notificationId: number,
 ): Promise<NotificationResponse> {
-    return request<NotificationResponse>(`/api/notifications/${notificationId}/read/`, {
-        method: "POST",
-    }, token);
+    return request<NotificationResponse>(
+        `/api/notifications/${notificationId}/read/`,
+        {
+            method: "POST",
+        },
+        token,
+    );
 }
 
 export function startGitHubOauth(token: string): Promise<GitHubOAuthStartResponse> {
@@ -333,4 +424,3 @@ export function completeGitHubOauth(
         token,
     );
 }
-
