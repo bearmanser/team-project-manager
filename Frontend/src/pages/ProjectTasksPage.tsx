@@ -1,6 +1,8 @@
 import { Box, Button, Flex, Heading, Input, Stack, Text, Textarea } from "@chakra-ui/react";
 
+import { ActionIcon } from "../components/ActionIcon";
 import { ModalFrame } from "../components/ModalFrame";
+import { PlusIcon } from "../components/icons";
 import { StatusPill } from "../components/StatusPill";
 import { SurfaceCard } from "../components/SurfaceCard";
 import type { ProjectDetail, TaskStatus } from "../types";
@@ -40,20 +42,13 @@ export function ProjectTasksPage({
                         {project.name}
                     </Heading>
                     <Text color="#b0bccf" maxW="2xl">
-                        Keep tasks lightweight, update status inline, and add new work from the + button instead of a permanent create form.
+                        Keep tasks lightweight, update status inline, and add new work from the create button instead of a permanent form.
                     </Text>
                 </Stack>
-                <Button
-                    minW="12"
-                    h="12"
-                    borderRadius="full"
-                    bg="#2d6cdf"
-                    color="#f8fbff"
-                    fontSize="2xl"
-                    lineHeight="1"
-                    onClick={onToggleCreateForm}
-                >
-                    +
+                <Button minW="11" h="11" borderRadius="lg" bg="#2d6cdf" color="#f8fbff" onClick={onToggleCreateForm}>
+                    <ActionIcon>
+                        <PlusIcon />
+                    </ActionIcon>
                 </Button>
             </Flex>
 
@@ -66,22 +61,22 @@ export function ProjectTasksPage({
                                 ? `Assigned to ${task.assignees.map((assignee) => assignee.username).join(", ")}`
                                 : "Unassigned",
                             `Updated ${formatShortDate(task.updatedAt)}`,
-                        ].join(" · ");
+                        ].join(" - ");
 
                         return (
                             <Flex
                                 key={task.id}
                                 px={{ base: "4", lg: "5" }}
-                                py="4"
+                                py="3"
                                 align={{ base: "flex-start", lg: "center" }}
                                 justify="space-between"
-                                gap="4"
+                                gap="3"
                                 wrap="wrap"
                                 borderBottomWidth="1px"
                                 borderColor="#273140"
                                 _last={{ borderBottomWidth: "0" }}
                             >
-                                <Stack gap="2" flex="1" minW="260px">
+                                <Stack gap="1.5" flex="1" minW="260px">
                                     <Text color="#f5f7fb" fontWeight="700" whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis">
                                         {task.title}
                                     </Text>
@@ -117,7 +112,7 @@ export function ProjectTasksPage({
                         <Text color="#f5f7fb" fontWeight="600">
                             No tasks yet.
                         </Text>
-                        <Text color="#90a0b7">Use the + button to add the first task.</Text>
+                        <Text color="#90a0b7">Use the create button to add the first task.</Text>
                     </Stack>
                 )}
             </SurfaceCard>
@@ -142,7 +137,7 @@ export function ProjectTasksPage({
                         placeholder="Ship org-level user management"
                         bg="#0f141b"
                         borderColor="#2b3544"
-                        borderRadius="0"
+                        borderRadius="lg"
                         color="#f5f7fb"
                     />
                     <Textarea
@@ -151,7 +146,7 @@ export function ProjectTasksPage({
                         placeholder="Add the details teammates need."
                         bg="#0f141b"
                         borderColor="#2b3544"
-                        borderRadius="0"
+                        borderRadius="lg"
                         color="#f5f7fb"
                         minH="140px"
                     />
@@ -166,7 +161,7 @@ export function ProjectTasksPage({
                             </option>
                         ))}
                     </select>
-                    <Button type="submit" borderRadius="full" bg="#2d6cdf" color="#f8fbff">
+                    <Button type="submit" borderRadius="lg" bg="#2d6cdf" color="#f8fbff" alignSelf="flex-start">
                         Add task
                     </Button>
                 </Stack>
@@ -174,4 +169,3 @@ export function ProjectTasksPage({
         </Stack>
     );
 }
-

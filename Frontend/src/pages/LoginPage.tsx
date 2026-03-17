@@ -1,4 +1,4 @@
-﻿import { Box, Button, Flex, Grid, Heading, Input, Stack, Text, Textarea } from "@chakra-ui/react";
+import { Box, Button, Flex, Grid, Heading, Input, Stack, Text, Textarea } from "@chakra-ui/react";
 
 import { SurfaceCard } from "../components/SurfaceCard";
 
@@ -55,8 +55,7 @@ export function LoginPage({
                                 Manage organizations, projects, boards, bugs, and GitHub delivery in one place.
                             </Heading>
                             <Text color="#b0bccf" fontSize="lg">
-                                Teams live at the organization level, every project stays tied to one GitHub
-                                repository, and notifications stay visible across the whole workspace.
+                                Teams live at the organization level, every project stays tied to one GitHub repository, and notifications stay visible across the whole workspace.
                             </Text>
                         </Stack>
 
@@ -93,7 +92,7 @@ export function LoginPage({
                         <Flex gap="2">
                             <Button
                                 flex="1"
-                                borderRadius="0"
+                                borderRadius="lg"
                                 borderWidth="1px"
                                 borderColor={authMode === "login" ? "#4b7ee8" : "#273140"}
                                 bg={authMode === "login" ? "#15233b" : "#0f141b"}
@@ -103,7 +102,7 @@ export function LoginPage({
                             </Button>
                             <Button
                                 flex="1"
-                                borderRadius="0"
+                                borderRadius="lg"
                                 borderWidth="1px"
                                 borderColor={authMode === "signup" ? "#4b7ee8" : "#273140"}
                                 bg={authMode === "signup" ? "#15233b" : "#0f141b"}
@@ -114,12 +113,12 @@ export function LoginPage({
                         </Flex>
 
                         {error ? (
-                            <Box borderWidth="1px" borderColor="#8c3a46" bg="#2a1317" p="3" color="#ffc6ce">
+                            <Box borderWidth="1px" borderColor="#8c3a46" bg="#2a1317" p="2.5" borderRadius="lg" color="#ffc6ce" fontSize="sm">
                                 {error}
                             </Box>
                         ) : null}
                         {notice ? (
-                            <Box borderWidth="1px" borderColor="#2f6c58" bg="#0f211d" p="3" color="#b7f5de">
+                            <Box borderWidth="1px" borderColor="#2f6c58" bg="#0f211d" p="2.5" borderRadius="lg" color="#b7f5de" fontSize="sm">
                                 {notice}
                             </Box>
                         ) : null}
@@ -142,7 +141,7 @@ export function LoginPage({
                                         }
                                         bg="#0f141b"
                                         borderColor="#2b3544"
-                                        borderRadius="0"
+                                        borderRadius="lg"
                                         color="#f5f7fb"
                                     />
                                 </Stack>
@@ -154,15 +153,16 @@ export function LoginPage({
                                         onChange={(event) => onLoginFormChange("password", event.target.value)}
                                         bg="#0f141b"
                                         borderColor="#2b3544"
-                                        borderRadius="0"
+                                        borderRadius="lg"
                                         color="#f5f7fb"
                                     />
                                 </Stack>
                                 <Button
                                     type="submit"
-                                    borderRadius="0"
+                                    borderRadius="lg"
                                     bg="#2d6cdf"
                                     color="#f8fbff"
+                                    alignSelf="flex-start"
                                     disabled={Boolean(busyLabel)}
                                 >
                                     {busyLabel ?? "Sign in"}
@@ -184,7 +184,7 @@ export function LoginPage({
                                         onChange={(event) => onSignupFormChange("username", event.target.value)}
                                         bg="#0f141b"
                                         borderColor="#2b3544"
-                                        borderRadius="0"
+                                        borderRadius="lg"
                                         color="#f5f7fb"
                                     />
                                 </Stack>
@@ -196,7 +196,7 @@ export function LoginPage({
                                         onChange={(event) => onSignupFormChange("email", event.target.value)}
                                         bg="#0f141b"
                                         borderColor="#2b3544"
-                                        borderRadius="0"
+                                        borderRadius="lg"
                                         color="#f5f7fb"
                                     />
                                 </Stack>
@@ -208,7 +208,7 @@ export function LoginPage({
                                         onChange={(event) => onSignupFormChange("password", event.target.value)}
                                         bg="#0f141b"
                                         borderColor="#2b3544"
-                                        borderRadius="0"
+                                        borderRadius="lg"
                                         color="#f5f7fb"
                                     />
                                 </Stack>
@@ -222,15 +222,16 @@ export function LoginPage({
                                         }
                                         bg="#0f141b"
                                         borderColor="#2b3544"
-                                        borderRadius="0"
+                                        borderRadius="lg"
                                         color="#f5f7fb"
                                     />
                                 </Stack>
                                 <Button
                                     type="submit"
-                                    borderRadius="0"
+                                    borderRadius="lg"
                                     bg="#2d6cdf"
                                     color="#f8fbff"
+                                    alignSelf="flex-start"
                                     disabled={Boolean(busyLabel)}
                                 >
                                     Create account
@@ -238,9 +239,10 @@ export function LoginPage({
                                 <Button
                                     type="button"
                                     variant="outline"
-                                    borderRadius="0"
+                                    borderRadius="lg"
                                     borderColor="#2b3544"
                                     color="#eef3fb"
+                                    alignSelf="flex-start"
                                     disabled={Boolean(busyLabel)}
                                     onClick={() => onSubmitSignup(true)}
                                 >
@@ -254,7 +256,7 @@ export function LoginPage({
                             value="Organizations hold users. Projects belong to organizations. Each project connects to one GitHub repository."
                             bg="#0f141b"
                             borderColor="#2b3544"
-                            borderRadius="0"
+                            borderRadius="lg"
                             color="#90a0b7"
                             minH="88px"
                         />

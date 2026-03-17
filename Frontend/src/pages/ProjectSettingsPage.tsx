@@ -1,4 +1,4 @@
-import { Button, Grid, Heading, Input, Link, Stack, Text, Textarea } from "@chakra-ui/react";
+import { Button, Heading, Input, Link, Stack, Text, Textarea } from "@chakra-ui/react";
 
 import { SurfaceCard } from "../components/SurfaceCard";
 import type { ProjectDetail } from "../types";
@@ -39,7 +39,7 @@ export function ProjectSettingsPage({
                 </Text>
             </Stack>
 
-            <Grid templateColumns={{ base: "1fr", xl: "1fr 1fr" }} gap="4">
+            <Stack gap="4">
                 <SurfaceCard
                     as="form"
                     p="5"
@@ -58,7 +58,7 @@ export function ProjectSettingsPage({
                             onChange={(event) => onProjectSettingsChange("name", event.target.value)}
                             bg="#111720"
                             borderColor="#2b3544"
-                            borderRadius="0"
+                            borderRadius="lg"
                             color="#f5f7fb"
                         />
                         <Textarea
@@ -66,64 +66,63 @@ export function ProjectSettingsPage({
                             onChange={(event) => onProjectSettingsChange("description", event.target.value)}
                             bg="#111720"
                             borderColor="#2b3544"
-                            borderRadius="0"
+                            borderRadius="lg"
                             color="#f5f7fb"
                             minH="140px"
                         />
-                        <Button type="submit" borderRadius="full" bg="#2d6cdf" color="#f8fbff">
+                        <Button type="submit" borderRadius="lg" bg="#2d6cdf" color="#f8fbff" alignSelf="flex-start">
                             {busyLabel === "Saving project settings" ? busyLabel : "Save changes"}
                         </Button>
                     </Stack>
                 </SurfaceCard>
 
-                <Stack gap="4">
-                    <SurfaceCard p="5" bg="#0f141b">
-                        <Stack gap="3">
-                            <Heading size="md" color="#f5f7fb">
-                                Connected repository
-                            </Heading>
-                            {primaryRepo ? (
-                                <>
-                                    <Text color="#d8e1ee">{primaryRepo.fullName}</Text>
-                                    <Text color="#90a0b7">
-                                        Default branch: {primaryRepo.defaultBranch} · {primaryRepo.visibility}
-                                    </Text>
-                                    <Link href={primaryRepo.htmlUrl} color="#8db4ff" target="_blank" rel="noreferrer">
-                                        Open GitHub repository
-                                    </Link>
-                                </>
-                            ) : (
-                                <Text color="#90a0b7">No repository connected.</Text>
-                            )}
-                            {project.repositories.length > 1 ? (
-                                <Text color="#ffc6ce">
-                                    This project still has legacy multi-repo data. The interface now treats the first repo as the primary one.
+                <SurfaceCard p="5" bg="#0f141b">
+                    <Stack gap="3">
+                        <Heading size="md" color="#f5f7fb">
+                            Connected repository
+                        </Heading>
+                        {primaryRepo ? (
+                            <>
+                                <Text color="#d8e1ee">{primaryRepo.fullName}</Text>
+                                <Text color="#90a0b7">
+                                    Default branch: {primaryRepo.defaultBranch} - {primaryRepo.visibility}
                                 </Text>
-                            ) : null}
-                        </Stack>
-                    </SurfaceCard>
-
-                    <SurfaceCard p="5" bg="#2a1317" borderColor="#8c3a46">
-                        <Stack gap="3">
-                            <Heading size="md" color="#ffe1e6">
-                                Danger zone
-                            </Heading>
+                                <Link href={primaryRepo.htmlUrl} color="#8db4ff" target="_blank" rel="noreferrer">
+                                    Open GitHub repository
+                                </Link>
+                            </>
+                        ) : (
+                            <Text color="#90a0b7">No repository connected.</Text>
+                        )}
+                        {project.repositories.length > 1 ? (
                             <Text color="#ffc6ce">
-                                Delete the entire project if it should no longer live inside this organization.
+                                This project still has legacy multi-repo data. The interface now treats the first repo as the primary one.
                             </Text>
-                            <Button
-                                borderRadius="full"
-                                variant="outline"
-                                borderColor="#8c3a46"
-                                color="#ffc6ce"
-                                onClick={onDeleteProject}
-                            >
-                                Delete project
-                            </Button>
-                        </Stack>
-                    </SurfaceCard>
-                </Stack>
-            </Grid>
+                        ) : null}
+                    </Stack>
+                </SurfaceCard>
+
+                <SurfaceCard p="5" bg="#2a1317" borderColor="#8c3a46">
+                    <Stack gap="3">
+                        <Heading size="md" color="#ffe1e6">
+                            Danger zone
+                        </Heading>
+                        <Text color="#ffc6ce">
+                            Delete the entire project if it should no longer live inside this organization.
+                        </Text>
+                        <Button
+                            borderRadius="lg"
+                            variant="outline"
+                            borderColor="#8c3a46"
+                            color="#ffc6ce"
+                            alignSelf="flex-start"
+                            onClick={onDeleteProject}
+                        >
+                            Delete project
+                        </Button>
+                    </Stack>
+                </SurfaceCard>
+            </Stack>
         </Stack>
     );
 }

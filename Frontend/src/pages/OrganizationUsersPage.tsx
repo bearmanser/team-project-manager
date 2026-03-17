@@ -1,31 +1,92 @@
-import { Flex, Heading, Stack, Text } from "@chakra-ui/react";
+import { useEffect, useState } from "react";
 
+import { Button, Flex, Heading, Input, Stack, Text } from "@chakra-ui/react";
+
+import { ActionIcon } from "../components/ActionIcon";
+import { ModalFrame } from "../components/ModalFrame";
+import { InviteIcon } from "../components/icons";
 import { SurfaceCard } from "../components/SurfaceCard";
+import type { ProjectRole, ProjectSummary } from "../types";
+import { nativeSelectStyle } from "../utils";
 import { StatusPill } from "../components/StatusPill";
 import type { OrganizationUser } from "../view-models";
 
 type OrganizationUsersPageProps = {
+    isInviting: boolean;
     isLoading: boolean;
+    manageableProjects: ProjectSummary[];
     users: OrganizationUser[];
+    onInviteUser: (projectId: number, identifier: string, role: ProjectRole) => void;
 };
 
-export function OrganizationUsersPage({ isLoading, users }: OrganizationUsersPageProps) {
+const roleOptions: ProjectRole[] = ["member", "viewer", "admin"];
+
+export function OrganizationUsersPage({
+    isInviting,
+    isLoading,
+    manageableProjects,
+    users,
+    onInviteUser,
+}: OrganizationUsersPageProps) {
+    const [inviteOpen, setInviteOpen] = useState(false);
+    const [inviteProjectId, setInviteProjectId] = useState<string>("");
+    const [inviteIdentifier, setInviteIdentifier] = useState("");
+    const [inviteRole, setInviteRole] = useState<ProjectRole>("member");
+
+    useEffect(() => {
+        if (!inviteProjectId && manageableProjects.length) {
+            setInviteProjectId(String(manageableProjects[0].id));
+        }
+    }, [inviteProjectId, manageableProjects]);
+
+    function handleCloseInvite(): void {
+        setInviteOpen(false);
+        setInviteIdentifier("");
+        setInviteRole("member");
+        setInviteProjectId(manageableProjects[0] ? String(manageableProjects[0].id) : "");
+    }
+
+    function handleSubmitInvite(): void {
+        const projectId = Number(inviteProjectId);
+        if (!Number.isFinite(projectId) || !inviteIdentifier.trim()) {
+            return;
+        }
+
+        onInviteUser(projectId, inviteIdentifier.trim(), inviteRole);
+        handleCloseInvite();
+    }
+
     return (
         <Stack gap="6">
-            <Stack gap="1">
-                <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="#90a0b7">
-                    Organization users
-                </Text>
-                <Heading size="2xl" color="#f5f7fb">
-                    Shared team directory
-                </Heading>
-                <Text color="#b0bccf" maxW="2xl">
-                    People show up once here and can still participate across multiple projects underneath the same organization.
-                </Text>
-            </Stack>
+            <Flex justify="space-between" align={{ base: "stretch", md: "center" }} gap="4" wrap="wrap">
+                <Stack gap="1">
+                    <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="#90a0b7">
+                        Organization users
+                    </Text>
+                    <Heading size="2xl" color="#f5f7fb">
+                        Shared team directory
+                    </Heading>
+                    <Text color="#b0bccf" maxW="2xl">
+                        People show up once here and can still participate across multiple projects underneath the same organization.
+                    </Text>
+                </Stack>
+                <Button
+                    borderRadius="lg"
+                    bg="#2d6cdf"
+                    color="#f8fbff"
+                    alignSelf={{ base: "stretch", md: "center" }}
+                    disabled={!manageableProjects.length}
+                    onClick={() => setInviteOpen(true)}
+                >
+                    <ActionIcon>
+                        <InviteIcon size={16} />
+                    </ActionIcon>
+                    Invite user
+                </Button>
+            </Flex>
 
             {isLoading ? (
-                <SurfaceCard p="6" bg="#0f141b">
+                <SurfaceCard p="5" bg="#0f141b">
                     <Text color="#90a0b7">Loading people from project memberships...</Text>
                 </SurfaceCard>
             ) : null}
@@ -37,7 +98,7 @@ export function OrganizationUsersPage({ isLoading, users }: OrganizationUsersPag
                             <Flex
                                 key={entry.id}
                                 px={{ base: "4", lg: "5" }}
-                                py="4"
+                                py="3"
                                 align={{ base: "flex-start", lg: "center" }}
                                 justify="space-between"
                                 gap="4"
@@ -53,11 +114,11 @@ export function OrganizationUsersPage({ isLoading, users }: OrganizationUsersPag
                                     <Text color="#90a0b7">
                                         {entry.user.email}
                                         {entry.user.githubConnected && entry.user.githubUsername
-                                            ? ` · GitHub @${entry.user.githubUsername}`
-                                            : " · GitHub not connected"}
+                                            ? ` - GitHub @${entry.user.githubUsername}`
+                                            : " - GitHub not connected"}
                                         {entry.projectNames.length
-                                            ? ` · ${entry.projectNames.join(", ")}`
-                                            : " · No projects yet"}
+                                            ? ` - ${entry.projectNames.join(", ")}`
+                                            : " - No projects yet"}
                                     </Text>
                                 </Stack>
                                 <Flex gap="2" wrap="wrap">
@@ -77,6 +138,61 @@ export function OrganizationUsersPage({ isLoading, users }: OrganizationUsersPag
                     )}
                 </SurfaceCard>
             ) : null}
+
+            <ModalFrame
+                title="Invite user"
+                description={manageableProjects.length ? "Add someone to one of the projects you can manage." : "You need admin access to at least one project before inviting people from here."}
+                isOpen={inviteOpen}
+                onClose={handleCloseInvite}
+            >
+                {manageableProjects.length ? (
+                    <Stack
+                        as="form"
+                        gap="4"
+                        onSubmit={(event) => {
+                            event.preventDefault();
+                            handleSubmitInvite();
+                        }}
+                    >
+                        <select
+                            value={inviteProjectId}
+                            style={nativeSelectStyle}
+                            onChange={(event) => setInviteProjectId(event.target.value)}
+                        >
+                            {manageableProjects.map((project) => (
+                                <option key={project.id} value={project.id}>
+                                    {project.name}
+                                </option>
+                            ))}
+                        </select>
+                        <Input
+                            value={inviteIdentifier}
+                            onChange={(event) => setInviteIdentifier(event.target.value)}
+                            placeholder="Username or email"
+                            bg="#0f141b"
+                            borderColor="#2b3544"
+                            borderRadius="lg"
+                            color="#f5f7fb"
+                        />
+                        <select
+                            value={inviteRole}
+                            style={nativeSelectStyle}
+                            onChange={(event) => setInviteRole(event.target.value as ProjectRole)}
+                        >
+                            {roleOptions.map((role) => (
+                                <option key={role} value={role}>
+                                    {role}
+                                </option>
+                            ))}
+                        </select>
+                        <Button type="submit" borderRadius="lg" bg="#2d6cdf" color="#f8fbff" alignSelf="flex-start" disabled={isInviting || !inviteIdentifier.trim()}>
+                            {isInviting ? "Inviting..." : "Send invite"}
+                        </Button>
+                    </Stack>
+                ) : (
+                    <Text color="#90a0b7">No manageable projects are available in this organization yet.</Text>
+                )}
+            </ModalFrame>
         </Stack>
     );
 }

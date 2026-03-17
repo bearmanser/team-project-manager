@@ -1,4 +1,4 @@
-﻿import { Box, type BoxProps } from "@chakra-ui/react";
+import { Box, type BoxProps } from "@chakra-ui/react";
 
 type StatusPillProps = BoxProps & {
     label: string;
@@ -19,7 +19,7 @@ export function StatusPill({ label, ...props }: StatusPillProps) {
             fontSize="xs"
             textTransform="uppercase"
             letterSpacing="0.12em"
-            borderRadius="0"
+            borderRadius="8px"
             {...props}
         >
             {label}

@@ -4,6 +4,7 @@ import { Box, Button, Flex, Heading, Stack, Text } from "@chakra-ui/react";
 
 import {
     ApiError,
+    addProjectMember,
     buildApiUrl,
     completeGitHubOauth,
     createBugReport,
@@ -22,8 +23,10 @@ import {
     updateTask,
 } from "./api";
 import { AppShell } from "./components/AppShell";
+import { ActionIcon } from "./components/ActionIcon";
 import { SideNav } from "./components/SideNav";
 import { SurfaceCard } from "./components/SurfaceCard";
+import { CloseIcon } from "./components/icons";
 import { TopNav } from "./components/TopNav";
 import { LoginPage } from "./pages/LoginPage";
 import { OrganizationOverviewPage } from "./pages/OrganizationOverviewPage";
@@ -40,10 +43,12 @@ import type {
     Notification,
     OrganizationSummary,
     ProjectDetail,
+    ProjectRole,
     TaskStatus,
     User,
     WorkspaceResponse,
 } from "./types";
+import { sidebarSelectStyle } from "./utils";
 import type {
     NavItem,
     OrganizationSection,
@@ -477,6 +482,19 @@ function App() {
     }, []);
 
     useEffect(() => {
+        if (!error && !notice) {
+            return;
+        }
+
+        const timeoutId = window.setTimeout(() => {
+            setError(null);
+            setNotice(null);
+        }, 5000);
+
+        return () => window.clearTimeout(timeoutId);
+    }, [error, notice]);
+
+    useEffect(() => {
         if (!token || !selectedProjectId) {
             return;
         }
@@ -874,31 +892,33 @@ function App() {
         setNotificationOpen(false);
     }
 
-    function handleOpenSettings(): void {
-        setNotificationOpen(false);
-
-        if (selectedProject) {
-            setTopView("organizations");
-            setProjectSection("settings");
+    async function handleInviteProjectUser(projectId: number, identifier: string, role: ProjectRole): Promise<void> {
+        if (!token || !currentOrganization) {
             return;
         }
 
-        const targetOrganizationId = currentOrganization?.id ?? workspace?.organizations[0]?.id ?? null;
-        if (targetOrganizationId !== null) {
-            openOrganization(targetOrganizationId, "settings");
+        setBusyLabel("Inviting user");
+        setError(null);
+        setNotice(null);
+
+        try {
+            await addProjectMember(token, projectId, {
+                identifier,
+                role,
+            });
+            await hydrateWorkspace(token, {
+                preferredOrganizationId: currentOrganization.id,
+                quiet: true,
+            });
+            setNotice("User invited.");
+        } catch (reason) {
+            setError(getFriendlyError(reason));
+        } finally {
+            setBusyLabel(null);
         }
     }
 
-    const activeHeaderAction: "profile" | "settings" | null =
-        topView === "profile"
-            ? "profile"
-            : selectedProject
-              ? projectSection === "settings"
-                    ? "settings"
-                    : null
-              : currentOrganization && organizationSection === "settings"
-                ? "settings"
-                : null;
+    const activeHeaderAction: "profile" | null = topView === "profile" ? "profile" : null;
 
     const topNav = (
         <TopNav
@@ -910,7 +930,6 @@ function App() {
             user={user}
             onCloseNotifications={() => setNotificationOpen(false)}
             onOpenProfile={handleOpenProfile}
-            onOpenSettings={handleOpenSettings}
             onReadNotification={(notification) => void handleReadNotification(notification)}
             onToggleNotifications={() => setNotificationOpen((current) => !current)}
         />
@@ -918,21 +937,24 @@ function App() {
 
     const banner =
         error || notice ? (
-            <SurfaceCard p="4" bg={error ? "#2a1317" : "#0f211d"} borderColor={error ? "#8c3a46" : "#2f6c58"}>
-                <Flex justify="space-between" align="center" gap="4">
-                    <Text color={error ? "#ffc6ce" : "#b7f5de"}>{error ?? notice}</Text>
+            <SurfaceCard p="3" bg={error ? "#2a1317" : "#0f211d"} borderColor={error ? "#8c3a46" : "#2f6c58"}>
+                <Flex justify="space-between" align="center" gap="3">
+                    <Text fontSize="sm" color={error ? "#ffc6ce" : "#b7f5de"}>{error ?? notice}</Text>
                     <Button
                         variant="ghost"
                         color={error ? "#ffc6ce" : "#b7f5de"}
-                        minW="8"
-                        h="8"
+                        minW="7"
+                        h="7"
                         px="0"
+                        borderRadius="lg"
                         onClick={() => {
                             setError(null);
                             setNotice(null);
                         }}
                     >
-                        x
+                        <ActionIcon>
+                            <CloseIcon size={16} />
+                        </ActionIcon>
                     </Button>
                 </Flex>
             </SurfaceCard>
@@ -1023,13 +1045,7 @@ function App() {
                     <Stack gap="3">
                         <select
                             value={String(selectedProject.id)}
-                            style={{
-                                width: "100%",
-                                border: "1px solid #2b3544",
-                                background: "#0f141b",
-                                color: "#f5f7fb",
-                                padding: "10px 12px",
-                            }}
+                            style={sidebarSelectStyle}
                             onChange={(event) => void handleOpenProject(Number(event.target.value))}
                         >
                             {currentOrganizationProjects.map((project) => (
@@ -1046,7 +1062,7 @@ function App() {
                 footerSlot={
                     <Button
                         w="full"
-                        borderRadius="full"
+                        borderRadius="lg"
                         variant="outline"
                         borderColor="#2b3544"
                         color="#eef3fb"
@@ -1136,7 +1152,7 @@ function App() {
             footerSlot={
                 <Button
                     w="full"
-                    borderRadius="full"
+                    borderRadius="lg"
                     variant="outline"
                     borderColor="#2b3544"
                     color="#eef3fb"
@@ -1173,7 +1189,15 @@ function App() {
 
     if (organizationSection === "users") {
         organizationContent = (
-            <OrganizationUsersPage isLoading={organizationUsersLoading} users={organizationUsers} />
+            <OrganizationUsersPage
+                isInviting={busyLabel === "Inviting user"}
+                isLoading={organizationUsersLoading}
+                manageableProjects={currentOrganizationProjects.filter((project) => project.role === "owner" || project.role === "admin")}
+                users={organizationUsers}
+                onInviteUser={(projectId, identifier, role) =>
+                    void handleInviteProjectUser(projectId, identifier, role)
+                }
+            />
         );
     }
 
@@ -1196,3 +1220,7 @@ function App() {
 }
 
 export default App;
+
+
+
+

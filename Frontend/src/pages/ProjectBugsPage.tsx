@@ -1,6 +1,8 @@
 import { Box, Button, Flex, Heading, Input, Stack, Text, Textarea } from "@chakra-ui/react";
 
+import { ActionIcon } from "../components/ActionIcon";
 import { ModalFrame } from "../components/ModalFrame";
+import { PlusIcon } from "../components/icons";
 import { StatusPill } from "../components/StatusPill";
 import { SurfaceCard } from "../components/SurfaceCard";
 import type { BugStatus, ProjectDetail } from "../types";
@@ -40,20 +42,13 @@ export function ProjectBugsPage({
                         {project.name}
                     </Heading>
                     <Text color="#b0bccf" maxW="2xl">
-                        Keep bug reports concise, update their status from the row, and create new reports from the + button when you actually need one.
+                        Keep bug reports concise, update their status from the row, and create new reports only when you need one.
                     </Text>
                 </Stack>
-                <Button
-                    minW="12"
-                    h="12"
-                    borderRadius="full"
-                    bg="#2d6cdf"
-                    color="#f8fbff"
-                    fontSize="2xl"
-                    lineHeight="1"
-                    onClick={onToggleCreateForm}
-                >
-                    +
+                <Button minW="11" h="11" borderRadius="lg" bg="#2d6cdf" color="#f8fbff" onClick={onToggleCreateForm}>
+                    <ActionIcon>
+                        <PlusIcon />
+                    </ActionIcon>
                 </Button>
             </Flex>
 
@@ -64,22 +59,22 @@ export function ProjectBugsPage({
                             bug.description || "No description",
                             `Reporter ${bug.reporter.username}`,
                             `Updated ${formatShortDate(bug.updatedAt)}`,
-                        ].join(" · ");
+                        ].join(" - ");
 
                         return (
                             <Flex
                                 key={bug.id}
                                 px={{ base: "4", lg: "5" }}
-                                py="4"
+                                py="3"
                                 align={{ base: "flex-start", lg: "center" }}
                                 justify="space-between"
-                                gap="4"
+                                gap="3"
                                 wrap="wrap"
                                 borderBottomWidth="1px"
                                 borderColor="#273140"
                                 _last={{ borderBottomWidth: "0" }}
                             >
-                                <Stack gap="2" flex="1" minW="260px">
+                                <Stack gap="1.5" flex="1" minW="260px">
                                     <Text color="#f5f7fb" fontWeight="700" whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis">
                                         {bug.title}
                                     </Text>
@@ -111,7 +106,7 @@ export function ProjectBugsPage({
                         <Text color="#f5f7fb" fontWeight="600">
                             No bug reports yet.
                         </Text>
-                        <Text color="#90a0b7">Use the + button to add the first bug report.</Text>
+                        <Text color="#90a0b7">Use the create button to add the first bug report.</Text>
                     </Stack>
                 )}
             </SurfaceCard>
@@ -136,7 +131,7 @@ export function ProjectBugsPage({
                         placeholder="Board is not syncing live updates"
                         bg="#0f141b"
                         borderColor="#2b3544"
-                        borderRadius="0"
+                        borderRadius="lg"
                         color="#f5f7fb"
                     />
                     <Textarea
@@ -145,7 +140,7 @@ export function ProjectBugsPage({
                         placeholder="Describe the issue, impact, and current behavior."
                         bg="#0f141b"
                         borderColor="#2b3544"
-                        borderRadius="0"
+                        borderRadius="lg"
                         color="#f5f7fb"
                         minH="140px"
                     />
@@ -160,7 +155,7 @@ export function ProjectBugsPage({
                             </option>
                         ))}
                     </select>
-                    <Button type="submit" borderRadius="full" bg="#2d6cdf" color="#f8fbff">
+                    <Button type="submit" borderRadius="lg" bg="#2d6cdf" color="#f8fbff" alignSelf="flex-start">
                         Add bug report
                     </Button>
                 </Stack>

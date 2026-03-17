@@ -1,4 +1,4 @@
-﻿import type { ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import { Box, Flex } from "@chakra-ui/react";
 
@@ -28,7 +28,7 @@ export function AppShell({ topNav, sidebar, banner, children }: AppShellProps) {
                         {sidebar}
                     </Box>
                 ) : null}
-                <Box flex="1" minW="0" px={{ base: "4", lg: "8" }} py="6">
+                <Box flex="1" minW="0" px={{ base: "4", lg: "8" }} py="6" display="flex" flexDirection="column">
                     {children}
                 </Box>
             </Flex>

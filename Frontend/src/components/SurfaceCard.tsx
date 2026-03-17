@@ -1,4 +1,4 @@
-﻿import { Box, type BoxProps } from "@chakra-ui/react";
+import { Box, type BoxProps } from "@chakra-ui/react";
 
 export function SurfaceCard(props: BoxProps) {
     return (
@@ -6,7 +6,7 @@ export function SurfaceCard(props: BoxProps) {
             bg="#111720"
             borderWidth="1px"
             borderColor="#273140"
-            borderRadius="0"
+            borderRadius="12px"
             boxShadow="none"
             backdropFilter="blur(18px)"
             {...props}

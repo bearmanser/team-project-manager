@@ -1,4 +1,4 @@
-import { Button, Grid, Heading, Stack, Text } from "@chakra-ui/react";
+import { Button, Heading, Stack, Text } from "@chakra-ui/react";
 
 import { SurfaceCard } from "../components/SurfaceCard";
 import type { OrganizationSummary } from "../types";
@@ -30,7 +30,7 @@ export function OrganizationSettingsPage({
                 </Text>
             </Stack>
 
-            <Grid templateColumns={{ base: "1fr", xl: "1fr 1fr" }} gap="4">
+            <Stack gap="4">
                 <SurfaceCard p="5" bg="#0f141b">
                     <Stack gap="3">
                         <Text color="#90a0b7" textTransform="uppercase" fontSize="xs" letterSpacing="0.14em">
@@ -44,7 +44,7 @@ export function OrganizationSettingsPage({
                                 ? "GitHub is connected, so you can add projects from available repositories."
                                 : "Connect GitHub to unlock organization-backed project creation."}
                         </Text>
-                        <Button borderRadius="full" bg="#2d6cdf" color="#f8fbff" onClick={onConnectGitHub}>
+                        <Button borderRadius="lg" bg="#2d6cdf" color="#f8fbff" alignSelf="flex-start" onClick={onConnectGitHub}>
                             {isGitHubConnected ? "Reconnect GitHub" : "Connect GitHub"}
                         </Button>
                         {githubRepoError ? <Text color="#ffc6ce">{githubRepoError}</Text> : null}
@@ -64,7 +64,7 @@ export function OrganizationSettingsPage({
                         <Text color="#d8e1ee">Users can span multiple projects without being duplicated.</Text>
                     </Stack>
                 </SurfaceCard>
-            </Grid>
+            </Stack>
         </Stack>
     );
 }

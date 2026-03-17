@@ -1,6 +1,8 @@
 import { Button, Flex, Heading, Input, Stack, Text, Textarea } from "@chakra-ui/react";
 
+import { ActionIcon } from "../components/ActionIcon";
 import { ModalFrame } from "../components/ModalFrame";
+import { PlusIcon } from "../components/icons";
 import { SurfaceCard } from "../components/SurfaceCard";
 import type { OrganizationSummary, ProjectSummary, Repo } from "../types";
 import { formatShortDate, nativeSelectStyle } from "../utils";
@@ -57,23 +59,16 @@ export function OrganizationProjectsPage({
                         Keep projects lightweight inside this organization and jump straight into the board, bugs, or tasks without extra summary chrome.
                     </Text>
                 </Stack>
-                <Button
-                    minW="12"
-                    h="12"
-                    borderRadius="full"
-                    bg="#2d6cdf"
-                    color="#f8fbff"
-                    fontSize="2xl"
-                    lineHeight="1"
-                    onClick={onToggleCreateForm}
-                >
-                    +
+                <Button minW="11" h="11" borderRadius="lg" bg="#2d6cdf" color="#f8fbff" onClick={onToggleCreateForm}>
+                    <ActionIcon>
+                        <PlusIcon />
+                    </ActionIcon>
                 </Button>
             </Flex>
 
             {githubRepoError ? (
-                <SurfaceCard p="4" bg="#2a1317" borderColor="#8c3a46">
-                    <Text color="#ffc6ce">{githubRepoError}</Text>
+                <SurfaceCard p="3" bg="#2a1317" borderColor="#8c3a46">
+                    <Text fontSize="sm" color="#ffc6ce">{githubRepoError}</Text>
                 </SurfaceCard>
             ) : null}
 
@@ -83,7 +78,7 @@ export function OrganizationProjectsPage({
                         <Flex
                             key={project.id}
                             px={{ base: "4", lg: "5" }}
-                            py="4"
+                            py="3"
                             align={{ base: "flex-start", lg: "center" }}
                             justify="space-between"
                             gap="4"
@@ -100,11 +95,11 @@ export function OrganizationProjectsPage({
                                     {project.description || "No description yet."}
                                 </Text>
                                 <Text color="#728198" fontSize="sm">
-                                    {project.repoCount} repo · {project.memberCount} people · {project.openBugCount} open bugs · updated {formatShortDate(project.updatedAt)}
+                                    {project.repoCount} repo - {project.memberCount} people - {project.openBugCount} open bugs - updated {formatShortDate(project.updatedAt)}
                                 </Text>
                             </Stack>
                             <Button
-                                borderRadius="full"
+                                borderRadius="lg"
                                 variant="outline"
                                 borderColor="#2b3544"
                                 color="#eef3fb"
@@ -119,7 +114,7 @@ export function OrganizationProjectsPage({
                         <Text color="#f5f7fb" fontWeight="600">
                             No projects in this organization yet.
                         </Text>
-                        <Text color="#90a0b7">Use the + button to add one.</Text>
+                        <Text color="#90a0b7">Use the add button to create one.</Text>
                     </Stack>
                 )}
             </SurfaceCard>
@@ -135,7 +130,7 @@ export function OrganizationProjectsPage({
                         <Text color="#d8e1ee">
                             Connect GitHub first so this project can point at a repository from day one.
                         </Text>
-                        <Button borderRadius="full" bg="#2d6cdf" color="#f8fbff" onClick={onConnectGitHub}>
+                        <Button borderRadius="lg" bg="#2d6cdf" color="#f8fbff" alignSelf="flex-start" onClick={onConnectGitHub}>
                             Connect GitHub
                         </Button>
                     </Stack>
@@ -154,7 +149,7 @@ export function OrganizationProjectsPage({
                             placeholder="Client portal"
                             bg="#0f141b"
                             borderColor="#2b3544"
-                            borderRadius="0"
+                            borderRadius="lg"
                             color="#f5f7fb"
                         />
                         <select
@@ -175,15 +170,16 @@ export function OrganizationProjectsPage({
                             placeholder="What this project is responsible for."
                             bg="#0f141b"
                             borderColor="#2b3544"
-                            borderRadius="0"
+                            borderRadius="lg"
                             color="#f5f7fb"
                             minH="120px"
                         />
                         <Button
                             type="submit"
-                            borderRadius="full"
+                            borderRadius="lg"
                             bg="#2d6cdf"
                             color="#f8fbff"
+                            alignSelf="flex-start"
                             disabled={isCreatingProject || !createProjectForm.repositoryId}
                         >
                             {isCreatingProject ? "Adding..." : "Add project"}

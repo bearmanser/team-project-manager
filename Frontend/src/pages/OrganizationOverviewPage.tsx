@@ -1,6 +1,8 @@
 import { Button, Flex, Heading, Input, Stack, Text, Textarea } from "@chakra-ui/react";
 
+import { ActionIcon } from "../components/ActionIcon";
 import { ModalFrame } from "../components/ModalFrame";
+import { PlusIcon } from "../components/icons";
 import { SurfaceCard } from "../components/SurfaceCard";
 import type { OrganizationSummary } from "../types";
 import { formatShortDate } from "../utils";
@@ -43,17 +45,10 @@ export function OrganizationOverviewPage({
                         Create organizations, group projects underneath them, and keep the top level focused on the workspaces you actually use.
                     </Text>
                 </Stack>
-                <Button
-                    minW="12"
-                    h="12"
-                    borderRadius="full"
-                    bg="#2d6cdf"
-                    color="#f8fbff"
-                    fontSize="2xl"
-                    lineHeight="1"
-                    onClick={onToggleCreateForm}
-                >
-                    +
+                <Button minW="11" h="11" borderRadius="lg" bg="#2d6cdf" color="#f8fbff" onClick={onToggleCreateForm}>
+                    <ActionIcon>
+                        <PlusIcon />
+                    </ActionIcon>
                 </Button>
             </Flex>
 
@@ -63,7 +58,7 @@ export function OrganizationOverviewPage({
                         <Flex
                             key={organization.id}
                             px={{ base: "4", lg: "5" }}
-                            py="4"
+                            py="3"
                             align={{ base: "flex-start", lg: "center" }}
                             justify="space-between"
                             gap="4"
@@ -80,11 +75,11 @@ export function OrganizationOverviewPage({
                                     {organization.description || "No description yet."}
                                 </Text>
                                 <Text color="#728198" fontSize="sm">
-                                    {organization.projectCount} projects · {organization.repoCount} repos · {organization.memberCount} people · {organization.openBugCount} open bugs · updated {formatShortDate(organization.updatedAt)}
+                                    {organization.projectCount} projects - {organization.repoCount} repos - {organization.memberCount} people - {organization.openBugCount} open bugs - updated {formatShortDate(organization.updatedAt)}
                                 </Text>
                             </Stack>
                             <Button
-                                borderRadius="full"
+                                borderRadius="lg"
                                 variant="outline"
                                 borderColor="#2b3544"
                                 color="#eef3fb"
@@ -99,7 +94,7 @@ export function OrganizationOverviewPage({
                         <Text color="#f5f7fb" fontWeight="600">
                             No organizations yet.
                         </Text>
-                        <Text color="#90a0b7">Use the + button to add the first one.</Text>
+                        <Text color="#90a0b7">Use the add button to create the first one.</Text>
                     </Stack>
                 )}
             </SurfaceCard>
@@ -124,7 +119,7 @@ export function OrganizationOverviewPage({
                         placeholder="Platform delivery"
                         bg="#0f141b"
                         borderColor="#2b3544"
-                        borderRadius="0"
+                        borderRadius="lg"
                         color="#f5f7fb"
                     />
                     <Textarea
@@ -133,11 +128,11 @@ export function OrganizationOverviewPage({
                         placeholder="Shared work across services, frontend, and ops."
                         bg="#0f141b"
                         borderColor="#2b3544"
-                        borderRadius="0"
+                        borderRadius="lg"
                         color="#f5f7fb"
                         minH="120px"
                     />
-                    <Button type="submit" borderRadius="full" bg="#2d6cdf" color="#f8fbff">
+                    <Button type="submit" borderRadius="lg" bg="#2d6cdf" color="#f8fbff" alignSelf="flex-start">
                         {isCreatingOrganization ? "Adding..." : "Add organization"}
                     </Button>
                 </Stack>

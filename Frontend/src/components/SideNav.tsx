@@ -30,12 +30,17 @@ export function SideNav<T extends string>({
                         justifyContent="flex-start"
                         h="auto"
                         py="3"
-                        px="0"
-                        borderRadius="0"
+                        px="3"
+                        borderRadius="10px"
                         variant="ghost"
                         borderBottomWidth="2px"
                         borderColor={activeItem === item.id ? "#4b7ee8" : "transparent"}
+                        bg={activeItem === item.id ? "#101926" : "transparent"}
                         color={activeItem === item.id ? "#f5f7fb" : "#90a0b7"}
+                        _hover={{
+                            bg: activeItem === item.id ? "#142032" : "#151c26",
+                            color: "#eef3fb",
+                        }}
                         onClick={() => onSelect(item.id)}
                     >
                         <Stack align="flex-start" gap="0">

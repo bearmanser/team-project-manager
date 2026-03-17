@@ -2,6 +2,8 @@ import { Box, Button, Flex, Stack, Text } from "@chakra-ui/react";
 
 import type { Notification } from "../types";
 import { formatDateTime } from "../utils";
+import { ActionIcon } from "./ActionIcon";
+import { CloseIcon } from "./icons";
 import { SurfaceCard } from "./SurfaceCard";
 
 type NotificationPanelProps = {
@@ -29,8 +31,10 @@ export function NotificationPanel({
                     <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="#90a0b7">
                         Notifications
                     </Text>
-                    <Button variant="ghost" color="#eef3fb" minW="8" h="8" px="0" onClick={onClose}>
-                        x
+                    <Button variant="ghost" color="#eef3fb" minW="8" h="8" px="0" borderRadius="lg" onClick={onClose}>
+                        <ActionIcon>
+                            <CloseIcon size={16} />
+                        </ActionIcon>
                     </Button>
                 </Flex>
 
@@ -55,7 +59,7 @@ export function NotificationPanel({
                                         <Button
                                             size="xs"
                                             variant="outline"
-                                            borderRadius="full"
+                                            borderRadius="md"
                                             borderColor="#3a74d8"
                                             color="#dfe9ff"
                                             bg="transparent"

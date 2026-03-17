@@ -46,15 +46,15 @@ export function ProfilePage({ organization, user, onConnectGitHub, onLogout }: P
                 </Stack>
 
                 <Text color="#b0bccf">
-                    Use this page to reconnect GitHub or sign out. The header avatar now mirrors your GitHub image so profile access stays one click away.
+                    Use this page to reconnect GitHub or sign out. The header avatar mirrors your GitHub image so profile access stays one click away.
                 </Text>
 
                 <Stack direction={{ base: "column", md: "row" }}>
-                    <Button borderRadius="full" bg="#2d6cdf" color="#f8fbff" onClick={onConnectGitHub}>
+                    <Button borderRadius="lg" bg="#2d6cdf" color="#f8fbff" onClick={onConnectGitHub}>
                         {user.githubConnected ? "Reconnect GitHub" : "Connect GitHub"}
                     </Button>
                     <Button
-                        borderRadius="full"
+                        borderRadius="lg"
                         variant="outline"
                         borderColor="#8c3a46"
                         color="#ffc6ce"
@@ -67,4 +67,3 @@ export function ProfilePage({ organization, user, onConnectGitHub, onLogout }: P
         </SurfaceCard>
     );
 }
-
