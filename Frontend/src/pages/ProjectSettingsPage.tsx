@@ -1,4 +1,4 @@
-import { Button, Heading, Input, Link, Stack, Text, Textarea } from "@chakra-ui/react";
+import { Box, Button, Heading, Input, Link, Stack, Text, Textarea } from "@chakra-ui/react";
 
 import { SurfaceCard } from "../components/SurfaceCard";
 import type { ProjectDetail } from "../types";
@@ -9,9 +9,10 @@ type ProjectSettingsPageProps = {
     projectSettingsForm: {
         name: string;
         description: string;
+        useSprints: boolean;
     };
     onDeleteProject: () => void;
-    onProjectSettingsChange: (field: "name" | "description", value: string) => void;
+    onProjectSettingsChange: (field: "name" | "description" | "useSprints", value: string | boolean) => void;
     onSaveProjectSettings: () => void;
 };
 
@@ -35,7 +36,7 @@ export function ProjectSettingsPage({
                     {project.name}
                 </Heading>
                 <Text color="var(--color-text-secondary)" maxW="2xl">
-                    Keep the essentials here: naming, description, repository reference, and deletion when the project no longer belongs in this organization.
+                    Keep the essentials here: naming, description, sprint mode, repository reference, and deletion when the project no longer belongs in this organization.
                 </Text>
             </Stack>
 
@@ -70,6 +71,31 @@ export function ProjectSettingsPage({
                             color="var(--color-text-primary)"
                             minH="140px"
                         />
+                        <SurfaceCard p="4" bg="var(--color-bg-card)">
+                            <Stack gap="3">
+                                <Heading size="sm" color="var(--color-text-primary)">
+                                    Workflow mode
+                                </Heading>
+                                <Box
+                                    as="label"
+                                    display="flex"
+                                    alignItems="center"
+                                    gap="3"
+                                    color="var(--color-text-primary)"
+                                    cursor="pointer"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={projectSettingsForm.useSprints}
+                                        onChange={(event) => onProjectSettingsChange("useSprints", event.target.checked)}
+                                    />
+                                    <Text>Use sprints for scrumban planning</Text>
+                                </Box>
+                                <Text color="var(--color-text-muted)" fontSize="sm">
+                                    When enabled, the board focuses on the active sprint, the Todo column becomes Sprint Backlog, and the tasks page splits sprint backlog from product backlog.
+                                </Text>
+                            </Stack>
+                        </SurfaceCard>
                         <Button type="submit" borderRadius="lg" bg="var(--color-accent)" color="var(--color-text-inverse)" alignSelf="flex-start" _hover={{ bg: "var(--color-accent-hover)" }}>
                             {busyLabel === "Saving project settings" ? busyLabel : "Save changes"}
                         </Button>

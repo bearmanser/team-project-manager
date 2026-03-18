@@ -4,7 +4,9 @@ import { Box, Button, Flex, Heading, Stack, Text } from "@chakra-ui/react";
 
 import {
     ApiError,
+    addBugComment,
     addProjectMember,
+    addTaskComment,
     buildApiUrl,
     completeGitHubOauth,
     createBugReport,
@@ -12,6 +14,7 @@ import {
     createProject,
     createTask,
     deleteProject,
+    endProjectSprint,
     getProject,
     getWorkspace,
     login,
@@ -24,8 +27,10 @@ import {
 } from "./api";
 import { AppShell } from "./components/AppShell";
 import { ActionIcon } from "./components/ActionIcon";
+import { EndSprintModal } from "./components/EndSprintModal";
 import { SideNav } from "./components/SideNav";
 import { SurfaceCard } from "./components/SurfaceCard";
+import { WorkItemDetailModal } from "./components/WorkItemDetailModal";
 import { CloseIcon } from "./components/icons";
 import { TopNav } from "./components/TopNav";
 import { LoginPage } from "./pages/LoginPage";
@@ -36,25 +41,24 @@ import { OrganizationUsersPage } from "./pages/OrganizationUsersPage";
 import { ProjectBoardPage } from "./pages/ProjectBoardPage";
 import { ProjectBugsPage } from "./pages/ProjectBugsPage";
 import { ProjectSettingsPage } from "./pages/ProjectSettingsPage";
+import { ProjectSprintHistoryPage } from "./pages/ProjectSprintHistoryPage";
 import { ProjectTasksPage } from "./pages/ProjectTasksPage";
 import type {
+    BacklogPlacement,
+    BugReport,
     BugStatus,
     Notification,
     OrganizationSummary,
     ProjectDetail,
     PriorityLevel,
     ProjectRole,
+    Task,
     TaskStatus,
     User,
     WorkspaceResponse,
 } from "./types";
 import { sidebarSelectStyle } from "./utils";
-import type {
-    NavItem,
-    OrganizationSection,
-    OrganizationUser,
-    ProjectSection,
-} from "./view-models";
+import type { NavItem, OrganizationSection, OrganizationUser, ProjectSection } from "./view-models";
 
 const TOKEN_STORAGE_KEY = "team-project-manager.jwt";
 const SELECTED_ORGANIZATION_STORAGE_KEY = "team-project-manager.selected-organization";
@@ -89,6 +93,7 @@ const initialTaskForm = {
     description: "",
     status: "todo" as TaskStatus,
     priority: "medium" as PriorityLevel,
+    placement: "product" as BacklogPlacement,
 };
 
 const initialBugForm = {
@@ -201,7 +206,7 @@ function parseRoute(pathname: string): AppRoute {
         };
     }
 
-    const projectMatch = normalizedPath.match(/^\/projects\/(\d+)(?:\/(board|tasks|bugs|settings))?$/);
+    const projectMatch = normalizedPath.match(/^\/projects\/(\d+)(?:\/(board|tasks|bugs|history|settings))?$/);
     if (projectMatch) {
         return {
             kind: "project",
@@ -254,6 +259,10 @@ function App() {
     const [showCreateProjectForm, setShowCreateProjectForm] = useState(false);
     const [showCreateTaskForm, setShowCreateTaskForm] = useState(false);
     const [showCreateBugForm, setShowCreateBugForm] = useState(false);
+    const [showEndSprintModal, setShowEndSprintModal] = useState(false);
+    const [endSprintReview, setEndSprintReview] = useState("");
+    const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
+    const [selectedBugId, setSelectedBugId] = useState<number | null>(null);
     const [createOrganizationForm, setCreateOrganizationForm] = useState(initialOrganizationForm);
     const [createProjectForm, setCreateProjectForm] = useState(initialProjectForm);
     const [createTaskForm, setCreateTaskForm] = useState(initialTaskForm);
@@ -261,6 +270,7 @@ function App() {
     const [projectSettingsForm, setProjectSettingsForm] = useState({
         name: "",
         description: "",
+        useSprints: false,
     });
 
     const user = workspace?.user ?? null;
@@ -279,6 +289,20 @@ function App() {
             workspace?.projects.filter((project) => project.organizationId === currentOrganization?.id) ?? [],
         [currentOrganization?.id, workspace],
     );
+    const selectedTask = useMemo<Task | null>(() => {
+        if (!selectedProject || selectedTaskId === null) {
+            return null;
+        }
+
+        return selectedProject.tasks.find((task) => task.id === selectedTaskId) ?? null;
+    }, [selectedProject, selectedTaskId]);
+    const selectedBug = useMemo<BugReport | null>(() => {
+        if (!selectedProject || selectedBugId === null) {
+            return null;
+        }
+
+        return selectedProject.bugReports.find((bug) => bug.id === selectedBugId) ?? null;
+    }, [selectedBugId, selectedProject]);
 
     const organizationNavItems: NavItem<OrganizationSection>[] = useMemo(
         () => [
@@ -306,12 +330,16 @@ function App() {
             {
                 id: "board",
                 label: "Board",
-                description: "Drag tasks between delivery stages.",
+                description: selectedProject?.useSprints
+                    ? "Flow the active sprint across the board."
+                    : "Drag tasks between delivery stages.",
             },
             {
                 id: "tasks",
                 label: "Tasks",
-                description: "Compact task list with inline status and priority changes.",
+                description: selectedProject?.useSprints
+                    ? "Split sprint backlog from product backlog."
+                    : "Compact task list with inline status and priority changes.",
             },
             {
                 id: "bugs",
@@ -319,12 +347,17 @@ function App() {
                 description: "Triaged issues with inline status and priority updates.",
             },
             {
+                id: "history",
+                label: "Sprint History",
+                description: "Past sprints, review notes, and carryover.",
+            },
+            {
                 id: "settings",
                 label: "Settings",
-                description: "Project details, repo reference, and deletion.",
+                description: "Project details, workflow mode, repo reference, and deletion.",
             },
         ],
-        [],
+        [selectedProject?.useSprints],
     );
 
     function storeToken(nextToken: string | null): void {
@@ -372,6 +405,10 @@ function App() {
         rememberProjectSelection(null);
         setSelectedProject(null);
         setProjectSection("board");
+        setSelectedTaskId(null);
+        setSelectedBugId(null);
+        setShowEndSprintModal(false);
+        setEndSprintReview("");
     }
 
     function clearSession(): void {
@@ -395,6 +432,7 @@ function App() {
             setProjectSettingsForm({
                 name: response.project.name,
                 description: response.project.description,
+                useSprints: response.project.useSprints,
             });
         });
         rememberProjectSelection(projectId);
@@ -437,6 +475,7 @@ function App() {
                     setProjectSettingsForm({
                         name: projectOverride.name,
                         description: projectOverride.description,
+                        useSprints: projectOverride.useSprints,
                     });
                 });
             } else {
@@ -554,6 +593,7 @@ function App() {
                 setProjectSettingsForm({
                     name: response.project.name,
                     description: response.project.description,
+                    useSprints: response.project.useSprints,
                 });
             });
             rememberProjectSelection(response.project.id);
@@ -952,12 +992,23 @@ function App() {
         void syncFromPath(token, { quiet: true });
     }
 
-    function openCreateTaskForm(status: TaskStatus): void {
+    function openCreateTaskForm(status: TaskStatus, placement: BacklogPlacement = "product"): void {
         setCreateTaskForm({
             ...initialTaskForm,
             status,
+            placement,
         });
         setShowCreateTaskForm(true);
+    }
+
+    function openTaskDetail(taskId: number): void {
+        setSelectedBugId(null);
+        setSelectedTaskId(taskId);
+    }
+
+    function openBugDetail(bugId: number): void {
+        setSelectedTaskId(null);
+        setSelectedBugId(bugId);
     }
 
     async function handleCreateTask(): Promise<void> {
@@ -973,6 +1024,7 @@ function App() {
                     description: createTaskForm.description.trim(),
                     status: createTaskForm.status,
                     priority: createTaskForm.priority,
+                    placement: createTaskForm.placement,
                     assigneeIds: [],
                 }),
             "Task added.",
@@ -986,11 +1038,7 @@ function App() {
             return;
         }
 
-        await runProjectMutation(
-            "Updating task",
-            () => updateTask(token, taskId, { status }),
-            "Task updated.",
-        );
+        await runProjectMutation("Updating task", () => updateTask(token, taskId, { status }), "Task updated.");
     }
 
     async function handleUpdateTaskPriority(taskId: number, priority: PriorityLevel): Promise<void> {
@@ -1002,6 +1050,44 @@ function App() {
             "Updating task priority",
             () => updateTask(token, taskId, { priority }),
             "Task updated.",
+        );
+    }
+
+    async function handleMoveTaskPlacement(taskId: number, placement: BacklogPlacement): Promise<void> {
+        if (!token) {
+            return;
+        }
+
+        await runProjectMutation(
+            "Updating backlog placement",
+            () => updateTask(token, taskId, { placement }),
+            "Task updated.",
+        );
+    }
+
+    async function handleSaveTaskDetails(
+        taskId: number,
+        payload: Partial<{ title: string; description: string; status: string; priority: string }>,
+    ): Promise<void> {
+        if (!token) {
+            return;
+        }
+
+        await runProjectMutation("Saving task", () => updateTask(token, taskId, payload), "Task saved.");
+    }
+
+    async function handleAddTaskDetailComment(
+        taskId: number,
+        payload: { body: string; anchorType?: string; anchorId?: string; anchorLabel?: string },
+    ): Promise<void> {
+        if (!token) {
+            return;
+        }
+
+        await runProjectMutation(
+            "Adding task comment",
+            () => addTaskComment(token, taskId, payload),
+            "Comment added.",
         );
     }
 
@@ -1049,6 +1135,32 @@ function App() {
         );
     }
 
+    async function handleSaveBugDetails(
+        bugId: number,
+        payload: Partial<{ title: string; description: string; status: string; priority: string }>,
+    ): Promise<void> {
+        if (!token) {
+            return;
+        }
+
+        await runProjectMutation("Saving bug report", () => updateBugReport(token, bugId, payload), "Bug saved.");
+    }
+
+    async function handleAddBugDetailComment(
+        bugId: number,
+        payload: { body: string; anchorType?: string; anchorId?: string; anchorLabel?: string },
+    ): Promise<void> {
+        if (!token) {
+            return;
+        }
+
+        await runProjectMutation(
+            "Adding bug comment",
+            () => addBugComment(token, bugId, payload),
+            "Comment added.",
+        );
+    }
+
     async function handleSaveProjectSettings(): Promise<void> {
         if (!token || !selectedProject) {
             return;
@@ -1060,9 +1172,24 @@ function App() {
                 updateProjectSettings(token, selectedProject.id, {
                     name: projectSettingsForm.name.trim(),
                     description: projectSettingsForm.description.trim(),
+                    useSprints: projectSettingsForm.useSprints,
                 }),
             "Project settings saved.",
         );
+    }
+
+    async function handleEndSprint(): Promise<void> {
+        if (!token || !selectedProject) {
+            return;
+        }
+
+        await runProjectMutation(
+            "Ending sprint",
+            () => endProjectSprint(token, selectedProject.id, { reviewText: endSprintReview.trim() }),
+            "Sprint ended.",
+        );
+        setShowEndSprintModal(false);
+        setEndSprintReview("");
     }
 
     async function handleDeleteSelectedProject(): Promise<void> {
@@ -1271,10 +1398,12 @@ function App() {
                     }))
                 }
                 onOpenCreateTask={openCreateTaskForm}
-                onOpenTasksView={() => openProject(selectedProject.id, "tasks")}
+                onOpenTask={openTaskDetail}
                 onToggleCreateTaskForm={() => setShowCreateTaskForm((current) => !current)}
                 onUpdateTaskPriority={(taskId, priority) => void handleUpdateTaskPriority(taskId, priority)}
                 onUpdateTaskStatus={(taskId, status) => void handleUpdateTaskStatus(taskId, status)}
+                onMoveTaskPlacement={(taskId, placement) => void handleMoveTaskPlacement(taskId, placement)}
+                onOpenEndSprint={() => setShowEndSprintModal(true)}
             />
         );
 
@@ -1292,8 +1421,11 @@ function App() {
                         }))
                     }
                     onToggleCreateForm={() => setShowCreateTaskForm((current) => !current)}
+                    onOpenCreateTask={openCreateTaskForm}
+                    onOpenTask={openTaskDetail}
                     onUpdateTaskPriority={(taskId, priority) => void handleUpdateTaskPriority(taskId, priority)}
                     onUpdateTaskStatus={(taskId, status) => void handleUpdateTaskStatus(taskId, status)}
+                    onMoveTaskPlacement={(taskId, placement) => void handleMoveTaskPlacement(taskId, placement)}
                 />
             );
         }
@@ -1312,10 +1444,15 @@ function App() {
                         }))
                     }
                     onToggleCreateForm={() => setShowCreateBugForm((current) => !current)}
+                    onOpenBug={openBugDetail}
                     onUpdateBugPriority={(bugId, priority) => void handleUpdateBugPriority(bugId, priority)}
                     onUpdateBugStatus={(bugId, status) => void handleUpdateBugStatus(bugId, status)}
                 />
             );
+        }
+
+        if (projectSection === "history") {
+            projectContent = <ProjectSprintHistoryPage project={selectedProject} />;
         }
 
         if (projectSection === "settings") {
@@ -1339,6 +1476,34 @@ function App() {
         return (
             <AppShell topNav={topNav} banner={banner} sidebar={projectSidebar}>
                 {projectContent}
+                <WorkItemDetailModal
+                    isOpen={Boolean(selectedTask)}
+                    project={selectedProject}
+                    task={selectedTask}
+                    onClose={() => setSelectedTaskId(null)}
+                    onSaveTask={(taskId, payload) => void handleSaveTaskDetails(taskId, payload)}
+                    onSaveBug={(bugId, payload) => void handleSaveBugDetails(bugId, payload)}
+                    onAddTaskComment={(taskId, payload) => void handleAddTaskDetailComment(taskId, payload)}
+                    onAddBugComment={(bugId, payload) => void handleAddBugDetailComment(bugId, payload)}
+                />
+                <WorkItemDetailModal
+                    isOpen={Boolean(selectedBug)}
+                    project={selectedProject}
+                    bug={selectedBug}
+                    onClose={() => setSelectedBugId(null)}
+                    onSaveTask={(taskId, payload) => void handleSaveTaskDetails(taskId, payload)}
+                    onSaveBug={(bugId, payload) => void handleSaveBugDetails(bugId, payload)}
+                    onAddTaskComment={(taskId, payload) => void handleAddTaskDetailComment(taskId, payload)}
+                    onAddBugComment={(bugId, payload) => void handleAddBugDetailComment(bugId, payload)}
+                />
+                <EndSprintModal
+                    isOpen={showEndSprintModal}
+                    project={selectedProject}
+                    reviewText={endSprintReview}
+                    onChange={setEndSprintReview}
+                    onClose={() => setShowEndSprintModal(false)}
+                    onSubmit={() => void handleEndSprint()}
+                />
             </AppShell>
         );
     }

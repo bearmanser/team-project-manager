@@ -8,8 +8,10 @@ import { SurfaceCard } from "../components/SurfaceCard";
 import type { BugStatus, PriorityLevel, ProjectDetail } from "../types";
 import {
     formatShortDate,
+    getBugStatusOptionStyle,
     getBugStatusSelectStyle,
     getPriorityLabel,
+    getPriorityOptionStyle,
     getPrioritySelectStyle,
     nativeSelectStyle,
     PRIORITY_OPTIONS,
@@ -28,6 +30,7 @@ type ProjectBugsPageProps = {
     onCreateBug: () => void;
     onCreateBugFormChange: (field: "title" | "description" | "status" | "priority", value: string) => void;
     onToggleCreateForm: () => void;
+    onOpenBug: (bugId: number) => void;
     onUpdateBugPriority: (bugId: number, priority: PriorityLevel) => void;
     onUpdateBugStatus: (bugId: number, status: BugStatus) => void;
 };
@@ -39,6 +42,7 @@ export function ProjectBugsPage({
     onCreateBug,
     onCreateBugFormChange,
     onToggleCreateForm,
+    onOpenBug,
     onUpdateBugPriority,
     onUpdateBugStatus,
 }: ProjectBugsPageProps) {
@@ -55,7 +59,7 @@ export function ProjectBugsPage({
                         {project.name}
                     </Heading>
                     <Text color="var(--color-text-secondary)" maxW="2xl">
-                        Keep bug reports concise, update status and priority inline, and create new reports only when you need one.
+                        Keep bug reports concise, update status and priority inline, and open the full detail modal when you need investigation context and threaded discussion.
                     </Text>
                 </Stack>
                 <Button
@@ -95,7 +99,13 @@ export function ProjectBugsPage({
                                 borderColor="var(--color-border-default)"
                                 _last={{ borderBottomWidth: "0" }}
                             >
-                                <Stack gap="1.5" flex="1" minW="260px">
+                                <Stack
+                                    gap="1.5"
+                                    flex="1"
+                                    minW="260px"
+                                    cursor="pointer"
+                                    onClick={() => onOpenBug(bug.id)}
+                                >
                                     <Text color="var(--color-text-primary)" fontWeight="700" whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis">
                                         {bug.title}
                                     </Text>
@@ -114,7 +124,7 @@ export function ProjectBugsPage({
                                             onChange={(event) => onUpdateBugPriority(bug.id, event.target.value as PriorityLevel)}
                                         >
                                             {PRIORITY_OPTIONS.map((priority) => (
-                                                <option key={priority} value={priority}>
+                                                <option key={priority} value={priority} style={getPriorityOptionStyle(priority)}>
                                                     {getPriorityLabel(priority)}
                                                 </option>
                                             ))}
@@ -127,7 +137,7 @@ export function ProjectBugsPage({
                                             onChange={(event) => onUpdateBugStatus(bug.id, event.target.value as BugStatus)}
                                         >
                                             {Object.entries(project.bugStatusLabels).map(([value, label]) => (
-                                                <option key={value} value={value}>
+                                                <option key={value} value={value} style={getBugStatusOptionStyle(value as BugStatus)}>
                                                     {label}
                                                 </option>
                                             ))}
@@ -186,7 +196,7 @@ export function ProjectBugsPage({
                         onChange={(event) => onCreateBugFormChange("status", event.target.value)}
                     >
                         {Object.entries(project.bugStatusLabels).map(([value, label]) => (
-                            <option key={value} value={value}>
+                            <option key={value} value={value} style={getBugStatusOptionStyle(value as BugStatus)}>
                                 {label}
                             </option>
                         ))}
@@ -197,7 +207,7 @@ export function ProjectBugsPage({
                         onChange={(event) => onCreateBugFormChange("priority", event.target.value)}
                     >
                         {PRIORITY_OPTIONS.map((priority) => (
-                            <option key={priority} value={priority}>
+                            <option key={priority} value={priority} style={getPriorityOptionStyle(priority)}>
                                 {getPriorityLabel(priority)} priority
                             </option>
                         ))}

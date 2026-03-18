@@ -120,10 +120,25 @@ export function createProject(
 export function updateProjectSettings(
     token: string,
     projectId: number,
-    payload: { name: string; description: string },
+    payload: { name: string; description: string; useSprints: boolean },
 ): Promise<ProjectResponse> {
     return request<ProjectResponse>(
         `/api/projects/${projectId}/settings/`,
+        {
+            method: "POST",
+            body: JSON.stringify(payload),
+        },
+        token,
+    );
+}
+
+export function endProjectSprint(
+    token: string,
+    projectId: number,
+    payload: { reviewText: string },
+): Promise<ProjectResponse> {
+    return request<ProjectResponse>(
+        `/api/projects/${projectId}/sprints/end/`,
         {
             method: "POST",
             body: JSON.stringify(payload),
@@ -224,6 +239,7 @@ export function createTask(
         description: string;
         status: string;
         priority: string;
+        placement?: "sprint" | "product";
         assigneeIds: number[];
         bugReportId?: number;
         markAsResolution?: boolean;
@@ -262,6 +278,7 @@ export function updateTask(
         description: string;
         status: string;
         priority: string;
+        placement: "sprint" | "product";
         assigneeIds: number[];
     }>,
 ): Promise<ProjectResponse> {
@@ -278,7 +295,7 @@ export function updateTask(
 export function addTaskComment(
     token: string,
     taskId: number,
-    payload: { body: string },
+    payload: { body: string; anchorType?: string; anchorId?: string; anchorLabel?: string },
 ): Promise<ProjectResponse> {
     return request<ProjectResponse>(
         `/api/tasks/${taskId}/comments/`,
@@ -351,7 +368,7 @@ export function updateBugReport(
 export function addBugComment(
     token: string,
     bugId: number,
-    payload: { body: string },
+    payload: { body: string; anchorType?: string; anchorId?: string; anchorLabel?: string },
 ): Promise<ProjectResponse> {
     return request<ProjectResponse>(
         `/api/bugs/${bugId}/comments/`,
@@ -427,4 +444,3 @@ export function completeGitHubOauth(
         token,
     );
 }
-

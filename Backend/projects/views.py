@@ -30,6 +30,7 @@ from .models import (
     Project,
     ProjectMembership,
     ProjectRepository,
+    Sprint,
     Task,
     TaskComment,
 )
@@ -51,6 +52,7 @@ BOARD_COLUMNS = [
     {"id": Task.STATUS_IN_REVIEW, "label": "In Review"},
     {"id": Task.STATUS_DONE, "label": "Done"},
 ]
+INLINE_COMMENT_ANCHORS = {"description"}
 BUG_STATUS_LABELS = {
     BugReport.STATUS_OPEN: "Open",
     BugReport.STATUS_INVESTIGATING: "Investigating",
@@ -69,6 +71,78 @@ TASK_STATUS_LABELS = {
     Task.STATUS_IN_REVIEW: "In Review",
     Task.STATUS_DONE: "Done",
 }
+
+
+def _get_active_sprint(project: Project) -> Sprint | None:
+    return Sprint.objects.filter(project=project, status=Sprint.STATUS_ACTIVE).order_by("-number", "-id").first()
+
+
+def _create_sprint(project: Project) -> Sprint:
+    latest_sprint = Sprint.objects.filter(project=project).order_by("-number", "-id").first()
+    next_number = (latest_sprint.number if latest_sprint else 0) + 1
+    return Sprint.objects.create(
+        project=project,
+        number=next_number,
+        name=f"Sprint {next_number}",
+    )
+
+
+def _ensure_active_sprint(project: Project) -> Sprint:
+    return _get_active_sprint(project) or _create_sprint(project)
+
+
+def _serialize_board_columns(project: Project, active_sprint: Sprint | None) -> list[dict]:
+    return [
+        {
+            "id": column["id"],
+            "label": "Sprint Backlog"
+            if project.use_sprints and active_sprint and column["id"] == Task.STATUS_TODO
+            else column["label"],
+        }
+        for column in BOARD_COLUMNS
+    ]
+
+
+def _serialize_sprint_task_snapshot(task: Task) -> dict:
+    return {
+        "id": task.id,
+        "title": task.title,
+        "status": task.status,
+        "priority": task.priority,
+    }
+
+
+def _serialize_sprint(sprint: Sprint | None) -> dict | None:
+    if sprint is None:
+        return None
+
+    return {
+        "id": sprint.id,
+        "number": sprint.number,
+        "name": sprint.name,
+        "status": sprint.status,
+        "reviewText": sprint.review_text,
+        "summary": sprint.summary or {},
+        "startedAt": sprint.started_at.isoformat(),
+        "endedAt": sprint.ended_at.isoformat() if sprint.ended_at else None,
+        "createdAt": sprint.created_at.isoformat(),
+        "updatedAt": sprint.updated_at.isoformat(),
+    }
+
+
+def _parse_comment_anchor(payload: dict) -> tuple[str, str, str]:
+    anchor_type = (payload.get("anchorType") or "").strip()
+    anchor_id = str(payload.get("anchorId") or "").strip()
+    anchor_label = (payload.get("anchorLabel") or "").strip()[:255]
+
+    if anchor_type and anchor_type not in INLINE_COMMENT_ANCHORS:
+        raise ValueError("Choose a valid inline comment target.")
+    if anchor_type and not anchor_id:
+        raise ValueError("Inline comments need a target anchor.")
+    if not anchor_type:
+        return "", "", ""
+
+    return anchor_type, anchor_id, anchor_label
 
 
 def _json_error(message: str, status: int = 400) -> JsonResponse:
@@ -477,6 +551,9 @@ def _serialize_comment(comment) -> dict:
         "id": comment.id,
         "body": comment.body,
         "author": _serialize_user(comment.author),
+        "anchorType": getattr(comment, "anchor_type", ""),
+        "anchorId": getattr(comment, "anchor_id", ""),
+        "anchorLabel": getattr(comment, "anchor_label", ""),
         "createdAt": comment.created_at.isoformat(),
         "updatedAt": comment.updated_at.isoformat(),
     }
@@ -517,6 +594,8 @@ def _serialize_task_summary(task: Task, bug_report: BugReport | None = None) -> 
         "status": task.status,
         "priority": task.priority,
         "assigneeCount": task.assignees.count(),
+        "sprintId": task.sprint_id,
+        "sprintName": task.sprint.name if task.sprint else "",
         "isResolutionTask": bool(bug and bug.resolution_task_id == task.id),
     }
 
@@ -538,6 +617,8 @@ def _serialize_task(
         "priority": task.priority,
         "creator": _serialize_user(task.creator),
         "assignees": [_serialize_user(user) for user in task.assignees.all()],
+        "sprintId": task.sprint_id,
+        "sprintName": task.sprint.name if task.sprint else "",
         "bugReportId": task.bug_report_id,
         "bugReportTitle": bug_report.title if bug_report else "",
         "isResolutionTask": bool(bug_report and bug_report.resolution_task_id == task.id),
@@ -613,13 +694,17 @@ def _build_project_snapshot(
     if membership is None:
         raise PermissionError("Project membership required.")
 
+    active_sprint = _ensure_active_sprint(project) if project.use_sprints else _get_active_sprint(project)
+    sprint_history = list(
+        Sprint.objects.filter(project=project, status=Sprint.STATUS_COMPLETED).order_by("-number", "-id")
+    )
     members = list(
         ProjectMembership.objects.filter(project=project).select_related("user")
     )
     repositories = list(ProjectRepository.objects.filter(project=project))
     tasks = list(
         Task.objects.filter(project=project)
-        .select_related("creator", "bug_report", "branch_repository")
+        .select_related("creator", "bug_report", "branch_repository", "sprint")
         .prefetch_related("assignees")
     )
     bug_reports = list(
@@ -697,6 +782,9 @@ def _build_project_snapshot(
         "organizationName": project.organization.name if project.organization else "",
         "name": project.name,
         "description": project.description,
+        "useSprints": project.use_sprints,
+        "activeSprint": _serialize_sprint(active_sprint),
+        "sprintHistory": [_serialize_sprint(item) for item in sprint_history],
         "ownerId": project.owner_id,
         "role": membership.role,
         "permissions": _serialize_permissions(membership),
@@ -710,7 +798,7 @@ def _build_project_snapshot(
             }
             for item in members
         ],
-        "boardColumns": BOARD_COLUMNS,
+        "boardColumns": _serialize_board_columns(project, active_sprint),
         "taskStatusLabels": TASK_STATUS_LABELS,
         "bugStatusLabels": BUG_STATUS_LABELS,
         "tasks": serialized_tasks,
@@ -946,18 +1034,29 @@ def project_settings_view(request, project_id: int):
 
     name = (payload.get("name") or "").strip()
     description = (payload.get("description") or "").strip()
+    use_sprints = bool(payload.get("useSprints"))
     if not name:
         return _json_error("Project name is required.")
 
     changed = []
+    update_fields = ["updated_at"]
     if name != project.name:
         changed.append("name")
+        update_fields.append("name")
     if description != project.description:
         changed.append("description")
+        update_fields.append("description")
+    if use_sprints != project.use_sprints:
+        changed.append("sprint mode")
+        update_fields.append("use_sprints")
 
     project.name = name
     project.description = description
-    project.save(update_fields=["name", "description", "updated_at"])
+    project.use_sprints = use_sprints
+    project.save(update_fields=update_fields)
+
+    if use_sprints:
+        _ensure_active_sprint(project)
 
     if changed:
         _record_activity(
@@ -985,6 +1084,66 @@ def project_delete_view(request, project_id: int):
     project.delete()
     _touch_organization(organization_id)
     return JsonResponse({"success": True, "projectId": deleted_project_id})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@jwt_required
+def project_sprint_end_view(request, project_id: int):
+    project, membership, error = _load_project(project_id, request.user)
+    if error:
+        return error
+    if not _role_at_least(membership, ProjectMembership.ROLE_ADMIN):
+        return _json_error("Only admins and owners can end a sprint.", 403)
+    if not project.use_sprints:
+        return _json_error("Enable sprint mode before ending a sprint.")
+
+    active_sprint = _get_active_sprint(project)
+    if active_sprint is None:
+        return _json_error("There is no active sprint to end.", 404)
+
+    try:
+        payload = _parse_json_body(request)
+    except ValueError as exc:
+        return _json_error(str(exc))
+
+    review_text = (payload.get("reviewText") or "").strip()
+    sprint_tasks = list(
+        Task.objects.filter(project=project, sprint=active_sprint)
+        .select_related("bug_report")
+        .prefetch_related("assignees")
+        .order_by("status", "-updated_at", "-id")
+    )
+    completed_tasks = [task for task in sprint_tasks if task.status == Task.STATUS_DONE]
+    carryover_tasks = [task for task in sprint_tasks if task.status != Task.STATUS_DONE]
+
+    active_sprint.status = Sprint.STATUS_COMPLETED
+    active_sprint.review_text = review_text
+    active_sprint.ended_at = timezone.now()
+    active_sprint.summary = {
+        "totalCount": len(sprint_tasks),
+        "completedCount": len(completed_tasks),
+        "carryoverCount": len(carryover_tasks),
+        "completedTasks": [_serialize_sprint_task_snapshot(task) for task in completed_tasks],
+        "carryoverTasks": [_serialize_sprint_task_snapshot(task) for task in carryover_tasks],
+    }
+    active_sprint.save(update_fields=["status", "review_text", "ended_at", "summary", "updated_at"])
+
+    next_sprint = _create_sprint(project)
+    for task in carryover_tasks:
+        task.sprint = next_sprint
+        task.save(update_fields=["sprint", "updated_at"])
+
+    _record_activity(
+        project,
+        request.user,
+        "sprint.ended",
+        f"Ended {active_sprint.name} with {len(completed_tasks)} completed tasks and {len(carryover_tasks)} carryover tasks.",
+        metadata={"endedSprintId": active_sprint.id, "nextSprintId": next_sprint.id},
+    )
+
+    return JsonResponse({"project": _build_project_snapshot(project, request.user, membership)})
+
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -1227,6 +1386,7 @@ def project_tasks_view(request, project_id: int):
     description = (payload.get("description") or "").strip()
     status = (payload.get("status") or Task.STATUS_TODO).strip() or Task.STATUS_TODO
     priority = (payload.get("priority") or Task.PRIORITY_MEDIUM).strip() or Task.PRIORITY_MEDIUM
+    placement = (payload.get("placement") or "").strip() or ("sprint" if project.use_sprints else "product")
     assignee_ids = []
     for value in payload.get("assigneeIds") or []:
         try:
@@ -1242,6 +1402,8 @@ def project_tasks_view(request, project_id: int):
         return _json_error("Choose a valid task status.")
     if priority not in dict(Task.PRIORITY_CHOICES):
         return _json_error("Choose a valid task priority.")
+    if placement not in {"sprint", "product"}:
+        return _json_error("Choose a valid backlog placement.")
 
     bug_report = None
     if bug_report_id:
@@ -1249,9 +1411,11 @@ def project_tasks_view(request, project_id: int):
         if bug_report is None:
             return _json_error("Bug report not found.", 404)
 
+    sprint = _ensure_active_sprint(project) if project.use_sprints and placement == "sprint" else None
     task = Task.objects.create(
         project=project,
         bug_report=bug_report,
+        sprint=sprint,
         title=title,
         description=description,
         status=status,
@@ -1261,11 +1425,12 @@ def project_tasks_view(request, project_id: int):
     assignees = _project_members_by_ids(project, assignee_ids)
     task.assignees.set(assignees)
 
+    location_label = sprint.name if sprint else "Product Backlog"
     _record_activity(
         project,
         request.user,
         "task.created",
-        f"Created task \"{task.title}\".",
+        f'Created task "{task.title}" in {location_label}.',
         task=task,
         bug_report=bug_report,
     )
@@ -1286,7 +1451,7 @@ def project_tasks_view(request, project_id: int):
             project,
             request.user,
             "bug.resolution_task_set",
-            f"Set task \"{task.title}\" as the resolution task for bug \"{bug_report.title}\".",
+            f'Set task "{task.title}" as the resolution task for bug "{bug_report.title}".',
             task=task,
             bug_report=bug_report,
         )
@@ -1296,7 +1461,7 @@ def project_tasks_view(request, project_id: int):
         description,
         task=task,
         bug_report=bug_report,
-        context_label=f"task \"{task.title}\"",
+        context_label=f'task "{task.title}"',
     )
     _close_bug_from_resolution_task(task, request.user)
     return JsonResponse({"project": _build_project_snapshot(project, request.user, membership)}, status=201)
@@ -1357,7 +1522,7 @@ def project_bugs_view(request, project_id: int):
 @require_http_methods(["POST"])
 @jwt_required
 def task_update_view(request, task_id: int):
-    task = Task.objects.filter(id=task_id).select_related("project", "bug_report").first()
+    task = Task.objects.filter(id=task_id).select_related("project", "bug_report", "sprint").first()
     if task is None:
         return _json_error("Task not found.", 404)
 
@@ -1391,7 +1556,7 @@ def task_update_view(request, task_id: int):
                 description,
                 task=task,
                 bug_report=task.bug_report,
-                context_label=f"task \"{task.title}\"",
+                context_label=f'task "{task.title}"',
             )
     if "status" in payload:
         next_status = (payload.get("status") or "").strip()
@@ -1406,7 +1571,7 @@ def task_update_view(request, task_id: int):
                 project,
                 request.user,
                 "task.status_changed",
-                f"Moved task \"{task.title}\" from {previous_label} to {next_label}.",
+                f'Moved task "{task.title}" from {previous_label} to {next_label}.',
                 task=task,
                 bug_report=task.bug_report,
             )
@@ -1423,7 +1588,25 @@ def task_update_view(request, task_id: int):
                 project,
                 request.user,
                 "task.priority_changed",
-                f"Changed task \"{task.title}\" priority from {previous_label} to {next_label}.",
+                f'Changed task "{task.title}" priority from {previous_label} to {next_label}.',
+                task=task,
+                bug_report=task.bug_report,
+            )
+    if "placement" in payload:
+        placement = (payload.get("placement") or "").strip()
+        if placement not in {"sprint", "product"}:
+            return _json_error("Choose a valid backlog placement.")
+        next_sprint = _ensure_active_sprint(project) if project.use_sprints and placement == "sprint" else None
+        if task.sprint_id != (next_sprint.id if next_sprint else None):
+            previous_label = task.sprint.name if task.sprint else "Product Backlog"
+            next_label = next_sprint.name if next_sprint else "Product Backlog"
+            task.sprint = next_sprint
+            changed_fields.append("sprint")
+            _record_activity(
+                project,
+                request.user,
+                "task.backlog_changed",
+                f'Moved task "{task.title}" from {previous_label} to {next_label}.',
                 task=task,
                 bug_report=task.bug_report,
             )
@@ -1435,7 +1618,7 @@ def task_update_view(request, task_id: int):
                 project,
                 request.user,
                 "task.updated",
-                f"Updated task \"{task.title}\" details.",
+                f'Updated task "{task.title}" details.',
                 task=task,
                 bug_report=task.bug_report,
             )
@@ -1490,6 +1673,7 @@ def task_comment_view(request, task_id: int):
 
     try:
         payload = _parse_json_body(request)
+        anchor_type, anchor_id, anchor_label = _parse_comment_anchor(payload)
     except ValueError as exc:
         return _json_error(str(exc))
 
@@ -1497,12 +1681,19 @@ def task_comment_view(request, task_id: int):
     if not body:
         return _json_error("Comment text is required.")
 
-    TaskComment.objects.create(task=task, author=request.user, body=body)
+    TaskComment.objects.create(
+        task=task,
+        author=request.user,
+        body=body,
+        anchor_type=anchor_type,
+        anchor_id=anchor_id,
+        anchor_label=anchor_label,
+    )
     _record_activity(
         project,
         request.user,
         "task.comment_added",
-        f"Commented on task \"{task.title}\".",
+        f'Added {"an inline comment" if anchor_type else "a comment"} on task "{task.title}".',
         task=task,
         bug_report=task.bug_report,
     )
@@ -1512,7 +1703,7 @@ def task_comment_view(request, task_id: int):
         body,
         task=task,
         bug_report=task.bug_report,
-        context_label=f"task \"{task.title}\"",
+        context_label=f'task "{task.title}"',
     )
     return JsonResponse({"project": _build_project_snapshot(project, request.user, membership)})
 
@@ -1743,6 +1934,7 @@ def bug_comment_view(request, bug_id: int):
 
     try:
         payload = _parse_json_body(request)
+        anchor_type, anchor_id, anchor_label = _parse_comment_anchor(payload)
     except ValueError as exc:
         return _json_error(str(exc))
 
@@ -1750,12 +1942,19 @@ def bug_comment_view(request, bug_id: int):
     if not body:
         return _json_error("Comment text is required.")
 
-    BugComment.objects.create(bug_report=bug_report, author=request.user, body=body)
+    BugComment.objects.create(
+        bug_report=bug_report,
+        author=request.user,
+        body=body,
+        anchor_type=anchor_type,
+        anchor_id=anchor_id,
+        anchor_label=anchor_label,
+    )
     _record_activity(
         project,
         request.user,
         "bug.comment_added",
-        f"Commented on bug report \"{bug_report.title}\".",
+        f'Added {"an inline comment" if anchor_type else "a comment"} on bug report "{bug_report.title}".',
         bug_report=bug_report,
     )
     _notify_mentions(
@@ -1763,7 +1962,7 @@ def bug_comment_view(request, bug_id: int):
         request.user,
         body,
         bug_report=bug_report,
-        context_label=f"bug report \"{bug_report.title}\"",
+        context_label=f'bug report "{bug_report.title}"',
     )
     return JsonResponse({"project": _build_project_snapshot(project, request.user, membership)})
 

@@ -1,6 +1,15 @@
 import type { CSSProperties } from "react";
 
-import type { BugReport, BugStatus, PriorityLevel, Task, TaskStatus } from "./types";
+import type {
+    BacklogPlacement,
+    BugReport,
+    BugStatus,
+    PriorityLevel,
+    ProjectDetail,
+    Sprint,
+    Task,
+    TaskStatus,
+} from "./types";
 
 type ToneStyle = {
     bg: string;
@@ -93,6 +102,13 @@ const PRIORITY_RANK: Record<PriorityLevel, number> = {
     low: 3,
 };
 
+const STATUS_RANK: Record<TaskStatus, number> = {
+    todo: 0,
+    in_progress: 1,
+    in_review: 2,
+    done: 3,
+};
+
 const SELECT_ARROW =
     'url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%2712%27 viewBox=%270 0 12 12%27 fill=%27none%27%3E%3Cpath d=%27M2.25 4.5L6 8.25L9.75 4.5%27 stroke=%27%2390a0b7%27 stroke-width=%271.5%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E")';
 
@@ -147,11 +163,31 @@ export function getBugStatusSelectStyle(status: BugStatus): CSSProperties {
     return buildSelectStyle(BUG_STATUS_STYLES[status]);
 }
 
+export function getPriorityOptionStyle(priority: PriorityLevel): CSSProperties {
+    const tone = PRIORITY_STYLES[priority];
+    return { background: tone.bg, color: tone.color };
+}
+
+export function getTaskStatusOptionStyle(status: TaskStatus): CSSProperties {
+    const tone = TASK_STATUS_STYLES[status];
+    return { background: tone.bg, color: tone.color };
+}
+
+export function getBugStatusOptionStyle(status: BugStatus): CSSProperties {
+    const tone = BUG_STATUS_STYLES[status];
+    return { background: tone.bg, color: tone.color };
+}
+
 export function sortTasksByPriority(tasks: Task[]): Task[] {
     return [...tasks].sort((left, right) => {
         const priorityDelta = PRIORITY_RANK[left.priority] - PRIORITY_RANK[right.priority];
         if (priorityDelta !== 0) {
             return priorityDelta;
+        }
+
+        const statusDelta = STATUS_RANK[left.status] - STATUS_RANK[right.status];
+        if (statusDelta !== 0) {
+            return statusDelta;
         }
 
         return right.id - left.id;
@@ -197,4 +233,32 @@ export function getInitials(name: string): string {
         .join("")
         .slice(0, 2)
         .toUpperCase();
+}
+
+export function getTaskPlacement(task: Task, activeSprint: Sprint | null): BacklogPlacement {
+    return activeSprint && task.sprintId === activeSprint.id ? "sprint" : "product";
+}
+
+export function isTaskInActiveSprint(task: Task, activeSprint: Sprint | null): boolean {
+    return Boolean(activeSprint && task.sprintId === activeSprint.id);
+}
+
+export function getSprintBacklogTasks(project: ProjectDetail): Task[] {
+    if (!project.useSprints || !project.activeSprint) {
+        return sortTasksByPriority(project.tasks);
+    }
+
+    return sortTasksByPriority(
+        project.tasks.filter((task) => task.sprintId === project.activeSprint?.id),
+    );
+}
+
+export function getProductBacklogTasks(project: ProjectDetail): Task[] {
+    if (!project.useSprints || !project.activeSprint) {
+        return [];
+    }
+
+    return sortTasksByPriority(
+        project.tasks.filter((task) => task.sprintId !== project.activeSprint?.id),
+    );
 }

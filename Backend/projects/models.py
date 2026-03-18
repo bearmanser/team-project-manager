@@ -23,6 +23,7 @@ class Organization(models.Model):
 class Project(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
+    use_sprints = models.BooleanField(default=False)
     organization = models.ForeignKey(
         Organization,
         on_delete=models.CASCADE,
@@ -43,6 +44,38 @@ class Project(models.Model):
 
     def __str__(self) -> str:
         return f"Project<{self.name}>"
+
+
+class Sprint(models.Model):
+    STATUS_ACTIVE = "active"
+    STATUS_COMPLETED = "completed"
+
+    STATUS_CHOICES = [
+        (STATUS_ACTIVE, "Active"),
+        (STATUS_COMPLETED, "Completed"),
+    ]
+
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name="sprints",
+    )
+    number = models.PositiveIntegerField(default=1)
+    name = models.CharField(max_length=255)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_ACTIVE)
+    review_text = models.TextField(blank=True)
+    summary = models.JSONField(default=dict, blank=True)
+    started_at = models.DateTimeField(auto_now_add=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-number", "-id"]
+        unique_together = [("project", "number")]
+
+    def __str__(self) -> str:
+        return f"Sprint<{self.project_id}:{self.name}:{self.status}>"
 
 
 class ProjectMembership(models.Model):
@@ -204,6 +237,13 @@ class Task(models.Model):
         null=True,
         blank=True,
     )
+    sprint = models.ForeignKey(
+        Sprint,
+        on_delete=models.SET_NULL,
+        related_name="tasks",
+        null=True,
+        blank=True,
+    )
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     status = models.CharField(max_length=24, choices=STATUS_CHOICES, default=STATUS_TODO)
@@ -294,6 +334,9 @@ class TaskComment(models.Model):
         related_name="task_comments",
     )
     body = models.TextField()
+    anchor_type = models.CharField(max_length=32, blank=True, default="")
+    anchor_id = models.CharField(max_length=64, blank=True, default="")
+    anchor_label = models.CharField(max_length=255, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -313,6 +356,9 @@ class BugComment(models.Model):
         related_name="bug_comments",
     )
     body = models.TextField()
+    anchor_type = models.CharField(max_length=32, blank=True, default="")
+    anchor_id = models.CharField(max_length=64, blank=True, default="")
+    anchor_label = models.CharField(max_length=255, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -407,4 +453,3 @@ class Notification(models.Model):
 
     class Meta:
         ordering = ["-created_at", "-id"]
-

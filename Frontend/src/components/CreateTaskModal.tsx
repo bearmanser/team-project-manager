@@ -1,7 +1,13 @@
-import { Button, Input, Stack, Textarea } from "@chakra-ui/react";
+import { Button, Input, Stack, Text, Textarea } from "@chakra-ui/react";
 
-import type { PriorityLevel, ProjectDetail, TaskStatus } from "../types";
-import { nativeSelectStyle, PRIORITY_OPTIONS, getPriorityLabel } from "../utils";
+import type { BacklogPlacement, PriorityLevel, ProjectDetail, TaskStatus } from "../types";
+import {
+    getPriorityLabel,
+    getPriorityOptionStyle,
+    getTaskStatusOptionStyle,
+    nativeSelectStyle,
+    PRIORITY_OPTIONS,
+} from "../utils";
 import { ModalFrame } from "./ModalFrame";
 
 type CreateTaskModalProps = {
@@ -10,12 +16,13 @@ type CreateTaskModalProps = {
         description: string;
         status: TaskStatus;
         priority: PriorityLevel;
+        placement: BacklogPlacement;
     };
     isOpen: boolean;
     project: ProjectDetail;
     onClose: () => void;
     onCreateTask: () => void;
-    onFormChange: (field: "title" | "description" | "status" | "priority", value: string) => void;
+    onFormChange: (field: "title" | "description" | "status" | "priority" | "placement", value: string) => void;
 };
 
 export function CreateTaskModal({
@@ -29,7 +36,7 @@ export function CreateTaskModal({
     return (
         <ModalFrame
             title="Add task"
-            description="Capture the work, choose its first status and priority, then keep the board moving."
+            description="Capture the work, choose its first status and priority, then place it in the current sprint or product backlog."
             isOpen={isOpen}
             onClose={onClose}
         >
@@ -60,13 +67,30 @@ export function CreateTaskModal({
                     color="var(--color-text-primary)"
                     minH="140px"
                 />
+                {project.useSprints ? (
+                    <Stack gap="2">
+                        <Text fontSize="sm" color="var(--color-text-muted)">
+                            Backlog placement
+                        </Text>
+                        <select
+                            value={form.placement}
+                            style={nativeSelectStyle}
+                            onChange={(event) => onFormChange("placement", event.target.value)}
+                        >
+                            <option value="sprint">
+                                {project.activeSprint ? `${project.activeSprint.name} sprint backlog` : "Sprint backlog"}
+                            </option>
+                            <option value="product">Product backlog</option>
+                        </select>
+                    </Stack>
+                ) : null}
                 <select
                     value={form.status}
                     style={nativeSelectStyle}
                     onChange={(event) => onFormChange("status", event.target.value)}
                 >
                     {project.boardColumns.map((column) => (
-                        <option key={column.id} value={column.id}>
+                        <option key={column.id} value={column.id} style={getTaskStatusOptionStyle(column.id)}>
                             {column.label}
                         </option>
                     ))}
@@ -77,7 +101,7 @@ export function CreateTaskModal({
                     onChange={(event) => onFormChange("priority", event.target.value)}
                 >
                     {PRIORITY_OPTIONS.map((priority) => (
-                        <option key={priority} value={priority}>
+                        <option key={priority} value={priority} style={getPriorityOptionStyle(priority)}>
                             {getPriorityLabel(priority)} priority
                         </option>
                     ))}

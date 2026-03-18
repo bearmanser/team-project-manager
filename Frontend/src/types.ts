@@ -1,6 +1,7 @@
 export type TaskStatus = "todo" | "in_progress" | "in_review" | "done";
 export type BugStatus = "open" | "investigating" | "monitoring" | "closed";
 export type PriorityLevel = "low" | "medium" | "high" | "critical";
+export type BacklogPlacement = "sprint" | "product";
 export type ProjectRole = "owner" | "admin" | "member" | "viewer";
 export type OrganizationRole = "owner" | "member";
 
@@ -111,6 +112,9 @@ export type CommentEntry = {
     id: number;
     body: string;
     author: User;
+    anchorType: string;
+    anchorId: string;
+    anchorLabel: string;
     createdAt: string;
     updatedAt: string;
 };
@@ -126,6 +130,34 @@ export type ActivityEntry = {
     createdAt: string;
 };
 
+export type SprintTaskSnapshot = {
+    id: number;
+    title: string;
+    status: TaskStatus;
+    priority: PriorityLevel;
+};
+
+export type SprintSummary = {
+    totalCount?: number;
+    completedCount?: number;
+    carryoverCount?: number;
+    completedTasks?: SprintTaskSnapshot[];
+    carryoverTasks?: SprintTaskSnapshot[];
+};
+
+export type Sprint = {
+    id: number;
+    number: number;
+    name: string;
+    status: "active" | "completed";
+    reviewText: string;
+    summary: SprintSummary;
+    startedAt: string;
+    endedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+};
+
 export type Task = {
     id: number;
     title: string;
@@ -134,6 +166,8 @@ export type Task = {
     priority: PriorityLevel;
     creator: User;
     assignees: User[];
+    sprintId: number | null;
+    sprintName: string;
     bugReportId: number | null;
     bugReportTitle: string;
     isResolutionTask: boolean;
@@ -154,6 +188,8 @@ export type BugTaskSummary = {
     status: TaskStatus;
     priority: PriorityLevel;
     assigneeCount: number;
+    sprintId: number | null;
+    sprintName: string;
     isResolutionTask: boolean;
 };
 
@@ -186,6 +222,9 @@ export type ProjectDetail = {
     organizationName: string;
     name: string;
     description: string;
+    useSprints: boolean;
+    activeSprint: Sprint | null;
+    sprintHistory: Sprint[];
     ownerId: number;
     role: ProjectRole;
     permissions: ProjectPermissions;
@@ -244,4 +283,3 @@ export type DeleteProjectResponse = {
     success: boolean;
     projectId: number;
 };
-

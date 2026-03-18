@@ -11,6 +11,7 @@ urlpatterns = [
     path("projects/<int:project_id>/events/", views.project_events_view, name="project-events"),
     path("projects/<int:project_id>/settings/", views.project_settings_view, name="project-settings"),
     path("projects/<int:project_id>/delete/", views.project_delete_view, name="project-delete"),
+    path("projects/<int:project_id>/sprints/end/", views.project_sprint_end_view, name="project-sprint-end"),
     path("projects/<int:project_id>/repos/add/", views.project_repo_add_view, name="project-repo-add"),
     path(
         "projects/<int:project_id>/repos/<int:repository_id>/remove/",
