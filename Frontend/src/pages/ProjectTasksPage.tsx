@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { Box, Button, Flex, Grid, Heading, Stack, Text } from "@chakra-ui/react";
+import { Box, Button, Flex, Grid, Heading, Input, Stack, Text } from "@chakra-ui/react";
 
 import { ActionIcon } from "../components/ActionIcon";
 import { CreateTaskModal } from "../components/CreateTaskModal";
-import { PlusIcon } from "../components/icons";
+import { EditTextIcon, PlusIcon } from "../components/icons";
 import { StatusPill } from "../components/StatusPill";
 import { SurfaceCard } from "../components/SurfaceCard";
 import type { BacklogPlacement, PriorityLevel, ProjectDetail, Task, TaskStatus } from "../types";
@@ -42,6 +42,7 @@ type ProjectTasksPageProps = {
     onUpdateTaskPriority: (taskId: number, priority: PriorityLevel) => void;
     onUpdateTaskStatus: (taskId: number, status: TaskStatus) => void;
     onMoveTaskPlacement: (taskId: number, placement: BacklogPlacement) => void;
+    onRenameSprint: (name: string) => void;
 };
 
 function TaskRow({
@@ -151,11 +152,16 @@ export function ProjectTasksPage({
     onUpdateTaskPriority,
     onUpdateTaskStatus,
     onMoveTaskPlacement,
+    onRenameSprint,
 }: ProjectTasksPageProps) {
     const [draggedTaskId, setDraggedTaskId] = useState<number | null>(null);
     const [hoveredSection, setHoveredSection] = useState<BacklogPlacement | null>(null);
+    const [isRenamingSprint, setIsRenamingSprint] = useState(false);
+    const [sprintNameDraft, setSprintNameDraft] = useState(project.activeSprint?.name ?? "");
     const cleanupRef = useRef({ project, onCleanupProductBacklogDoneTasks });
     cleanupRef.current = { project, onCleanupProductBacklogDoneTasks };
+    const activeSprint = project.activeSprint;
+    const canRenameSprint = project.role === "owner" || project.role === "admin";
 
     useEffect(() => {
         return () => {
@@ -174,6 +180,11 @@ export function ProjectTasksPage({
         };
     }, []);
 
+    useEffect(() => {
+        setSprintNameDraft(activeSprint?.name ?? "");
+        setIsRenamingSprint(false);
+    }, [activeSprint?.id, activeSprint?.name]);
+
     const hiddenProductTaskIdSet = useMemo(() => new Set(hiddenProductBacklogTaskIds), [hiddenProductBacklogTaskIds]);
     const tasks = sortTasksByPriority(project.tasks);
     const sprintBacklog = getSprintBacklogTasks(project);
@@ -186,7 +197,7 @@ export function ProjectTasksPage({
               {
                   key: "sprint",
                   placement: "sprint" as BacklogPlacement,
-                  title: project.activeSprint ? `${project.activeSprint.name} backlog` : "Sprint backlog",
+                  title: activeSprint?.name ?? "Sprint backlog",
                   description: "The active sprint work currently flowing through the board.",
                   tasks: sprintBacklog,
                   onCreate: () => onOpenCreateTask("todo", "sprint"),
@@ -210,6 +221,21 @@ export function ProjectTasksPage({
                   onCreate: () => onToggleCreateForm(),
               },
           ];
+
+    function submitSprintRename(): void {
+        const nextName = sprintNameDraft.trim();
+        if (!activeSprint) {
+            return;
+        }
+        if (!nextName || nextName === activeSprint.name) {
+            setSprintNameDraft(activeSprint.name);
+            setIsRenamingSprint(false);
+            return;
+        }
+
+        onRenameSprint(nextName);
+        setIsRenamingSprint(false);
+    }
 
     function handleDrop(taskId: number, placement: BacklogPlacement): void {
         if (!project.useSprints) {
@@ -252,14 +278,10 @@ export function ProjectTasksPage({
                 </Button>
             </Flex>
 
-            <Grid
-                templateColumns={project.useSprints ? { base: "1fr", xl: "repeat(2, minmax(0, 1fr))" } : { base: "1fr" }}
-                gap="4"
-                flex="1"
-                minH="0"
-            >
+            <Grid templateColumns="1fr" gap="4" flex="1" minH="0">
                 {sections.map((section) => {
                     const isDropTarget = hoveredSection === section.placement && project.useSprints;
+                    const isSprintSection = project.useSprints && section.placement === "sprint";
 
                     return (
                         <SurfaceCard
@@ -304,12 +326,110 @@ export function ProjectTasksPage({
                                 py="4"
                                 bg="var(--color-bg-muted)"
                             >
-                                <Stack gap="1">
-                                    <Heading size="md" color="var(--color-text-primary)">
-                                        {section.title}
-                                    </Heading>
-                                    <Text color="var(--color-text-muted)">{section.description}</Text>
-                                </Stack>
+                                {isSprintSection && activeSprint ? (
+                                    isRenamingSprint ? (
+                                        <Stack gap="3" flex="1" minW="280px">
+                                            <Text
+                                                fontSize="xs"
+                                                textTransform="uppercase"
+                                                letterSpacing="0.16em"
+                                                color="var(--color-text-muted)"
+                                            >
+                                                Sprint backlog
+                                            </Text>
+                                            <Input
+                                                value={sprintNameDraft}
+                                                onChange={(event) => setSprintNameDraft(event.target.value)}
+                                                bg="var(--color-bg-card)"
+                                                borderColor="var(--color-border-strong)"
+                                                borderRadius="lg"
+                                                color="var(--color-text-primary)"
+                                                fontSize="var(--chakra-fontSizes-xl)"
+                                                fontWeight="700"
+                                                h="auto"
+                                                py="3"
+                                                px="4"
+                                                onKeyDown={(event) => {
+                                                    if (event.key === "Enter") {
+                                                        event.preventDefault();
+                                                        submitSprintRename();
+                                                    }
+                                                    if (event.key === "Escape") {
+                                                        setSprintNameDraft(activeSprint.name);
+                                                        setIsRenamingSprint(false);
+                                                    }
+                                                }}
+                                            />
+                                            <Flex gap="2" wrap="wrap">
+                                                <Button
+                                                    borderRadius="lg"
+                                                    bg="var(--color-accent)"
+                                                    color="var(--color-text-inverse)"
+                                                    _hover={{ bg: "var(--color-accent-hover)" }}
+                                                    onClick={submitSprintRename}
+                                                    disabled={!sprintNameDraft.trim()}
+                                                >
+                                                    Save name
+                                                </Button>
+                                                <Button
+                                                    borderRadius="lg"
+                                                    variant="outline"
+                                                    borderColor="var(--color-border-strong)"
+                                                    color="var(--color-text-primary)"
+                                                    _hover={{ bg: "var(--color-bg-hover)" }}
+                                                    onClick={() => {
+                                                        setSprintNameDraft(activeSprint.name);
+                                                        setIsRenamingSprint(false);
+                                                    }}
+                                                >
+                                                    Cancel
+                                                </Button>
+                                            </Flex>
+                                            <Text color="var(--color-text-muted)">{section.description}</Text>
+                                        </Stack>
+                                    ) : (
+                                        <Stack gap="1">
+                                            <Text
+                                                fontSize="xs"
+                                                textTransform="uppercase"
+                                                letterSpacing="0.16em"
+                                                color="var(--color-text-muted)"
+                                            >
+                                                Sprint backlog
+                                            </Text>
+                                            <Flex align="center" gap="2" wrap="wrap">
+                                                <Heading size="md" color="var(--color-text-primary)">
+                                                    {section.title}
+                                                </Heading>
+                                                {canRenameSprint ? (
+                                                    <Button
+                                                        minW="9"
+                                                        h="9"
+                                                        px="0"
+                                                        variant="ghost"
+                                                        borderRadius="lg"
+                                                        color="var(--color-text-muted)"
+                                                        _hover={{ bg: "var(--color-bg-hover)", color: "var(--color-text-primary)" }}
+                                                        onClick={() => setIsRenamingSprint(true)}
+                                                        aria-label="Rename sprint"
+                                                    >
+                                                        <ActionIcon>
+                                                            <EditTextIcon size={16} />
+                                                        </ActionIcon>
+                                                    </Button>
+                                                ) : null}
+                                            </Flex>
+                                            <Text color="var(--color-text-muted)">{section.description}</Text>
+                                        </Stack>
+                                    )
+                                ) : (
+                                    <Stack gap="1">
+                                        <Heading size="md" color="var(--color-text-primary)">
+                                            {section.title}
+                                        </Heading>
+                                        <Text color="var(--color-text-muted)">{section.description}</Text>
+                                    </Stack>
+                                )}
                                 <Button
                                     borderRadius="lg"
                                     variant="outline"

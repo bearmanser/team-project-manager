@@ -1,6 +1,6 @@
 import { startTransition, useEffect, useMemo, useState } from "react";
 
-import { Box, Button, Flex, Heading, Stack, Text } from "@chakra-ui/react";
+import { Box, Button, Heading, Stack, Text } from "@chakra-ui/react";
 
 import {
     ApiError,
@@ -27,13 +27,11 @@ import {
     updateTask,
 } from "./api";
 import { AppShell } from "./components/AppShell";
-import { ActionIcon } from "./components/ActionIcon";
 import { EndSprintModal } from "./components/EndSprintModal";
 import { EndSprintIncompleteTasksModal } from "./components/EndSprintIncompleteTasksModal";
 import { SideNav } from "./components/SideNav";
 import { SurfaceCard } from "./components/SurfaceCard";
 import { WorkItemDetailModal } from "./components/WorkItemDetailModal";
-import { CloseIcon } from "./components/icons";
 import { TopNav } from "./components/TopNav";
 import { LoginPage } from "./pages/LoginPage";
 import { OrganizationOverviewPage } from "./pages/OrganizationOverviewPage";
@@ -1324,6 +1322,8 @@ function App() {
     const topNav = (
         <TopNav
             busyLabel={busyLabel}
+            error={error}
+            notice={notice}
             notifications={workspace?.notifications ?? []}
             notificationOpen={notificationOpen}
             unreadCount={unreadNotifications.length}
@@ -1336,31 +1336,6 @@ function App() {
             onToggleThemeMode={() => setThemeMode((current) => (current === "dark" ? "light" : "dark"))}
         />
     );
-
-    const banner =
-        error || notice ? (
-            <SurfaceCard p="3" bg={error ? "var(--color-danger-bg)" : "var(--color-success-bg)"} borderColor={error ? "var(--color-danger-border)" : "var(--color-success-border)"}>
-                <Flex justify="space-between" align="center" gap="3">
-                    <Text fontSize="sm" color={error ? "var(--color-danger-text)" : "var(--color-success-text)"}>{error ?? notice}</Text>
-                    <Button
-                        variant="ghost"
-                        color={error ? "var(--color-danger-text)" : "var(--color-success-text)"}
-                        minW="7"
-                        h="7"
-                        px="0"
-                        borderRadius="lg"
-                        onClick={() => {
-                            setError(null);
-                            setNotice(null);
-                        }}
-                    >
-                        <ActionIcon>
-                            <CloseIcon size={16} />
-                        </ActionIcon>
-                    </Button>
-                </Flex>
-            </SurfaceCard>
-        ) : null;
 
     if (isBooting) {
         return (
@@ -1405,7 +1380,7 @@ function App() {
 
     if (!currentOrganization) {
         return (
-            <AppShell topNav={topNav} banner={banner}>
+            <AppShell topNav={topNav}>
                 <OrganizationOverviewPage
                     createOrganizationForm={createOrganizationForm}
                     isCreatingOrganization={busyLabel === "Adding organization"}
@@ -1516,6 +1491,7 @@ function App() {
                     onUpdateTaskPriority={(taskId, priority) => void handleUpdateTaskPriority(taskId, priority)}
                     onUpdateTaskStatus={(taskId, status) => void handleUpdateTaskStatus(taskId, status)}
                     onMoveTaskPlacement={(taskId, placement) => void handleMoveTaskPlacement(taskId, placement)}
+                    onRenameSprint={(name) => void handleRenameSprint(name)}
                 />
             );
         }
@@ -1564,7 +1540,7 @@ function App() {
         }
 
         return (
-            <AppShell topNav={topNav} banner={banner} sidebar={projectSidebar}>
+            <AppShell topNav={topNav} sidebar={projectSidebar}>
                 {projectContent}
                 <WorkItemDetailModal
                     isOpen={Boolean(selectedTask)}
@@ -1677,37 +1653,10 @@ function App() {
     }
 
     return (
-        <AppShell topNav={topNav} banner={banner} sidebar={organizationSidebar}>
+        <AppShell topNav={topNav} sidebar={organizationSidebar}>
             {organizationContent}
         </AppShell>
     );
 }
 
 export default App;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

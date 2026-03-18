@@ -1,6 +1,14 @@
 import type { ReactNode } from "react";
 
-import { Box, Button, Flex, HStack, Image, Stack, Text } from "@chakra-ui/react";
+import {
+  Box,
+  Button,
+  Flex,
+  HStack,
+  Image,
+  Stack,
+  Text,
+} from "@chakra-ui/react";
 
 import type { Notification, User } from "../types";
 import { getInitials } from "../utils";
@@ -8,186 +16,270 @@ import { ActionIcon } from "./ActionIcon";
 import { DropdownMenu } from "./DropdownMenu";
 import { MoonIcon, SunIcon } from "./icons";
 import { NotificationPanel } from "./NotificationPanel";
+import { StatusAlert } from "./StatusAlert";
 
 type TopNavProps = {
-    busyLabel: string | null;
-    notifications: Notification[];
-    notificationOpen: boolean;
-    unreadCount: number;
-    themeMode: "light" | "dark";
-    user: User | null;
-    onLogout: () => void;
-    onReadNotification: (notification: Notification) => void;
-    onToggleNotifications: () => void;
-    onCloseNotifications: () => void;
-    onToggleThemeMode: () => void;
+  busyLabel: string | null;
+  error: string | null;
+  notice: string | null;
+  notifications: Notification[];
+  notificationOpen: boolean;
+  unreadCount: number;
+  themeMode: "light" | "dark";
+  user: User | null;
+  onLogout: () => void;
+  onReadNotification: (notification: Notification) => void;
+  onToggleNotifications: () => void;
+  onCloseNotifications: () => void;
+  onToggleThemeMode: () => void;
 };
 
 function NotificationIcon() {
-    return (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M12 3.75a4.25 4.25 0 0 0-4.25 4.25v2.14c0 .67-.2 1.33-.57 1.89L5.8 14.1a1.5 1.5 0 0 0 1.25 2.33h9.9a1.5 1.5 0 0 0 1.25-2.33l-1.38-2.07a3.4 3.4 0 0 1-.57-1.89V8A4.25 4.25 0 0 0 12 3.75Z" stroke="currentColor" strokeWidth="1.5" />
-            <path d="M9.75 18.25a2.25 2.25 0 0 0 4.5 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
-    );
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M12 3.75a4.25 4.25 0 0 0-4.25 4.25v2.14c0 .67-.2 1.33-.57 1.89L5.8 14.1a1.5 1.5 0 0 0 1.25 2.33h9.9a1.5 1.5 0 0 0 1.25-2.33l-1.38-2.07a3.4 3.4 0 0 1-.57-1.89V8A4.25 4.25 0 0 0 12 3.75Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M9.75 18.25a2.25 2.25 0 0 0 4.5 0"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
 }
 
 function HeaderActionButton({
-    isActive,
-    label,
-    onClick,
-    children,
+  isActive,
+  label,
+  onClick,
+  children,
 }: {
-    isActive?: boolean;
-    label: string;
-    onClick: () => void;
-    children: ReactNode;
+  isActive?: boolean;
+  label: string;
+  onClick: () => void;
+  children: ReactNode;
 }) {
-    return (
-        <Button
-            aria-label={label}
-            minW="11"
-            h="11"
-            px="0"
-            borderRadius="12px"
-            borderWidth="1px"
-            borderColor={isActive ? "var(--color-accent-border)" : "var(--color-border-default)"}
-            bg={isActive ? "var(--color-accent-surface)" : "var(--color-bg-muted)"}
-            color="var(--color-text-primary)"
-            _hover={{
-                bg: isActive ? "var(--color-accent-surface-strong)" : "var(--color-bg-hover)",
-                borderColor: isActive ? "var(--color-accent-border)" : "var(--color-border-strong)",
-            }}
-            onClick={onClick}
-        >
-            {children}
-        </Button>
-    );
+  return (
+    <Button
+      aria-label={label}
+      minW="11"
+      h="11"
+      px="0"
+      borderRadius="12px"
+      borderWidth="1px"
+      borderColor={
+        isActive ? "var(--color-accent-border)" : "var(--color-border-default)"
+      }
+      bg={isActive ? "var(--color-accent-surface)" : "var(--color-bg-muted)"}
+      color="var(--color-text-primary)"
+      _hover={{
+        bg: isActive
+          ? "var(--color-accent-surface-strong)"
+          : "var(--color-bg-hover)",
+        borderColor: isActive
+          ? "var(--color-accent-border)"
+          : "var(--color-border-strong)",
+      }}
+      onClick={onClick}
+    >
+      {children}
+    </Button>
+  );
 }
 
 export function TopNav({
-    busyLabel,
-    notifications,
-    notificationOpen,
-    unreadCount,
-    themeMode,
-    user,
-    onLogout,
-    onReadNotification,
-    onToggleNotifications,
-    onCloseNotifications,
-    onToggleThemeMode,
+  busyLabel,
+  error,
+  notice,
+  notifications,
+  notificationOpen,
+  unreadCount,
+  themeMode,
+  user,
+  onLogout,
+  onReadNotification,
+  onToggleNotifications,
+  onCloseNotifications,
+  onToggleThemeMode,
 }: TopNavProps) {
-    return (
-        <Box
-            as="header"
-            borderBottomWidth="1px"
-            borderColor="var(--color-border-default)"
-            bg="var(--color-bg-panel)"
-            px={{ base: "4", lg: "8" }}
-            py="4"
-            position="sticky"
-            top="0"
-            zIndex="10"
-        >
-            <Flex justify="space-between" align="center" gap="4" wrap="wrap">
-                <Stack gap="0">
-                    <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.18em" color="var(--color-text-muted)">
-                        Team Project Manager
-                    </Text>
-                    <Text fontSize="xl" fontWeight="700" color="var(--color-text-primary)">
-                        Delivery control center
-                    </Text>
-                </Stack>
+  const statusAlert = error
+    ? {
+        title: error,
+        status: "error" as const,
+      }
+    : notice
+      ? {
+          title: notice,
+          status: "success" as const,
+        }
+      : busyLabel
+        ? {
+            title: busyLabel,
+            status: "neutral" as const,
+            loading: true,
+          }
+        : null;
 
-                <HStack gap="3" align="center">
-                    {busyLabel ? (
-                        <Text fontSize="sm" color="var(--color-text-muted)">
-                            {busyLabel}
-                        </Text>
-                    ) : null}
+  return (
+    <Box
+      as="header"
+      borderBottomWidth="1px"
+      borderColor="var(--color-border-default)"
+      bg="var(--color-bg-panel)"
+      px={{ base: "4", lg: "8" }}
+      py="4"
+      position="sticky"
+      top="0"
+      zIndex="10"
+    >
+      <Flex justify="space-between" align="center" gap="4" wrap="wrap">
+        <Stack gap="0">
+          <Text
+            fontSize="xs"
+            textTransform="uppercase"
+            letterSpacing="0.18em"
+            color="var(--color-text-muted)"
+          >
+            Team Project Manager
+          </Text>
+          <Text
+            fontSize="xl"
+            fontWeight="700"
+            color="var(--color-text-primary)"
+          >
+            Delivery control center
+          </Text>
+        </Stack>
 
-                    <HeaderActionButton
-                        label={themeMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-                        onClick={onToggleThemeMode}
-                    >
-                        <ActionIcon>
-                            {themeMode === "dark" ? <SunIcon size={18} /> : <MoonIcon size={18} />}
-                        </ActionIcon>
-                    </HeaderActionButton>
+        <HStack gap="3" align="center" wrap="wrap" justify="flex-end">
+          {statusAlert ? (
+            <StatusAlert
+              title={statusAlert.title}
+              status={statusAlert.status}
+              loading={statusAlert.loading}
+              maxW={{ base: "full", md: "320px" }}
+            />
+          ) : null}
 
-                    <Box position="relative">
-                        <HeaderActionButton label="Notifications" isActive={notificationOpen} onClick={onToggleNotifications}>
-                            <Box position="relative" display="inline-flex">
-                                <ActionIcon>
-                                    <NotificationIcon />
-                                </ActionIcon>
-                                {unreadCount ? (
-                                    <Box
-                                        position="absolute"
-                                        top="-6px"
-                                        right="-8px"
-                                        minW="5"
-                                        h="5"
-                                        px="1"
-                                        borderRadius="full"
-                                        bg="var(--color-accent)"
-                                        color="var(--color-text-inverse)"
-                                        fontSize="10px"
-                                        fontWeight="700"
-                                        display="grid"
-                                        placeItems="center"
-                                    >
-                                        {unreadCount}
-                                    </Box>
-                                ) : null}
-                            </Box>
-                        </HeaderActionButton>
-                        {notificationOpen ? (
-                            <NotificationPanel
-                                notifications={notifications}
-                                onClose={onCloseNotifications}
-                                onReadNotification={onReadNotification}
-                            />
-                        ) : null}
-                    </Box>
+          <HeaderActionButton
+            label={
+              themeMode === "dark"
+                ? "Switch to light mode"
+                : "Switch to dark mode"
+            }
+            onClick={onToggleThemeMode}
+          >
+            <ActionIcon>
+              {themeMode === "dark" ? (
+                <SunIcon size={18} />
+              ) : (
+                <MoonIcon size={18} />
+              )}
+            </ActionIcon>
+          </HeaderActionButton>
 
-                    <DropdownMenu
-                        width="160px"
-                        items={[
-                            {
-                                label: "Log out",
-                                onClick: onLogout,
-                                tone: "danger",
-                            },
-                        ]}
-                        renderTrigger={({ toggle }) => (
-                            <Button
-                                aria-label="Profile menu"
-                                minW="11"
-                                h="11"
-                                px="0"
-                                borderRadius="full"
-                                overflow="hidden"
-                                borderWidth="1px"
-                                borderColor="var(--color-border-default)"
-                                bg="var(--color-bg-muted)"
-                                color="var(--color-text-primary)"
-                                _hover={{ bg: "var(--color-bg-hover)", borderColor: "var(--color-border-strong)" }}
-                                onClick={toggle}
-                            >
-                                {user?.githubAvatarUrl ? (
-                                    <Image src={user.githubAvatarUrl} alt={user.username} w="full" h="full" objectFit="cover" />
-                                ) : (
-                                    <Flex align="center" justify="center" w="full" h="full" color="var(--color-text-primary)" fontWeight="700">
-                                        {getInitials(user?.username ?? "TP")}
-                                    </Flex>
-                                )}
-                            </Button>
-                        )}
-                    />
-                </HStack>
-            </Flex>
-        </Box>
-    );
+          <Box position="relative">
+            <HeaderActionButton
+              label="Notifications"
+              isActive={notificationOpen}
+              onClick={onToggleNotifications}
+            >
+              <Box position="relative" display="inline-flex">
+                <ActionIcon>
+                  <NotificationIcon />
+                </ActionIcon>
+                {unreadCount ? (
+                  <Box
+                    position="absolute"
+                    top="-6px"
+                    right="-8px"
+                    minW="5"
+                    h="5"
+                    px="1"
+                    borderRadius="full"
+                    bg="var(--color-accent)"
+                    color="var(--color-text-inverse)"
+                    fontSize="10px"
+                    fontWeight="700"
+                    display="grid"
+                    placeItems="center"
+                  >
+                    {unreadCount}
+                  </Box>
+                ) : null}
+              </Box>
+            </HeaderActionButton>
+            {notificationOpen ? (
+              <NotificationPanel
+                notifications={notifications}
+                onClose={onCloseNotifications}
+                onReadNotification={onReadNotification}
+              />
+            ) : null}
+          </Box>
+
+          <DropdownMenu
+            width="160px"
+            items={[
+              {
+                label: "Log out",
+                onClick: onLogout,
+                tone: "danger",
+              },
+            ]}
+            renderTrigger={({ toggle }) => (
+              <Button
+                aria-label="Profile menu"
+                minW="11"
+                h="11"
+                px="0"
+                borderRadius="full"
+                overflow="hidden"
+                borderWidth="1px"
+                borderColor="var(--color-border-default)"
+                bg="var(--color-bg-muted)"
+                color="var(--color-text-primary)"
+                _hover={{
+                  bg: "var(--color-bg-hover)",
+                  borderColor: "var(--color-border-strong)",
+                }}
+                onClick={toggle}
+              >
+                {user?.githubAvatarUrl ? (
+                  <Image
+                    src={user.githubAvatarUrl}
+                    alt={user.username}
+                    w="full"
+                    h="full"
+                    objectFit="cover"
+                  />
+                ) : (
+                  <Flex
+                    align="center"
+                    justify="center"
+                    w="full"
+                    h="full"
+                    color="var(--color-text-primary)"
+                    fontWeight="700"
+                  >
+                    {getInitials(user?.username ?? "TP")}
+                  </Flex>
+                )}
+              </Button>
+            )}
+          />
+        </HStack>
+      </Flex>
+    </Box>
+  );
 }
