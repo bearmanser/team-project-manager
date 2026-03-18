@@ -3,11 +3,17 @@ import { Box, Button, Flex, Heading, Stack, Text } from "@chakra-ui/react";
 import { ActionIcon } from "../components/ActionIcon";
 import { CreateTaskModal } from "../components/CreateTaskModal";
 import { PlusIcon } from "../components/icons";
-import { PriorityPill } from "../components/PriorityPill";
 import { StatusPill } from "../components/StatusPill";
 import { SurfaceCard } from "../components/SurfaceCard";
 import type { PriorityLevel, ProjectDetail, TaskStatus } from "../types";
-import { formatShortDate, nativeSelectStyle, sortTasksByPriority, PRIORITY_OPTIONS, getPriorityLabel } from "../utils";
+import {
+    formatShortDate,
+    getPriorityLabel,
+    getPrioritySelectStyle,
+    getTaskStatusSelectStyle,
+    PRIORITY_OPTIONS,
+    sortTasksByPriority,
+} from "../utils";
 
 type ProjectTasksPageProps = {
     createTaskForm: {
@@ -41,17 +47,25 @@ export function ProjectTasksPage({
         <Stack gap="6">
             <Flex justify="space-between" align={{ base: "stretch", md: "center" }} gap="4" wrap="wrap">
                 <Stack gap="1">
-                    <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="#90a0b7">
+                    <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="var(--color-text-muted)">
                         Tasks
                     </Text>
-                    <Heading size="2xl" color="#f5f7fb">
+                    <Heading size="2xl" color="var(--color-text-primary)">
                         {project.name}
                     </Heading>
-                    <Text color="#b0bccf" maxW="2xl">
+                    <Text color="var(--color-text-secondary)" maxW="2xl">
                         Keep tasks lightweight, update status and priority inline, and add new work from the create button instead of a permanent form.
                     </Text>
                 </Stack>
-                <Button minW="11" h="11" borderRadius="lg" bg="#2d6cdf" color="#f8fbff" onClick={onToggleCreateForm}>
+                <Button
+                    minW="11"
+                    h="11"
+                    borderRadius="lg"
+                    bg="var(--color-accent)"
+                    color="var(--color-text-inverse)"
+                    _hover={{ bg: "var(--color-accent-hover)" }}
+                    onClick={onToggleCreateForm}
+                >
                     <ActionIcon>
                         <PlusIcon />
                     </ActionIcon>
@@ -79,19 +93,18 @@ export function ProjectTasksPage({
                                 gap="3"
                                 wrap="wrap"
                                 borderBottomWidth="1px"
-                                borderColor="#273140"
+                                borderColor="var(--color-border-default)"
                                 _last={{ borderBottomWidth: "0" }}
                             >
                                 <Stack gap="1.5" flex="1" minW="260px">
-                                    <Text color="#f5f7fb" fontWeight="700" whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis">
+                                    <Text color="var(--color-text-primary)" fontWeight="700" whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis">
                                         {task.title}
                                     </Text>
-                                    <Text color="#90a0b7" fontSize="sm" whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis">
+                                    <Text color="var(--color-text-muted)" fontSize="sm" whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis">
                                         {meta}
                                     </Text>
                                 </Stack>
                                 <Flex gap="2" wrap="wrap" align="center">
-                                    <PriorityPill priority={task.priority} />
                                     {task.bugReportTitle ? <StatusPill label={task.bugReportTitle} /> : null}
                                     {task.isResolutionTask ? <StatusPill label="Resolution" /> : null}
                                     {task.branchName ? <StatusPill label={task.branchName} /> : null}
@@ -100,7 +113,7 @@ export function ProjectTasksPage({
                                     <Box as="span">
                                         <select
                                             value={task.priority}
-                                            style={{ ...nativeSelectStyle, minWidth: 150 }}
+                                            style={{ ...getPrioritySelectStyle(task.priority), minWidth: 150 }}
                                             onChange={(event) =>
                                                 onUpdateTaskPriority(task.id, event.target.value as PriorityLevel)
                                             }
@@ -115,7 +128,7 @@ export function ProjectTasksPage({
                                     <Box as="span">
                                         <select
                                             value={task.status}
-                                            style={{ ...nativeSelectStyle, minWidth: 170 }}
+                                            style={{ ...getTaskStatusSelectStyle(task.status), minWidth: 170 }}
                                             onChange={(event) =>
                                                 onUpdateTaskStatus(task.id, event.target.value as TaskStatus)
                                             }
@@ -133,10 +146,10 @@ export function ProjectTasksPage({
                     })
                 ) : (
                     <Stack p="6" gap="2">
-                        <Text color="#f5f7fb" fontWeight="600">
+                        <Text color="var(--color-text-primary)" fontWeight="600">
                             No tasks yet.
                         </Text>
-                        <Text color="#90a0b7">Use the create button to add the first task.</Text>
+                        <Text color="var(--color-text-muted)">Use the create button to add the first task.</Text>
                     </Stack>
                 )}
             </SurfaceCard>

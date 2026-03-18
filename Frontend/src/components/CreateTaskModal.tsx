@@ -45,19 +45,19 @@ export function CreateTaskModal({
                     value={form.title}
                     onChange={(event) => onFormChange("title", event.target.value)}
                     placeholder="Ship org-level user management"
-                    bg="#0f141b"
-                    borderColor="#2b3544"
+                    bg="var(--color-bg-muted)"
+                    borderColor="var(--color-border-strong)"
                     borderRadius="lg"
-                    color="#f5f7fb"
+                    color="var(--color-text-primary)"
                 />
                 <Textarea
                     value={form.description}
                     onChange={(event) => onFormChange("description", event.target.value)}
                     placeholder="Add the details teammates need."
-                    bg="#0f141b"
-                    borderColor="#2b3544"
+                    bg="var(--color-bg-muted)"
+                    borderColor="var(--color-border-strong)"
                     borderRadius="lg"
-                    color="#f5f7fb"
+                    color="var(--color-text-primary)"
                     minH="140px"
                 />
                 <select
@@ -82,7 +82,14 @@ export function CreateTaskModal({
                         </option>
                     ))}
                 </select>
-                <Button type="submit" borderRadius="lg" bg="#2d6cdf" color="#f8fbff" alignSelf="flex-start">
+                <Button
+                    type="submit"
+                    borderRadius="lg"
+                    bg="var(--color-accent)"
+                    color="var(--color-text-inverse)"
+                    alignSelf="flex-start"
+                    _hover={{ bg: "var(--color-accent-hover)" }}
+                >
                     Add task
                 </Button>
             </Stack>

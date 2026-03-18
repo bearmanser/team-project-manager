@@ -35,20 +35,20 @@ export function SideNav<T extends string>({
             variant="ghost"
             borderWidth="0px"
             borderBottomWidth="2px"
-            borderColor={activeItem === item.id ? "#f5f7fb" : "transparent"}
-            color={activeItem === item.id ? "#f5f7fb" : "#90a0b7"}
+            borderColor={activeItem === item.id ? "var(--color-text-primary)" : "transparent"}
+            color={activeItem === item.id ? "var(--color-text-primary)" : "var(--color-text-muted)"}
             whiteSpace="normal"
             textAlign="left"
             _hover={{
               bg: "transparent",
-              color: "#eef3fb",
-              borderColor: activeItem === item.id ? "#f5f7fb" : "#728198",
+              color: "var(--color-text-primary)",
+              borderColor: activeItem === item.id ? "var(--color-text-primary)" : "var(--color-text-subtle)",
             }}
             onClick={() => onSelect(item.id)}
           >
             <Stack align="flex-start" gap="0" w="full">
               <Text>{item.label}</Text>
-              <Text fontSize="xs" color="#728198">
+              <Text fontSize="xs" color="var(--color-text-subtle)">
                 {item.description}
               </Text>
             </Stack>

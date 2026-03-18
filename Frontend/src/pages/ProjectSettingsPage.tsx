@@ -28,13 +28,13 @@ export function ProjectSettingsPage({
     return (
         <Stack gap="6">
             <Stack gap="1">
-                <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="#90a0b7">
+                <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="var(--color-text-muted)">
                     Project settings
                 </Text>
-                <Heading size="2xl" color="#f5f7fb">
+                <Heading size="2xl" color="var(--color-text-primary)">
                     {project.name}
                 </Heading>
-                <Text color="#b0bccf" maxW="2xl">
+                <Text color="var(--color-text-secondary)" maxW="2xl">
                     Keep the essentials here: naming, description, repository reference, and deletion when the project no longer belongs in this organization.
                 </Text>
             </Stack>
@@ -43,79 +43,80 @@ export function ProjectSettingsPage({
                 <SurfaceCard
                     as="form"
                     p="5"
-                    bg="#0f141b"
+                    bg="var(--color-bg-muted)"
                     onSubmit={(event) => {
                         event.preventDefault();
                         onSaveProjectSettings();
                     }}
                 >
                     <Stack gap="4">
-                        <Heading size="md" color="#f5f7fb">
+                        <Heading size="md" color="var(--color-text-primary)">
                             Project details
                         </Heading>
                         <Input
                             value={projectSettingsForm.name}
                             onChange={(event) => onProjectSettingsChange("name", event.target.value)}
-                            bg="#111720"
-                            borderColor="#2b3544"
+                            bg="var(--color-bg-card)"
+                            borderColor="var(--color-border-strong)"
                             borderRadius="lg"
-                            color="#f5f7fb"
+                            color="var(--color-text-primary)"
                         />
                         <Textarea
                             value={projectSettingsForm.description}
                             onChange={(event) => onProjectSettingsChange("description", event.target.value)}
-                            bg="#111720"
-                            borderColor="#2b3544"
+                            bg="var(--color-bg-card)"
+                            borderColor="var(--color-border-strong)"
                             borderRadius="lg"
-                            color="#f5f7fb"
+                            color="var(--color-text-primary)"
                             minH="140px"
                         />
-                        <Button type="submit" borderRadius="lg" bg="#2d6cdf" color="#f8fbff" alignSelf="flex-start">
+                        <Button type="submit" borderRadius="lg" bg="var(--color-accent)" color="var(--color-text-inverse)" alignSelf="flex-start" _hover={{ bg: "var(--color-accent-hover)" }}>
                             {busyLabel === "Saving project settings" ? busyLabel : "Save changes"}
                         </Button>
                     </Stack>
                 </SurfaceCard>
 
-                <SurfaceCard p="5" bg="#0f141b">
+                <SurfaceCard p="5" bg="var(--color-bg-muted)">
                     <Stack gap="3">
-                        <Heading size="md" color="#f5f7fb">
+                        <Heading size="md" color="var(--color-text-primary)">
                             Connected repository
                         </Heading>
                         {primaryRepo ? (
                             <>
-                                <Text color="#d8e1ee">{primaryRepo.fullName}</Text>
-                                <Text color="#90a0b7">
+                                <Text color="var(--color-text-strong)">{primaryRepo.fullName}</Text>
+                                <Text color="var(--color-text-muted)">
                                     Default branch: {primaryRepo.defaultBranch} - {primaryRepo.visibility}
                                 </Text>
-                                <Link href={primaryRepo.htmlUrl} color="#8db4ff" target="_blank" rel="noreferrer">
+                                <Link href={primaryRepo.htmlUrl} color="var(--color-link)" target="_blank" rel="noreferrer">
                                     Open GitHub repository
                                 </Link>
                             </>
                         ) : (
-                            <Text color="#90a0b7">No repository connected.</Text>
+                            <Text color="var(--color-text-muted)">No repository connected.</Text>
                         )}
                         {project.repositories.length > 1 ? (
-                            <Text color="#ffc6ce">
+                            <Text color="var(--color-danger-text)">
                                 This project still has legacy multi-repo data. The interface now treats the first repo as the primary one.
                             </Text>
                         ) : null}
                     </Stack>
                 </SurfaceCard>
 
-                <SurfaceCard p="5" bg="#2a1317" borderColor="#8c3a46">
+                <SurfaceCard p="5" bg="var(--color-danger-bg)" borderColor="var(--color-danger-border)">
                     <Stack gap="3">
-                        <Heading size="md" color="#ffe1e6">
+                        <Heading size="md" color="var(--color-danger-heading)">
                             Danger zone
                         </Heading>
-                        <Text color="#ffc6ce">
+                        <Text color="var(--color-danger-text)">
                             Delete the entire project if it should no longer live inside this organization.
                         </Text>
                         <Button
                             borderRadius="lg"
                             variant="outline"
-                            borderColor="#8c3a46"
-                            color="#ffc6ce"
+                            borderColor="var(--color-danger-border)"
+                            color="var(--color-danger-text)"
                             alignSelf="flex-start"
+                            _hover={{ bg: "var(--color-danger-bg-soft)", borderColor: "var(--color-danger-border)" }}
                             onClick={onDeleteProject}
                         >
                             Delete project

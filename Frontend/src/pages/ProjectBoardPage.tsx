@@ -75,7 +75,7 @@ export function ProjectBoardPage({
         fontSize="xs"
         textTransform="uppercase"
         letterSpacing="0.16em"
-        color="#90a0b7"
+        color="var(--color-text-muted)"
         flexShrink={0}
       >
         Board
@@ -106,7 +106,7 @@ export function ProjectBoardPage({
               <Box
                 key={column.id}
                 p="4"
-                bg={isHovered ? "#111e34" : "#0f141b"}
+                bg={isHovered ? "var(--color-bg-hover-strong)" : "var(--color-bg-muted)"}
                 h="full"
                 minH="0"
                 borderRightWidth={{
@@ -123,7 +123,7 @@ export function ProjectBoardPage({
                       : "1px",
                   xl: "0",
                 }}
-                borderColor="#273140"
+                borderColor="var(--color-border-default)"
                 onDragOver={(event) => {
                   event.preventDefault();
                   setHoveredColumn(column.id);
@@ -147,10 +147,10 @@ export function ProjectBoardPage({
               >
                 <Stack gap="4" h="full" minH="0">
                   <Stack gap="1" flexShrink={0}>
-                    <Heading size="sm" color="#f5f7fb">
+                    <Heading size="sm" color="var(--color-text-primary)">
                       {column.label}
                     </Heading>
-                    <Text color="#90a0b7" fontSize="sm">
+                    <Text color="var(--color-text-muted)" fontSize="sm">
                       {tasks.length} tasks
                     </Text>
                   </Stack>
@@ -160,9 +160,10 @@ export function ProjectBoardPage({
                       <SurfaceCard
                         key={task.id}
                         p="3"
-                        bg="#111720"
+                        bg="var(--color-bg-card)"
                         cursor="grab"
                         draggable
+                        position="relative"
                         opacity={draggedTaskId === task.id ? 0.55 : 1}
                         onDragStart={(event) => {
                           setDraggedTaskId(task.id);
@@ -178,69 +179,69 @@ export function ProjectBoardPage({
                         }}
                       >
                         <Stack gap="3">
-                          <Flex
-                            justify="space-between"
-                            align="flex-start"
-                            gap="3"
-                          >
-                            <Heading
-                              size="sm"
-                              color="#f5f7fb"
-                              fontSize="md"
-                              flex="1"
-                            >
-                              {task.title}
-                            </Heading>
-                            <DropdownMenu
-                              width="210px"
-                              items={[
-                                ...project.boardColumns
-                                  .filter(
-                                    (nextColumn) =>
-                                      nextColumn.id !== task.status
-                                  )
-                                  .map((nextColumn) => ({
-                                    label: `Move to ${nextColumn.label}`,
+                          <Box position="relative" pt="6">
+                            <Box position="absolute" top="0" left="50%" transform="translateX(-50%)">
+                              <PriorityPill priority={task.priority} compact />
+                            </Box>
+                            <Flex justify="space-between" align="flex-start" gap="3">
+                              <Heading
+                                size="sm"
+                                color="var(--color-text-primary)"
+                                fontSize="md"
+                                flex="1"
+                              >
+                                {task.title}
+                              </Heading>
+                              <DropdownMenu
+                                width="210px"
+                                items={[
+                                  ...project.boardColumns
+                                    .filter(
+                                      (nextColumn) =>
+                                        nextColumn.id !== task.status
+                                    )
+                                    .map((nextColumn) => ({
+                                      label: `Move to ${nextColumn.label}`,
+                                      onClick: () =>
+                                        moveTask(task.id, nextColumn.id),
+                                    })),
+                                  ...PRIORITY_OPTIONS.filter(
+                                    (priority) => priority !== task.priority
+                                  ).map((priority) => ({
+                                    label: `Set ${getPriorityLabel(
+                                      priority
+                                    )} priority`,
                                     onClick: () =>
-                                      moveTask(task.id, nextColumn.id),
+                                      onUpdateTaskPriority(task.id, priority),
                                   })),
-                                ...PRIORITY_OPTIONS.filter(
-                                  (priority) => priority !== task.priority
-                                ).map((priority) => ({
-                                  label: `Set ${getPriorityLabel(
-                                    priority
-                                  )} priority`,
-                                  onClick: () =>
-                                    onUpdateTaskPriority(task.id, priority),
-                                })),
-                                {
-                                  label: "Open in Tasks",
-                                  onClick: onOpenTasksView,
-                                },
-                              ]}
-                              renderTrigger={({ toggle }) => (
-                                <Button
-                                  minW="8"
-                                  h="8"
-                                  px="0"
-                                  variant="ghost"
-                                  borderRadius="10px"
-                                  color="#90a0b7"
-                                  _hover={{ bg: "#161e2a", color: "#eef3fb" }}
-                                  onClick={toggle}
-                                >
-                                  <ActionIcon>
-                                    <MoreIcon size={16} />
-                                  </ActionIcon>
-                                </Button>
-                              )}
-                            />
-                          </Flex>
-                          <Text color="#90a0b7" fontSize="sm" lineClamp="2">
+                                  {
+                                    label: "Open in Tasks",
+                                    onClick: onOpenTasksView,
+                                  },
+                                ]}
+                                renderTrigger={({ toggle }) => (
+                                  <Button
+                                    minW="8"
+                                    h="8"
+                                    px="0"
+                                    variant="ghost"
+                                    borderRadius="10px"
+                                    color="var(--color-text-muted)"
+                                    _hover={{ bg: "var(--color-bg-hover)", color: "var(--color-text-primary)" }}
+                                    onClick={toggle}
+                                  >
+                                    <ActionIcon>
+                                      <MoreIcon size={16} />
+                                    </ActionIcon>
+                                  </Button>
+                                )}
+                              />
+                            </Flex>
+                          </Box>
+                          <Text color="var(--color-text-muted)" fontSize="sm" lineClamp="2">
                             {task.description || "No description yet."}
                           </Text>
                           <Stack direction="row" wrap="wrap">
-                            <PriorityPill priority={task.priority} />
                             {task.isResolutionTask ? (
                               <StatusPill label="Resolution" />
                             ) : null}
@@ -248,7 +249,7 @@ export function ProjectBoardPage({
                               <StatusPill label={task.bugReportTitle} />
                             ) : null}
                           </Stack>
-                          <Text color="#d8e1ee" fontSize="sm">
+                          <Text color="var(--color-text-strong)" fontSize="sm">
                             {task.assignees.length
                               ? `Assigned to ${task.assignees
                                   .map((assignee) => assignee.username)
@@ -262,9 +263,10 @@ export function ProjectBoardPage({
 
                   <Button
                     variant="outline"
-                    borderColor="#2b3544"
-                    color="#eef3fb"
+                    borderColor="var(--color-border-strong)"
+                    color="var(--color-text-primary)"
                     borderRadius="10px"
+                    _hover={{ bg: "var(--color-bg-hover)", borderColor: "var(--color-accent-border)" }}
                     onClick={() => onOpenCreateTask(column.id)}
                   >
                     <ActionIcon>

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 import { Box, Button, Stack } from "@chakra-ui/react";
 
@@ -16,6 +17,12 @@ type DropdownMenuProps = {
     renderTrigger: (args: { isOpen: boolean; toggle: () => void; close: () => void }) => ReactNode;
 };
 
+type MenuPosition = {
+    top: number;
+    left?: number;
+    right?: number;
+};
+
 export function DropdownMenu({
     items,
     width = "220px",
@@ -23,15 +30,31 @@ export function DropdownMenu({
     renderTrigger,
 }: DropdownMenuProps) {
     const [isOpen, setIsOpen] = useState(false);
+    const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
+    const menuRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
         if (!isOpen) {
             return;
         }
 
+        function updatePosition(): void {
+            const rect = containerRef.current?.getBoundingClientRect();
+            if (!rect) {
+                return;
+            }
+
+            setMenuPosition({
+                top: rect.bottom + 8,
+                left: align === "left" ? rect.left : undefined,
+                right: align === "right" ? window.innerWidth - rect.right : undefined,
+            });
+        }
+
         function handlePointerDown(event: MouseEvent): void {
-            if (!containerRef.current?.contains(event.target as Node)) {
+            const target = event.target as Node;
+            if (!containerRef.current?.contains(target) && !menuRef.current?.contains(target)) {
                 setIsOpen(false);
             }
         }
@@ -42,14 +65,19 @@ export function DropdownMenu({
             }
         }
 
+        updatePosition();
+        window.addEventListener("resize", updatePosition);
+        window.addEventListener("scroll", updatePosition, true);
         document.addEventListener("mousedown", handlePointerDown);
         document.addEventListener("keydown", handleEscape);
 
         return () => {
+            window.removeEventListener("resize", updatePosition);
+            window.removeEventListener("scroll", updatePosition, true);
             document.removeEventListener("mousedown", handlePointerDown);
             document.removeEventListener("keydown", handleEscape);
         };
-    }, [isOpen]);
+    }, [align, isOpen]);
 
     function close(): void {
         setIsOpen(false);
@@ -59,47 +87,56 @@ export function DropdownMenu({
         setIsOpen((current) => !current);
     }
 
+    const menu =
+        isOpen && menuPosition
+            ? createPortal(
+                  <Box
+                      ref={menuRef}
+                      position="fixed"
+                      top={`${menuPosition.top}px`}
+                      right={menuPosition.right !== undefined ? `${menuPosition.right}px` : undefined}
+                      left={menuPosition.left !== undefined ? `${menuPosition.left}px` : undefined}
+                      w={width}
+                      borderWidth="1px"
+                      borderColor="var(--color-border-default)"
+                      borderRadius="12px"
+                      bg="var(--color-bg-muted)"
+                      boxShadow="0 18px 40px rgba(3, 8, 18, 0.18)"
+                      p="1.5"
+                      zIndex="1400"
+                  >
+                      <Stack gap="1">
+                          {items.map((item) => (
+                              <Button
+                                  key={item.label}
+                                  justifyContent="flex-start"
+                                  borderRadius="10px"
+                                  variant="ghost"
+                                  color={item.tone === "danger" ? "var(--color-danger-text)" : "var(--color-text-primary)"}
+                                  _hover={{
+                                      bg: item.tone === "danger" ? "var(--color-danger-bg-soft)" : "var(--color-bg-hover)",
+                                  }}
+                                  disabled={item.disabled}
+                                  onClick={() => {
+                                      item.onClick();
+                                      close();
+                                  }}
+                              >
+                                  {item.label}
+                              </Button>
+                          ))}
+                      </Stack>
+                  </Box>,
+                  document.body,
+              )
+            : null;
+
     return (
-        <Box position="relative" ref={containerRef}>
-            {renderTrigger({ isOpen, toggle, close })}
-            {isOpen ? (
-                <Box
-                    position="absolute"
-                    top="calc(100% + 8px)"
-                    right={align === "right" ? "0" : undefined}
-                    left={align === "left" ? "0" : undefined}
-                    w={width}
-                    borderWidth="1px"
-                    borderColor="#273140"
-                    borderRadius="12px"
-                    bg="#0f141b"
-                    boxShadow="0 18px 40px rgba(3, 8, 18, 0.45)"
-                    p="1.5"
-                    zIndex="20"
-                >
-                    <Stack gap="1">
-                        {items.map((item) => (
-                            <Button
-                                key={item.label}
-                                justifyContent="flex-start"
-                                borderRadius="10px"
-                                variant="ghost"
-                                color={item.tone === "danger" ? "#ffb8c6" : "#eef3fb"}
-                                _hover={{
-                                    bg: item.tone === "danger" ? "#34161b" : "#161e2a",
-                                }}
-                                disabled={item.disabled}
-                                onClick={() => {
-                                    item.onClick();
-                                    close();
-                                }}
-                            >
-                                {item.label}
-                            </Button>
-                        ))}
-                    </Stack>
-                </Box>
-            ) : null}
-        </Box>
+        <>
+            <Box position="relative" ref={containerRef} zIndex={isOpen ? 30 : undefined}>
+                {renderTrigger({ isOpen, toggle, close })}
+            </Box>
+            {menu}
+        </>
     );
 }

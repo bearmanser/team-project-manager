@@ -3,15 +3,16 @@ import { Box, Button, Flex, Heading, Input, Stack, Text, Textarea } from "@chakr
 import { ActionIcon } from "../components/ActionIcon";
 import { ModalFrame } from "../components/ModalFrame";
 import { PlusIcon } from "../components/icons";
-import { PriorityPill } from "../components/PriorityPill";
 import { StatusPill } from "../components/StatusPill";
 import { SurfaceCard } from "../components/SurfaceCard";
 import type { BugStatus, PriorityLevel, ProjectDetail } from "../types";
 import {
     formatShortDate,
+    getBugStatusSelectStyle,
+    getPriorityLabel,
+    getPrioritySelectStyle,
     nativeSelectStyle,
     PRIORITY_OPTIONS,
-    getPriorityLabel,
     sortBugsByPriority,
 } from "../utils";
 
@@ -47,17 +48,25 @@ export function ProjectBugsPage({
         <Stack gap="6">
             <Flex justify="space-between" align={{ base: "stretch", md: "center" }} gap="4" wrap="wrap">
                 <Stack gap="1">
-                    <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="#90a0b7">
+                    <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="var(--color-text-muted)">
                         Bugs
                     </Text>
-                    <Heading size="2xl" color="#f5f7fb">
+                    <Heading size="2xl" color="var(--color-text-primary)">
                         {project.name}
                     </Heading>
-                    <Text color="#b0bccf" maxW="2xl">
+                    <Text color="var(--color-text-secondary)" maxW="2xl">
                         Keep bug reports concise, update status and priority inline, and create new reports only when you need one.
                     </Text>
                 </Stack>
-                <Button minW="11" h="11" borderRadius="lg" bg="#2d6cdf" color="#f8fbff" onClick={onToggleCreateForm}>
+                <Button
+                    minW="11"
+                    h="11"
+                    borderRadius="lg"
+                    bg="var(--color-accent)"
+                    color="var(--color-text-inverse)"
+                    _hover={{ bg: "var(--color-accent-hover)" }}
+                    onClick={onToggleCreateForm}
+                >
                     <ActionIcon>
                         <PlusIcon />
                     </ActionIcon>
@@ -83,26 +92,25 @@ export function ProjectBugsPage({
                                 gap="3"
                                 wrap="wrap"
                                 borderBottomWidth="1px"
-                                borderColor="#273140"
+                                borderColor="var(--color-border-default)"
                                 _last={{ borderBottomWidth: "0" }}
                             >
                                 <Stack gap="1.5" flex="1" minW="260px">
-                                    <Text color="#f5f7fb" fontWeight="700" whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis">
+                                    <Text color="var(--color-text-primary)" fontWeight="700" whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis">
                                         {bug.title}
                                     </Text>
-                                    <Text color="#90a0b7" fontSize="sm" whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis">
+                                    <Text color="var(--color-text-muted)" fontSize="sm" whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis">
                                         {meta}
                                     </Text>
                                 </Stack>
                                 <Flex gap="2" wrap="wrap" align="center">
-                                    <PriorityPill priority={bug.priority} />
                                     {bug.resolutionTaskTitle ? <StatusPill label={bug.resolutionTaskTitle} /> : null}
                                 </Flex>
                                 <Flex gap="2" wrap="wrap" align="center">
                                     <Box as="span">
                                         <select
                                             value={bug.priority}
-                                            style={{ ...nativeSelectStyle, minWidth: 150 }}
+                                            style={{ ...getPrioritySelectStyle(bug.priority), minWidth: 150 }}
                                             onChange={(event) => onUpdateBugPriority(bug.id, event.target.value as PriorityLevel)}
                                         >
                                             {PRIORITY_OPTIONS.map((priority) => (
@@ -115,7 +123,7 @@ export function ProjectBugsPage({
                                     <Box as="span">
                                         <select
                                             value={bug.status}
-                                            style={{ ...nativeSelectStyle, minWidth: 170 }}
+                                            style={{ ...getBugStatusSelectStyle(bug.status), minWidth: 170 }}
                                             onChange={(event) => onUpdateBugStatus(bug.id, event.target.value as BugStatus)}
                                         >
                                             {Object.entries(project.bugStatusLabels).map(([value, label]) => (
@@ -131,10 +139,10 @@ export function ProjectBugsPage({
                     })
                 ) : (
                     <Stack p="6" gap="2">
-                        <Text color="#f5f7fb" fontWeight="600">
+                        <Text color="var(--color-text-primary)" fontWeight="600">
                             No bug reports yet.
                         </Text>
-                        <Text color="#90a0b7">Use the create button to add the first bug report.</Text>
+                        <Text color="var(--color-text-muted)">Use the create button to add the first bug report.</Text>
                     </Stack>
                 )}
             </SurfaceCard>
@@ -157,19 +165,19 @@ export function ProjectBugsPage({
                         value={createBugForm.title}
                         onChange={(event) => onCreateBugFormChange("title", event.target.value)}
                         placeholder="Board is not syncing live updates"
-                        bg="#0f141b"
-                        borderColor="#2b3544"
+                        bg="var(--color-bg-muted)"
+                        borderColor="var(--color-border-strong)"
                         borderRadius="lg"
-                        color="#f5f7fb"
+                        color="var(--color-text-primary)"
                     />
                     <Textarea
                         value={createBugForm.description}
                         onChange={(event) => onCreateBugFormChange("description", event.target.value)}
                         placeholder="Describe the issue, impact, and current behavior."
-                        bg="#0f141b"
-                        borderColor="#2b3544"
+                        bg="var(--color-bg-muted)"
+                        borderColor="var(--color-border-strong)"
                         borderRadius="lg"
-                        color="#f5f7fb"
+                        color="var(--color-text-primary)"
                         minH="140px"
                     />
                     <select
@@ -194,7 +202,14 @@ export function ProjectBugsPage({
                             </option>
                         ))}
                     </select>
-                    <Button type="submit" borderRadius="lg" bg="#2d6cdf" color="#f8fbff" alignSelf="flex-start">
+                    <Button
+                        type="submit"
+                        borderRadius="lg"
+                        bg="var(--color-accent)"
+                        color="var(--color-text-inverse)"
+                        alignSelf="flex-start"
+                        _hover={{ bg: "var(--color-accent-hover)" }}
+                    >
                         Add bug report
                     </Button>
                 </Stack>

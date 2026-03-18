@@ -11,7 +11,7 @@ type AppShellProps = {
 
 export function AppShell({ topNav, sidebar, banner, children }: AppShellProps) {
   return (
-    <Flex direction="column" minH="100vh" bg="#090d12">
+    <Flex direction="column" minH="100vh" bg="var(--color-bg-app)">
       {topNav}
       {banner ? (
         <Box px={{ base: "4", lg: "8" }} py="4">
@@ -24,8 +24,8 @@ export function AppShell({ topNav, sidebar, banner, children }: AppShellProps) {
             w={{ base: "100%", lg: "280px" }}
             borderRightWidth={{ base: "0", lg: "1px" }}
             borderBottomWidth={{ base: "1px", lg: "0" }}
-            borderColor="#273140"
-            bg="#0c1117"
+            borderColor="var(--color-border-default)"
+            bg="var(--color-bg-panel)"
             px={"4"}
             py="6"
           >

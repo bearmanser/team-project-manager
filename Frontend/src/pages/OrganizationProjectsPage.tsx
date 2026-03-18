@@ -49,17 +49,17 @@ export function OrganizationProjectsPage({
         <Stack gap="6">
             <Flex justify="space-between" align={{ base: "stretch", md: "center" }} gap="4" wrap="wrap">
                 <Stack gap="1">
-                    <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="#90a0b7">
+                    <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="var(--color-text-muted)">
                         Projects
                     </Text>
-                    <Heading size="2xl" color="#f5f7fb">
+                    <Heading size="2xl" color="var(--color-text-primary)">
                         {organization.name}
                     </Heading>
-                    <Text color="#b0bccf" maxW="2xl">
+                    <Text color="var(--color-text-secondary)" maxW="2xl">
                         Keep projects lightweight inside this organization and jump straight into the board, bugs, or tasks without extra summary chrome.
                     </Text>
                 </Stack>
-                <Button minW="11" h="11" borderRadius="lg" bg="#2d6cdf" color="#f8fbff" onClick={onToggleCreateForm}>
+                <Button minW="11" h="11" borderRadius="lg" bg="var(--color-accent)" color="var(--color-text-inverse)" _hover={{ bg: "var(--color-accent-hover)" }} onClick={onToggleCreateForm}>
                     <ActionIcon>
                         <PlusIcon />
                     </ActionIcon>
@@ -67,8 +67,8 @@ export function OrganizationProjectsPage({
             </Flex>
 
             {githubRepoError ? (
-                <SurfaceCard p="3" bg="#2a1317" borderColor="#8c3a46">
-                    <Text fontSize="sm" color="#ffc6ce">{githubRepoError}</Text>
+                <SurfaceCard p="3" bg="var(--color-danger-bg)" borderColor="var(--color-danger-border)">
+                    <Text fontSize="sm" color="var(--color-danger-text)">{githubRepoError}</Text>
                 </SurfaceCard>
             ) : null}
 
@@ -84,25 +84,26 @@ export function OrganizationProjectsPage({
                             gap="4"
                             wrap="wrap"
                             borderBottomWidth="1px"
-                            borderColor="#273140"
+                            borderColor="var(--color-border-default)"
                             _last={{ borderBottomWidth: "0" }}
                         >
                             <Stack gap="1" flex="1" minW="260px">
-                                <Heading size="md" color="#f5f7fb">
+                                <Heading size="md" color="var(--color-text-primary)">
                                     {project.name}
                                 </Heading>
-                                <Text color="#90a0b7">
+                                <Text color="var(--color-text-muted)">
                                     {project.description || "No description yet."}
                                 </Text>
-                                <Text color="#728198" fontSize="sm">
+                                <Text color="var(--color-text-subtle)" fontSize="sm">
                                     {project.repoCount} repo - {project.memberCount} people - {project.openBugCount} open bugs - updated {formatShortDate(project.updatedAt)}
                                 </Text>
                             </Stack>
                             <Button
                                 borderRadius="lg"
                                 variant="outline"
-                                borderColor="#2b3544"
-                                color="#eef3fb"
+                                borderColor="var(--color-border-strong)"
+                                color="var(--color-text-primary)"
+                                _hover={{ bg: "var(--color-bg-hover)", borderColor: "var(--color-accent-border)" }}
                                 onClick={() => onOpenProject(project.id)}
                             >
                                 Open
@@ -111,10 +112,10 @@ export function OrganizationProjectsPage({
                     ))
                 ) : (
                     <Stack p="6" gap="2">
-                        <Text color="#f5f7fb" fontWeight="600">
+                        <Text color="var(--color-text-primary)" fontWeight="600">
                             No projects in this organization yet.
                         </Text>
-                        <Text color="#90a0b7">Use the add button to create one.</Text>
+                        <Text color="var(--color-text-muted)">Use the add button to create one.</Text>
                     </Stack>
                 )}
             </SurfaceCard>
@@ -127,10 +128,10 @@ export function OrganizationProjectsPage({
             >
                 {!isGitHubConnected ? (
                     <Stack gap="4">
-                        <Text color="#d8e1ee">
+                        <Text color="var(--color-text-strong)">
                             Connect GitHub first so this project can point at a repository from day one.
                         </Text>
-                        <Button borderRadius="lg" bg="#2d6cdf" color="#f8fbff" alignSelf="flex-start" onClick={onConnectGitHub}>
+                        <Button borderRadius="lg" bg="var(--color-accent)" color="var(--color-text-inverse)" alignSelf="flex-start" _hover={{ bg: "var(--color-accent-hover)" }} onClick={onConnectGitHub}>
                             Connect GitHub
                         </Button>
                     </Stack>
@@ -147,10 +148,10 @@ export function OrganizationProjectsPage({
                             value={createProjectForm.name}
                             onChange={(event) => onCreateProjectFormChange("name", event.target.value)}
                             placeholder="Client portal"
-                            bg="#0f141b"
-                            borderColor="#2b3544"
+                            bg="var(--color-bg-muted)"
+                            borderColor="var(--color-border-strong)"
                             borderRadius="lg"
-                            color="#f5f7fb"
+                            color="var(--color-text-primary)"
                         />
                         <select
                             value={createProjectForm.repositoryId}
@@ -168,19 +169,20 @@ export function OrganizationProjectsPage({
                             value={createProjectForm.description}
                             onChange={(event) => onCreateProjectFormChange("description", event.target.value)}
                             placeholder="What this project is responsible for."
-                            bg="#0f141b"
-                            borderColor="#2b3544"
+                            bg="var(--color-bg-muted)"
+                            borderColor="var(--color-border-strong)"
                             borderRadius="lg"
-                            color="#f5f7fb"
+                            color="var(--color-text-primary)"
                             minH="120px"
                         />
                         <Button
                             type="submit"
                             borderRadius="lg"
-                            bg="#2d6cdf"
-                            color="#f8fbff"
+                            bg="var(--color-accent)"
+                            color="var(--color-text-inverse)"
                             alignSelf="flex-start"
                             disabled={isCreatingProject || !createProjectForm.repositoryId}
+                            _hover={{ bg: "var(--color-accent-hover)" }}
                         >
                             {isCreatingProject ? "Adding..." : "Add project"}
                         </Button>

@@ -59,6 +59,7 @@ import type {
 const TOKEN_STORAGE_KEY = "team-project-manager.jwt";
 const SELECTED_ORGANIZATION_STORAGE_KEY = "team-project-manager.selected-organization";
 const SELECTED_PROJECT_STORAGE_KEY = "team-project-manager.selected-project";
+const THEME_MODE_STORAGE_KEY = "team-project-manager.theme-mode";
 
 const initialSignupForm = {
     username: "",
@@ -222,11 +223,16 @@ function getProjectPath(projectId: number, section: ProjectSection = "board"): s
     return section === "board" ? `/projects/${projectId}` : `/projects/${projectId}/${section}`;
 }
 
+function getStoredThemeMode(): "light" | "dark" {
+    return window.localStorage.getItem(THEME_MODE_STORAGE_KEY) === "light" ? "light" : "dark";
+}
+
 function App() {
     const [authMode, setAuthMode] = useState<"signup" | "login">("login");
     const [signupForm, setSignupForm] = useState(initialSignupForm);
     const [loginForm, setLoginForm] = useState(initialLoginForm);
     const [token, setToken] = useState<string | null>(() => window.localStorage.getItem(TOKEN_STORAGE_KEY));
+    const [themeMode, setThemeMode] = useState<"light" | "dark">(() => getStoredThemeMode());
     const [workspace, setWorkspace] = useState<WorkspaceResponse | null>(null);
     const [selectedOrganizationId, setSelectedOrganizationId] = useState<number | null>(() =>
         parseStoredNumber(SELECTED_ORGANIZATION_STORAGE_KEY),
@@ -414,7 +420,9 @@ function App() {
             setWorkspace(workspaceData);
         });
 
-        const requestedProjectId = options.preferredProjectId ?? selectedProjectId;
+        const requestedProjectId = Object.prototype.hasOwnProperty.call(options, "preferredProjectId")
+            ? options.preferredProjectId ?? null
+            : selectedProjectId;
         const resolvedProjectId = workspaceData.projects.some((project) => project.id === requestedProjectId)
             ? requestedProjectId
             : null;
@@ -453,7 +461,9 @@ function App() {
             setSelectedProject(null);
         });
 
-        const requestedOrganizationId = options.preferredOrganizationId ?? selectedOrganizationId;
+        const requestedOrganizationId = Object.prototype.hasOwnProperty.call(options, "preferredOrganizationId")
+            ? options.preferredOrganizationId ?? null
+            : selectedOrganizationId;
         const resolvedOrganizationId = workspaceData.organizations.some(
             (organization) => organization.id === requestedOrganizationId,
         )
@@ -628,6 +638,11 @@ function App() {
             setIsBooting(false);
         }
     }
+
+    useEffect(() => {
+        document.documentElement.dataset.theme = themeMode;
+        window.localStorage.setItem(THEME_MODE_STORAGE_KEY, themeMode);
+    }, [themeMode]);
 
     useEffect(() => {
         void bootstrapWorkspace();
@@ -1102,22 +1117,24 @@ function App() {
             notifications={workspace?.notifications ?? []}
             notificationOpen={notificationOpen}
             unreadCount={unreadNotifications.length}
+            themeMode={themeMode}
             user={user}
             onCloseNotifications={() => setNotificationOpen(false)}
             onLogout={clearSession}
             onReadNotification={(notification) => void handleReadNotification(notification)}
             onToggleNotifications={() => setNotificationOpen((current) => !current)}
+            onToggleThemeMode={() => setThemeMode((current) => (current === "dark" ? "light" : "dark"))}
         />
     );
 
     const banner =
         error || notice ? (
-            <SurfaceCard p="3" bg={error ? "#2a1317" : "#0f211d"} borderColor={error ? "#8c3a46" : "#2f6c58"}>
+            <SurfaceCard p="3" bg={error ? "var(--color-danger-bg)" : "var(--color-success-bg)"} borderColor={error ? "var(--color-danger-border)" : "var(--color-success-border)"}>
                 <Flex justify="space-between" align="center" gap="3">
-                    <Text fontSize="sm" color={error ? "#ffc6ce" : "#b7f5de"}>{error ?? notice}</Text>
+                    <Text fontSize="sm" color={error ? "var(--color-danger-text)" : "var(--color-success-text)"}>{error ?? notice}</Text>
                     <Button
                         variant="ghost"
-                        color={error ? "#ffc6ce" : "#b7f5de"}
+                        color={error ? "var(--color-danger-text)" : "var(--color-success-text)"}
                         minW="7"
                         h="7"
                         px="0"
@@ -1137,16 +1154,16 @@ function App() {
 
     if (isBooting) {
         return (
-            <Box minH="100vh" bg="#090d12" display="grid" placeItems="center" px="4">
+            <Box minH="100vh" bg="var(--color-bg-app)" display="grid" placeItems="center" px="4">
                 <SurfaceCard p={{ base: "6", lg: "10" }} w="full" maxW="640px">
                     <Stack gap="3">
-                        <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.18em" color="#90a0b7">
+                        <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.18em" color="var(--color-text-muted)">
                             Team Project Manager
                         </Text>
-                        <Heading size="2xl" color="#f5f7fb">
+                        <Heading size="2xl" color="var(--color-text-primary)">
                             Preparing your workspace
                         </Heading>
-                        <Text color="#b0bccf">{busyLabel ?? "Loading authentication state..."}</Text>
+                        <Text color="var(--color-text-secondary)">{busyLabel ?? "Loading authentication state..."}</Text>
                     </Stack>
                 </SurfaceCard>
             </Box>
@@ -1205,7 +1222,7 @@ function App() {
                 onSelect={(section) => openProject(selectedProject.id, section)}
                 topSlot={
                     <Stack gap="3">
-                        <Text color="#728198" fontSize="sm">
+                        <Text color="var(--color-text-subtle)" fontSize="sm">
                             {currentOrganization.name}
                         </Text>
                         <select
@@ -1230,8 +1247,9 @@ function App() {
                         w="full"
                         borderRadius="lg"
                         variant="outline"
-                        borderColor="#2b3544"
-                        color="#eef3fb"
+                        borderColor="var(--color-border-strong)"
+                        color="var(--color-text-primary)"
+                        _hover={{ bg: "var(--color-bg-hover)", borderColor: "var(--color-accent-border)" }}
                         onClick={() => openOrganization(currentOrganization.id, "projects")}
                     >
                         Back to organization
@@ -1335,8 +1353,9 @@ function App() {
                     w="full"
                     borderRadius="lg"
                     variant="outline"
-                    borderColor="#2b3544"
-                    color="#eef3fb"
+                    borderColor="var(--color-border-strong)"
+                    color="var(--color-text-primary)"
+                    _hover={{ bg: "var(--color-bg-hover)", borderColor: "var(--color-accent-border)" }}
                     onClick={openOrganizationOverview}
                 >
                     All organizations
@@ -1401,6 +1420,10 @@ function App() {
 }
 
 export default App;
+
+
+
+
 
 
 

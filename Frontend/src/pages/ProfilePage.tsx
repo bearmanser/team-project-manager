@@ -22,21 +22,21 @@ export function ProfilePage({ organization, user, onConnectGitHub, onLogout }: P
                         borderRadius="full"
                         overflow="hidden"
                         borderWidth="1px"
-                        borderColor="#273140"
-                        bg="#111720"
+                        borderColor="var(--color-border-default)"
+                        bg="var(--color-bg-card)"
                     >
                         {user.githubAvatarUrl ? (
                             <Image src={user.githubAvatarUrl} alt={user.username} w="full" h="full" objectFit="cover" />
                         ) : null}
                     </Box>
                     <Stack gap="1">
-                        <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="#90a0b7">
+                        <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="var(--color-text-muted)">
                             Profile
                         </Text>
-                        <Heading size="2xl" color="#f5f7fb">
+                        <Heading size="2xl" color="var(--color-text-primary)">
                             {user.username}
                         </Heading>
-                        <Text color="#d8e1ee">{user.email}</Text>
+                        <Text color="var(--color-text-strong)">{user.email}</Text>
                     </Stack>
                 </Stack>
 
@@ -45,19 +45,20 @@ export function ProfilePage({ organization, user, onConnectGitHub, onLogout }: P
                     {organization ? <StatusPill label={organization.name} /> : null}
                 </Stack>
 
-                <Text color="#b0bccf">
+                <Text color="var(--color-text-secondary)">
                     Use this page to reconnect GitHub or sign out. The header avatar mirrors your GitHub image so profile access stays one click away.
                 </Text>
 
                 <Stack direction={{ base: "column", md: "row" }}>
-                    <Button borderRadius="lg" bg="#2d6cdf" color="#f8fbff" onClick={onConnectGitHub}>
+                    <Button borderRadius="lg" bg="var(--color-accent)" color="var(--color-text-inverse)" _hover={{ bg: "var(--color-accent-hover)" }} onClick={onConnectGitHub}>
                         {user.githubConnected ? "Reconnect GitHub" : "Connect GitHub"}
                     </Button>
                     <Button
                         borderRadius="lg"
                         variant="outline"
-                        borderColor="#8c3a46"
-                        color="#ffc6ce"
+                        borderColor="var(--color-danger-border)"
+                        color="var(--color-danger-text)"
+                        _hover={{ bg: "var(--color-danger-bg-soft)", borderColor: "var(--color-danger-border)" }}
                         onClick={onLogout}
                     >
                         Log out

@@ -6,9 +6,9 @@ import { ActionIcon } from "../components/ActionIcon";
 import { ModalFrame } from "../components/ModalFrame";
 import { InviteIcon } from "../components/icons";
 import { SurfaceCard } from "../components/SurfaceCard";
+import { StatusPill } from "../components/StatusPill";
 import type { ProjectRole, ProjectSummary } from "../types";
 import { nativeSelectStyle } from "../utils";
-import { StatusPill } from "../components/StatusPill";
 import type { OrganizationUser } from "../view-models";
 
 type OrganizationUsersPageProps = {
@@ -60,22 +60,23 @@ export function OrganizationUsersPage({
         <Stack gap="6">
             <Flex justify="space-between" align={{ base: "stretch", md: "center" }} gap="4" wrap="wrap">
                 <Stack gap="1">
-                    <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="#90a0b7">
+                    <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="var(--color-text-muted)">
                         Organization users
                     </Text>
-                    <Heading size="2xl" color="#f5f7fb">
+                    <Heading size="2xl" color="var(--color-text-primary)">
                         Shared team directory
                     </Heading>
-                    <Text color="#b0bccf" maxW="2xl">
+                    <Text color="var(--color-text-secondary)" maxW="2xl">
                         People show up once here and can still participate across multiple projects underneath the same organization.
                     </Text>
                 </Stack>
                 <Button
                     borderRadius="lg"
-                    bg="#2d6cdf"
-                    color="#f8fbff"
+                    bg="var(--color-accent)"
+                    color="var(--color-text-inverse)"
                     alignSelf={{ base: "stretch", md: "center" }}
                     disabled={!manageableProjects.length}
+                    _hover={{ bg: "var(--color-accent-hover)" }}
                     onClick={() => setInviteOpen(true)}
                 >
                     <ActionIcon>
@@ -86,8 +87,8 @@ export function OrganizationUsersPage({
             </Flex>
 
             {isLoading ? (
-                <SurfaceCard p="5" bg="#0f141b">
-                    <Text color="#90a0b7">Loading people from project memberships...</Text>
+                <SurfaceCard p="5" bg="var(--color-bg-muted)">
+                    <Text color="var(--color-text-muted)">Loading people from project memberships...</Text>
                 </SurfaceCard>
             ) : null}
 
@@ -104,14 +105,14 @@ export function OrganizationUsersPage({
                                 gap="4"
                                 wrap="wrap"
                                 borderBottomWidth="1px"
-                                borderColor="#273140"
+                                borderColor="var(--color-border-default)"
                                 _last={{ borderBottomWidth: "0" }}
                             >
                                 <Stack gap="1" flex="1" minW="260px">
-                                    <Heading size="sm" color="#f5f7fb">
+                                    <Heading size="sm" color="var(--color-text-primary)">
                                         {entry.user.username}
                                     </Heading>
-                                    <Text color="#90a0b7">
+                                    <Text color="var(--color-text-muted)">
                                         {entry.user.email}
                                         {entry.user.githubConnected && entry.user.githubUsername
                                             ? ` - GitHub @${entry.user.githubUsername}`
@@ -130,10 +131,10 @@ export function OrganizationUsersPage({
                         ))
                     ) : (
                         <Stack p="6" gap="2">
-                            <Text color="#f5f7fb" fontWeight="600">
+                            <Text color="var(--color-text-primary)" fontWeight="600">
                                 No people discovered yet.
                             </Text>
-                            <Text color="#90a0b7">Once projects exist, their members will appear here.</Text>
+                            <Text color="var(--color-text-muted)">Once projects exist, their members will appear here.</Text>
                         </Stack>
                     )}
                 </SurfaceCard>
@@ -169,10 +170,10 @@ export function OrganizationUsersPage({
                             value={inviteIdentifier}
                             onChange={(event) => setInviteIdentifier(event.target.value)}
                             placeholder="Username or email"
-                            bg="#0f141b"
-                            borderColor="#2b3544"
+                            bg="var(--color-bg-muted)"
+                            borderColor="var(--color-border-strong)"
                             borderRadius="lg"
-                            color="#f5f7fb"
+                            color="var(--color-text-primary)"
                         />
                         <select
                             value={inviteRole}
@@ -185,12 +186,12 @@ export function OrganizationUsersPage({
                                 </option>
                             ))}
                         </select>
-                        <Button type="submit" borderRadius="lg" bg="#2d6cdf" color="#f8fbff" alignSelf="flex-start" disabled={isInviting || !inviteIdentifier.trim()}>
+                        <Button type="submit" borderRadius="lg" bg="var(--color-accent)" color="var(--color-text-inverse)" alignSelf="flex-start" disabled={isInviting || !inviteIdentifier.trim()} _hover={{ bg: "var(--color-accent-hover)" }}>
                             {isInviting ? "Inviting..." : "Send invite"}
                         </Button>
                     </Stack>
                 ) : (
-                    <Text color="#90a0b7">No manageable projects are available in this organization yet.</Text>
+                    <Text color="var(--color-text-muted)">No manageable projects are available in this organization yet.</Text>
                 )}
             </ModalFrame>
         </Stack>

@@ -59,3 +59,25 @@ export function MoreIcon({ size = 18 }: IconProps) {
     );
 }
 
+export function SunIcon({ size = 18, strokeWidth = 1.8 }: IconProps) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth={strokeWidth} />
+            <path d="M12 2.75v2.5M12 18.75v2.5M21.25 12h-2.5M5.25 12h-2.5M18.54 5.46l-1.77 1.77M7.23 16.77l-1.77 1.77M18.54 18.54l-1.77-1.77M7.23 7.23 5.46 5.46" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" />
+        </svg>
+    );
+}
+
+export function MoonIcon({ size = 18, strokeWidth = 1.8 }: IconProps) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+                d="M19.25 14.5A7.25 7.25 0 0 1 9.5 4.75a7.25 7.25 0 1 0 9.75 9.75Z"
+                stroke="currentColor"
+                strokeWidth={strokeWidth}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            />
+        </svg>
+    );
+}

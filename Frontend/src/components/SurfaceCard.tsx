@@ -3,9 +3,9 @@ import { Box, type BoxProps } from "@chakra-ui/react";
 export function SurfaceCard(props: BoxProps) {
     return (
         <Box
-            bg="#111720"
+            bg="var(--color-bg-card)"
             borderWidth="1px"
-            borderColor="#273140"
+            borderColor="var(--color-border-default)"
             borderRadius="12px"
             boxShadow="none"
             backdropFilter="blur(18px)"

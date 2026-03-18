@@ -35,17 +35,17 @@ export function OrganizationOverviewPage({
         <Stack gap="6">
             <Flex justify="space-between" align={{ base: "stretch", md: "center" }} gap="4" wrap="wrap">
                 <Stack gap="1">
-                    <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.18em" color="#90a0b7">
+                    <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.18em" color="var(--color-text-muted)">
                         Organizations
                     </Text>
-                    <Heading size="2xl" color="#f5f7fb">
+                    <Heading size="2xl" color="var(--color-text-primary)">
                         Pick a workspace
                     </Heading>
-                    <Text color="#b0bccf" maxW="2xl">
+                    <Text color="var(--color-text-secondary)" maxW="2xl">
                         Create organizations, group projects underneath them, and keep the top level focused on the workspaces you actually use.
                     </Text>
                 </Stack>
-                <Button minW="11" h="11" borderRadius="lg" bg="#2d6cdf" color="#f8fbff" onClick={onToggleCreateForm}>
+                <Button minW="11" h="11" borderRadius="lg" bg="var(--color-accent)" color="var(--color-text-inverse)" _hover={{ bg: "var(--color-accent-hover)" }} onClick={onToggleCreateForm}>
                     <ActionIcon>
                         <PlusIcon />
                     </ActionIcon>
@@ -64,25 +64,26 @@ export function OrganizationOverviewPage({
                             gap="4"
                             wrap="wrap"
                             borderBottomWidth="1px"
-                            borderColor="#273140"
+                            borderColor="var(--color-border-default)"
                             _last={{ borderBottomWidth: "0" }}
                         >
                             <Stack gap="1" flex="1" minW="260px">
-                                <Heading size="md" color="#f5f7fb">
+                                <Heading size="md" color="var(--color-text-primary)">
                                     {organization.name}
                                 </Heading>
-                                <Text color="#90a0b7">
+                                <Text color="var(--color-text-muted)">
                                     {organization.description || "No description yet."}
                                 </Text>
-                                <Text color="#728198" fontSize="sm">
+                                <Text color="var(--color-text-subtle)" fontSize="sm">
                                     {organization.projectCount} projects - {organization.repoCount} repos - {organization.memberCount} people - {organization.openBugCount} open bugs - updated {formatShortDate(organization.updatedAt)}
                                 </Text>
                             </Stack>
                             <Button
                                 borderRadius="lg"
                                 variant="outline"
-                                borderColor="#2b3544"
-                                color="#eef3fb"
+                                borderColor="var(--color-border-strong)"
+                                color="var(--color-text-primary)"
+                                _hover={{ bg: "var(--color-bg-hover)", borderColor: "var(--color-accent-border)" }}
                                 onClick={() => onOpenOrganization(organization.id)}
                             >
                                 Open
@@ -91,10 +92,10 @@ export function OrganizationOverviewPage({
                     ))
                 ) : (
                     <Stack p="6" gap="2">
-                        <Text color="#f5f7fb" fontWeight="600">
+                        <Text color="var(--color-text-primary)" fontWeight="600">
                             No organizations yet.
                         </Text>
-                        <Text color="#90a0b7">Use the add button to create the first one.</Text>
+                        <Text color="var(--color-text-muted)">Use the add button to create the first one.</Text>
                     </Stack>
                 )}
             </SurfaceCard>
@@ -117,22 +118,22 @@ export function OrganizationOverviewPage({
                         value={createOrganizationForm.name}
                         onChange={(event) => onCreateOrganizationFormChange("name", event.target.value)}
                         placeholder="Platform delivery"
-                        bg="#0f141b"
-                        borderColor="#2b3544"
+                        bg="var(--color-bg-muted)"
+                        borderColor="var(--color-border-strong)"
                         borderRadius="lg"
-                        color="#f5f7fb"
+                        color="var(--color-text-primary)"
                     />
                     <Textarea
                         value={createOrganizationForm.description}
                         onChange={(event) => onCreateOrganizationFormChange("description", event.target.value)}
                         placeholder="Shared work across services, frontend, and ops."
-                        bg="#0f141b"
-                        borderColor="#2b3544"
+                        bg="var(--color-bg-muted)"
+                        borderColor="var(--color-border-strong)"
                         borderRadius="lg"
-                        color="#f5f7fb"
+                        color="var(--color-text-primary)"
                         minH="120px"
                     />
-                    <Button type="submit" borderRadius="lg" bg="#2d6cdf" color="#f8fbff" alignSelf="flex-start">
+                    <Button type="submit" borderRadius="lg" bg="var(--color-accent)" color="var(--color-text-inverse)" alignSelf="flex-start" _hover={{ bg: "var(--color-accent-hover)" }}>
                         {isCreatingOrganization ? "Adding..." : "Add organization"}
                     </Button>
                 </Stack>

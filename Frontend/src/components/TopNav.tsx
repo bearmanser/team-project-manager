@@ -6,6 +6,7 @@ import type { Notification, User } from "../types";
 import { getInitials } from "../utils";
 import { ActionIcon } from "./ActionIcon";
 import { DropdownMenu } from "./DropdownMenu";
+import { MoonIcon, SunIcon } from "./icons";
 import { NotificationPanel } from "./NotificationPanel";
 
 type TopNavProps = {
@@ -13,11 +14,13 @@ type TopNavProps = {
     notifications: Notification[];
     notificationOpen: boolean;
     unreadCount: number;
+    themeMode: "light" | "dark";
     user: User | null;
     onLogout: () => void;
     onReadNotification: (notification: Notification) => void;
     onToggleNotifications: () => void;
     onCloseNotifications: () => void;
+    onToggleThemeMode: () => void;
 };
 
 function NotificationIcon() {
@@ -48,9 +51,13 @@ function HeaderActionButton({
             px="0"
             borderRadius="12px"
             borderWidth="1px"
-            borderColor={isActive ? "#4b7ee8" : "#273140"}
-            bg={isActive ? "#13223a" : "#0f141b"}
-            color="#eef3fb"
+            borderColor={isActive ? "var(--color-accent-border)" : "var(--color-border-default)"}
+            bg={isActive ? "var(--color-accent-surface)" : "var(--color-bg-muted)"}
+            color="var(--color-text-primary)"
+            _hover={{
+                bg: isActive ? "var(--color-accent-surface-strong)" : "var(--color-bg-hover)",
+                borderColor: isActive ? "var(--color-accent-border)" : "var(--color-border-strong)",
+            }}
             onClick={onClick}
         >
             {children}
@@ -63,18 +70,20 @@ export function TopNav({
     notifications,
     notificationOpen,
     unreadCount,
+    themeMode,
     user,
     onLogout,
     onReadNotification,
     onToggleNotifications,
     onCloseNotifications,
+    onToggleThemeMode,
 }: TopNavProps) {
     return (
         <Box
             as="header"
             borderBottomWidth="1px"
-            borderColor="#273140"
-            bg="#0c1117"
+            borderColor="var(--color-border-default)"
+            bg="var(--color-bg-panel)"
             px={{ base: "4", lg: "8" }}
             py="4"
             position="sticky"
@@ -83,20 +92,29 @@ export function TopNav({
         >
             <Flex justify="space-between" align="center" gap="4" wrap="wrap">
                 <Stack gap="0">
-                    <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.18em" color="#90a0b7">
+                    <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.18em" color="var(--color-text-muted)">
                         Team Project Manager
                     </Text>
-                    <Text fontSize="xl" fontWeight="700" color="#f5f7fb">
+                    <Text fontSize="xl" fontWeight="700" color="var(--color-text-primary)">
                         Delivery control center
                     </Text>
                 </Stack>
 
                 <HStack gap="3" align="center">
                     {busyLabel ? (
-                        <Text fontSize="sm" color="#90a0b7">
+                        <Text fontSize="sm" color="var(--color-text-muted)">
                             {busyLabel}
                         </Text>
                     ) : null}
+
+                    <HeaderActionButton
+                        label={themeMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                        onClick={onToggleThemeMode}
+                    >
+                        <ActionIcon>
+                            {themeMode === "dark" ? <SunIcon size={18} /> : <MoonIcon size={18} />}
+                        </ActionIcon>
+                    </HeaderActionButton>
 
                     <Box position="relative">
                         <HeaderActionButton label="Notifications" isActive={notificationOpen} onClick={onToggleNotifications}>
@@ -113,8 +131,8 @@ export function TopNav({
                                         h="5"
                                         px="1"
                                         borderRadius="full"
-                                        bg="#2d6cdf"
-                                        color="#f8fbff"
+                                        bg="var(--color-accent)"
+                                        color="var(--color-text-inverse)"
                                         fontSize="10px"
                                         fontWeight="700"
                                         display="grid"
@@ -152,14 +170,16 @@ export function TopNav({
                                 borderRadius="full"
                                 overflow="hidden"
                                 borderWidth="1px"
-                                borderColor="#273140"
-                                bg="#0f141b"
+                                borderColor="var(--color-border-default)"
+                                bg="var(--color-bg-muted)"
+                                color="var(--color-text-primary)"
+                                _hover={{ bg: "var(--color-bg-hover)", borderColor: "var(--color-border-strong)" }}
                                 onClick={toggle}
                             >
                                 {user?.githubAvatarUrl ? (
                                     <Image src={user.githubAvatarUrl} alt={user.username} w="full" h="full" objectFit="cover" />
                                 ) : (
-                                    <Flex align="center" justify="center" w="full" h="full" color="#f5f7fb" fontWeight="700">
+                                    <Flex align="center" justify="center" w="full" h="full" color="var(--color-text-primary)" fontWeight="700">
                                         {getInitials(user?.username ?? "TP")}
                                     </Flex>
                                 )}
@@ -171,4 +191,3 @@ export function TopNav({
         </Box>
     );
 }
-

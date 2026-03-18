@@ -22,16 +22,25 @@ export function NotificationPanel({
             position="absolute"
             top="calc(100% + 12px)"
             right="0"
-            zIndex="20"
+            zIndex="50"
             w={{ base: "calc(100vw - 32px)", md: "380px" }}
             p="4"
         >
             <Stack gap="3">
                 <Flex align="center" justify="space-between" gap="3">
-                    <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="#90a0b7">
+                    <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="var(--color-text-muted)">
                         Notifications
                     </Text>
-                    <Button variant="ghost" color="#eef3fb" minW="8" h="8" px="0" borderRadius="lg" onClick={onClose}>
+                    <Button
+                        variant="ghost"
+                        color="var(--color-text-primary)"
+                        minW="8"
+                        h="8"
+                        px="0"
+                        borderRadius="lg"
+                        _hover={{ bg: "var(--color-bg-hover)" }}
+                        onClick={onClose}
+                    >
                         <ActionIcon>
                             <CloseIcon size={16} />
                         </ActionIcon>
@@ -43,16 +52,16 @@ export function NotificationPanel({
                         <Box
                             key={notification.id}
                             borderBottomWidth="1px"
-                            borderColor="#273140"
+                            borderColor="var(--color-border-default)"
                             pb="3"
                             _last={{ borderBottomWidth: "0", pb: "0" }}
                         >
                             <Stack gap="2">
-                                <Text color="#f5f7fb" fontWeight={notification.isRead ? "500" : "700"}>
+                                <Text color="var(--color-text-primary)" fontWeight={notification.isRead ? "500" : "700"}>
                                     {notification.message}
                                 </Text>
                                 <Flex align="center" justify="space-between" gap="3" wrap="wrap">
-                                    <Text fontSize="sm" color="#90a0b7">
+                                    <Text fontSize="sm" color="var(--color-text-muted)">
                                         {formatDateTime(notification.createdAt)}
                                     </Text>
                                     {!notification.isRead ? (
@@ -60,9 +69,10 @@ export function NotificationPanel({
                                             size="xs"
                                             variant="outline"
                                             borderRadius="md"
-                                            borderColor="#3a74d8"
-                                            color="#dfe9ff"
+                                            borderColor="var(--color-accent-border)"
+                                            color="var(--color-text-primary)"
                                             bg="transparent"
+                                            _hover={{ bg: "var(--color-accent-surface)", borderColor: "var(--color-accent-border)" }}
                                             onClick={() => onReadNotification(notification)}
                                         >
                                             Mark read
@@ -73,7 +83,7 @@ export function NotificationPanel({
                         </Box>
                     ))
                 ) : (
-                    <Text color="#90a0b7">No notifications yet.</Text>
+                    <Text color="var(--color-text-muted)">No notifications yet.</Text>
                 )}
             </Stack>
         </SurfaceCard>
