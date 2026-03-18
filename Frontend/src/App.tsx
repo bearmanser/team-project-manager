@@ -16,6 +16,7 @@ import {
     deleteProject,
     endProjectSprint,
     getProject,
+    updateProjectSprint,
     getWorkspace,
     login,
     markNotificationRead,
@@ -28,6 +29,7 @@ import {
 import { AppShell } from "./components/AppShell";
 import { ActionIcon } from "./components/ActionIcon";
 import { EndSprintModal } from "./components/EndSprintModal";
+import { EndSprintIncompleteTasksModal } from "./components/EndSprintIncompleteTasksModal";
 import { SideNav } from "./components/SideNav";
 import { SurfaceCard } from "./components/SurfaceCard";
 import { WorkItemDetailModal } from "./components/WorkItemDetailModal";
@@ -47,6 +49,7 @@ import type {
     BacklogPlacement,
     BugReport,
     BugStatus,
+    EndSprintUnfinishedAction,
     Notification,
     OrganizationSummary,
     ProjectDetail,
@@ -260,7 +263,9 @@ function App() {
     const [showCreateTaskForm, setShowCreateTaskForm] = useState(false);
     const [showCreateBugForm, setShowCreateBugForm] = useState(false);
     const [showEndSprintModal, setShowEndSprintModal] = useState(false);
+    const [showEndSprintActionModal, setShowEndSprintActionModal] = useState(false);
     const [endSprintReview, setEndSprintReview] = useState("");
+    const [endSprintUnfinishedAction, setEndSprintUnfinishedAction] = useState<EndSprintUnfinishedAction>("carryover");
     const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
     const [selectedBugId, setSelectedBugId] = useState<number | null>(null);
     const [createOrganizationForm, setCreateOrganizationForm] = useState(initialOrganizationForm);
@@ -272,6 +277,7 @@ function App() {
         description: "",
         useSprints: false,
     });
+    const [hiddenCompletedProductBacklogTaskIds, setHiddenCompletedProductBacklogTaskIds] = useState<Record<number, number[]>>({});
 
     const user = workspace?.user ?? null;
     const unreadNotifications = (workspace?.notifications ?? []).filter((item) => !item.isRead);
@@ -289,6 +295,15 @@ function App() {
             workspace?.projects.filter((project) => project.organizationId === currentOrganization?.id) ?? [],
         [currentOrganization?.id, workspace],
     );
+    const endSprintUnfinishedTasks = useMemo(() => {
+        if (!selectedProject?.activeSprint) {
+            return [];
+        }
+
+        return selectedProject.tasks.filter(
+            (task) => task.sprintId === selectedProject.activeSprint?.id && task.status !== "done",
+        );
+    }, [selectedProject]);
     const selectedTask = useMemo<Task | null>(() => {
         if (!selectedProject || selectedTaskId === null) {
             return null;
@@ -325,8 +340,8 @@ function App() {
         [],
     );
 
-    const projectNavItems: NavItem<ProjectSection>[] = useMemo(
-        () => [
+    const projectNavItems: NavItem<ProjectSection>[] = useMemo(() => {
+        const items: NavItem<ProjectSection>[] = [
             {
                 id: "board",
                 label: "Board",
@@ -346,19 +361,24 @@ function App() {
                 label: "Bugs",
                 description: "Triaged issues with inline status and priority updates.",
             },
-            {
+        ];
+
+        if (selectedProject?.useSprints) {
+            items.push({
                 id: "history",
                 label: "Sprint History",
                 description: "Past sprints, review notes, and carryover.",
-            },
-            {
-                id: "settings",
-                label: "Settings",
-                description: "Project details, workflow mode, repo reference, and deletion.",
-            },
-        ],
-        [selectedProject?.useSprints],
-    );
+            });
+        }
+
+        items.push({
+            id: "settings",
+            label: "Settings",
+            description: "Project details, workflow mode, repo reference, and deletion.",
+        });
+
+        return items;
+    }, [selectedProject?.useSprints]);
 
     function storeToken(nextToken: string | null): void {
         if (nextToken) {
@@ -408,7 +428,9 @@ function App() {
         setSelectedTaskId(null);
         setSelectedBugId(null);
         setShowEndSprintModal(false);
+        setShowEndSprintActionModal(false);
         setEndSprintReview("");
+        setEndSprintUnfinishedAction("carryover");
     }
 
     function clearSession(): void {
@@ -577,9 +599,9 @@ function App() {
         label: string,
         action: () => Promise<{ project: ProjectDetail }>,
         successNotice: string,
-    ): Promise<void> {
+    ): Promise<boolean> {
         if (!token) {
-            return;
+            return false;
         }
 
         setBusyLabel(label);
@@ -605,8 +627,10 @@ function App() {
                 quiet: true,
             });
             setNotice(successNotice);
+            return true;
         } catch (reason) {
             setError(getFriendlyError(reason));
+            return false;
         } finally {
             setBusyLabel(null);
         }
@@ -702,6 +726,15 @@ function App() {
         window.addEventListener("popstate", handlePopState);
         return () => window.removeEventListener("popstate", handlePopState);
     }, [token]);
+
+    useEffect(() => {
+        if (!selectedProject || selectedProject.useSprints || projectSection !== "history") {
+            return;
+        }
+
+        setProjectSection("board");
+        navigateToPath(getProjectPath(selectedProject.id, "board"), true);
+    }, [projectSection, selectedProject]);
 
     useEffect(() => {
         if (!error && !notice) {
@@ -902,6 +935,7 @@ function App() {
             setNotice("Organization added.");
         } catch (reason) {
             setError(getFriendlyError(reason));
+            return;
         } finally {
             setBusyLabel(null);
         }
@@ -930,6 +964,7 @@ function App() {
             setNotice("Project added.");
         } catch (reason) {
             setError(getFriendlyError(reason));
+            return;
         } finally {
             setBusyLabel(null);
         }
@@ -1178,18 +1213,64 @@ function App() {
         );
     }
 
-    async function handleEndSprint(): Promise<void> {
+    function closeEndSprintFlow(): void {
+        setShowEndSprintModal(false);
+        setShowEndSprintActionModal(false);
+        setEndSprintReview("");
+        setEndSprintUnfinishedAction("carryover");
+    }
+
+    function handleEndSprintRequest(): void {
+        if (endSprintUnfinishedTasks.length > 0) {
+            setShowEndSprintModal(false);
+            setShowEndSprintActionModal(true);
+            return;
+        }
+
+        void handleEndSprint();
+    }
+
+    async function handleEndSprint(unfinishedAction: EndSprintUnfinishedAction = "carryover"): Promise<void> {
         if (!token || !selectedProject) {
             return;
         }
 
-        await runProjectMutation(
+        const didEndSprint = await runProjectMutation(
             "Ending sprint",
-            () => endProjectSprint(token, selectedProject.id, { reviewText: endSprintReview.trim() }),
+            () =>
+                endProjectSprint(token, selectedProject.id, {
+                    reviewText: endSprintReview.trim(),
+                    unfinishedAction,
+                }),
             "Sprint ended.",
         );
-        setShowEndSprintModal(false);
-        setEndSprintReview("");
+        if (didEndSprint) {
+            closeEndSprintFlow();
+        }
+    }
+
+    async function handleRenameSprint(name: string): Promise<void> {
+        if (!token || !selectedProject?.activeSprint) {
+            return;
+        }
+
+        const activeSprintId = selectedProject.activeSprint.id;
+
+        await runProjectMutation(
+            "Renaming sprint",
+            () =>
+                updateProjectSprint(token, selectedProject.id, activeSprintId, {
+                    name,
+                }),
+            "Sprint renamed.",
+        );
+    }
+
+    function handleCleanupProductBacklogDoneTasks(projectId: number, taskIds: number[]): void {
+        setHiddenCompletedProductBacklogTaskIds((current) => ({
+            ...current,
+            [projectId]: taskIds,
+        }));
     }
 
     async function handleDeleteSelectedProject(): Promise<void> {
@@ -1210,6 +1291,7 @@ function App() {
             setNotice("Project deleted.");
         } catch (reason) {
             setError(getFriendlyError(reason));
+            return;
         } finally {
             setBusyLabel(null);
         }
@@ -1233,6 +1315,7 @@ function App() {
             setNotice("User invited.");
         } catch (reason) {
             setError(getFriendlyError(reason));
+            return;
         } finally {
             setBusyLabel(null);
         }
@@ -1403,7 +1486,12 @@ function App() {
                 onUpdateTaskPriority={(taskId, priority) => void handleUpdateTaskPriority(taskId, priority)}
                 onUpdateTaskStatus={(taskId, status) => void handleUpdateTaskStatus(taskId, status)}
                 onMoveTaskPlacement={(taskId, placement) => void handleMoveTaskPlacement(taskId, placement)}
-                onOpenEndSprint={() => setShowEndSprintModal(true)}
+                onRenameSprint={(name) => void handleRenameSprint(name)}
+                onOpenEndSprint={() => {
+                    setEndSprintUnfinishedAction("carryover");
+                    setShowEndSprintActionModal(false);
+                    setShowEndSprintModal(true);
+                }}
             />
         );
 
@@ -1411,8 +1499,10 @@ function App() {
             projectContent = (
                 <ProjectTasksPage
                     createTaskForm={createTaskForm}
+                    hiddenProductBacklogTaskIds={hiddenCompletedProductBacklogTaskIds[selectedProject.id] ?? []}
                     isCreateOpen={showCreateTaskForm}
                     project={selectedProject}
+                    onCleanupProductBacklogDoneTasks={handleCleanupProductBacklogDoneTasks}
                     onCreateTask={() => void handleCreateTask()}
                     onCreateTaskFormChange={(field, value) =>
                         setCreateTaskForm((current) => ({
@@ -1451,7 +1541,7 @@ function App() {
             );
         }
 
-        if (projectSection === "history") {
+        if (projectSection === "history" && selectedProject.useSprints) {
             projectContent = <ProjectSprintHistoryPage project={selectedProject} />;
         }
 
@@ -1501,8 +1591,17 @@ function App() {
                     project={selectedProject}
                     reviewText={endSprintReview}
                     onChange={setEndSprintReview}
-                    onClose={() => setShowEndSprintModal(false)}
-                    onSubmit={() => void handleEndSprint()}
+                    onClose={closeEndSprintFlow}
+                    onSubmit={handleEndSprintRequest}
+                />
+                <EndSprintIncompleteTasksModal
+                    action={endSprintUnfinishedAction}
+                    isOpen={showEndSprintActionModal}
+                    sprintName={selectedProject.activeSprint?.name ?? ""}
+                    tasks={endSprintUnfinishedTasks}
+                    onActionChange={setEndSprintUnfinishedAction}
+                    onClose={closeEndSprintFlow}
+                    onSubmit={() => void handleEndSprint(endSprintUnfinishedAction)}
                 />
             </AppShell>
         );

@@ -19,7 +19,7 @@ export function ProjectSprintHistoryPage({ project }: ProjectSprintHistoryPagePr
                     {project.name}
                 </Heading>
                 <Text color="var(--color-text-secondary)" maxW="2xl">
-                    Review past sprints, the quick review notes captured at close-out, and what carried over into the next sprint.
+                    Review past sprints, the quick review notes captured at close-out, and what happened to unfinished work.
                 </Text>
             </Stack>
 
@@ -56,6 +56,16 @@ export function ProjectSprintHistoryPage({ project }: ProjectSprintHistoryPagePr
                                             {sprint.summary.carryoverCount ?? 0}
                                         </Heading>
                                     </SurfaceCard>
+                                    {(sprint.summary.returnedToProductCount ?? 0) > 0 ? (
+                                        <SurfaceCard p="3" bg="var(--color-bg-card)">
+                                            <Text color="var(--color-text-muted)" fontSize="xs" textTransform="uppercase" letterSpacing="0.14em">
+                                                Back to product
+                                            </Text>
+                                            <Heading size="md" color="var(--color-text-primary)">
+                                                {sprint.summary.returnedToProductCount ?? 0}
+                                            </Heading>
+                                        </SurfaceCard>
+                                    ) : null}
                                 </Stack>
                                 <Stack gap="2">
                                     <Text color="var(--color-text-primary)" fontWeight="600">
@@ -85,6 +95,18 @@ export function ProjectSprintHistoryPage({ project }: ProjectSprintHistoryPagePr
                                         <Text color="var(--color-text-muted)">Everything finished before the sprint closed.</Text>
                                     )}
                                 </Stack>
+                                {(sprint.summary.returnedToProductTasks ?? []).length ? (
+                                    <Stack gap="2">
+                                        <Text color="var(--color-text-primary)" fontWeight="600">
+                                            Returned to product backlog
+                                        </Text>
+                                        {(sprint.summary.returnedToProductTasks ?? []).map((task) => (
+                                            <Text key={`product-${sprint.id}-${task.id}`} color="var(--color-text-secondary)">
+                                                {task.title}
+                                            </Text>
+                                        ))}
+                                    </Stack>
+                                ) : null}
                             </Stack>
                         </SurfaceCard>
                     ))}

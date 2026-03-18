@@ -28,7 +28,7 @@ export function EndSprintModal({
     return (
         <ModalFrame
             title={activeSprint ? `End ${activeSprint.name}` : "End sprint"}
-            description="Wrap the current sprint, optionally jot down a quick review note, and automatically roll unfinished work into the next sprint."
+            description="Wrap the current sprint, capture a quick review note if you want, and decide what should happen to unfinished work next."
             isOpen={isOpen}
             onClose={onClose}
         >

@@ -168,7 +168,6 @@ export function WorkItemDetailModal({
                             />
                             <Flex gap="2" wrap="wrap" align="center">
                                 <PriorityPill priority={priority} />
-                                {kind === "task" && task?.sprintName ? <StatusPill label={task.sprintName} /> : null}
                                 {kind === "task" && task?.bugReportTitle ? <StatusPill label={task.bugReportTitle} /> : null}
                                 {kind === "bug" && bug?.resolutionTaskTitle ? <StatusPill label={bug.resolutionTaskTitle} /> : null}
                             </Flex>

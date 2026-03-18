@@ -135,10 +135,26 @@ export function updateProjectSettings(
 export function endProjectSprint(
     token: string,
     projectId: number,
-    payload: { reviewText: string },
+    payload: { reviewText: string; unfinishedAction?: "done" | "carryover" | "product" },
 ): Promise<ProjectResponse> {
     return request<ProjectResponse>(
         `/api/projects/${projectId}/sprints/end/`,
+        {
+            method: "POST",
+            body: JSON.stringify(payload),
+        },
+        token,
+    );
+}
+
+export function updateProjectSprint(
+    token: string,
+    projectId: number,
+    sprintId: number,
+    payload: { name: string },
+): Promise<ProjectResponse> {
+    return request<ProjectResponse>(
+        `/api/projects/${projectId}/sprints/${sprintId}/update/`,
         {
             method: "POST",
             body: JSON.stringify(payload),

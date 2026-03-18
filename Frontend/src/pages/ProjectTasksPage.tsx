@@ -1,4 +1,6 @@
-import { Box, Button, Flex, Heading, Stack, Text } from "@chakra-ui/react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import { Box, Button, Flex, Grid, Heading, Stack, Text } from "@chakra-ui/react";
 
 import { ActionIcon } from "../components/ActionIcon";
 import { CreateTaskModal } from "../components/CreateTaskModal";
@@ -28,8 +30,10 @@ type ProjectTasksPageProps = {
         priority: PriorityLevel;
         placement: BacklogPlacement;
     };
+    hiddenProductBacklogTaskIds: number[];
     isCreateOpen: boolean;
     project: ProjectDetail;
+    onCleanupProductBacklogDoneTasks: (projectId: number, taskIds: number[]) => void;
     onCreateTask: () => void;
     onCreateTaskFormChange: (field: "title" | "description" | "status" | "priority" | "placement", value: string) => void;
     onToggleCreateForm: () => void;
@@ -41,19 +45,23 @@ type ProjectTasksPageProps = {
 };
 
 function TaskRow({
+    draggable,
     project,
     task,
+    onDragEnd,
+    onDragStart,
     onOpenTask,
     onUpdateTaskPriority,
     onUpdateTaskStatus,
-    onMoveTaskPlacement,
 }: {
+    draggable: boolean;
     project: ProjectDetail;
     task: Task;
+    onDragEnd: () => void;
+    onDragStart: (taskId: number) => void;
     onOpenTask: (taskId: number) => void;
     onUpdateTaskPriority: (taskId: number, priority: PriorityLevel) => void;
     onUpdateTaskStatus: (taskId: number, status: TaskStatus) => void;
-    onMoveTaskPlacement: (taskId: number, placement: BacklogPlacement) => void;
 }) {
     const meta = [
         task.description || "No description",
@@ -72,6 +80,17 @@ function TaskRow({
             borderBottomWidth="1px"
             borderColor="var(--color-border-default)"
             _last={{ borderBottomWidth: "0" }}
+            draggable={draggable}
+            cursor={draggable ? "grab" : "default"}
+            onDragStart={(event) => {
+                if (!draggable) {
+                    return;
+                }
+                event.dataTransfer.setData("text/task-id", String(task.id));
+                event.dataTransfer.effectAllowed = "move";
+                onDragStart(task.id);
+            }}
+            onDragEnd={onDragEnd}
         >
             <Stack gap="1.5" flex="1" minW="260px" cursor="pointer" onClick={() => onOpenTask(task.id)}>
                 <Text color="var(--color-text-primary)" fontWeight="700" whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis">
@@ -85,27 +104,8 @@ function TaskRow({
                 {task.bugReportTitle ? <StatusPill label={task.bugReportTitle} /> : null}
                 {task.isResolutionTask ? <StatusPill label="Resolution" /> : null}
                 {task.branchName ? <StatusPill label={task.branchName} /> : null}
-                {project.useSprints && task.sprintName ? <StatusPill label={task.sprintName} /> : null}
             </Flex>
             <Flex gap="2" wrap="wrap" align="center">
-                {project.useSprints ? (
-                    <Button
-                        size="sm"
-                        borderRadius="full"
-                        variant="outline"
-                        borderColor="var(--color-border-strong)"
-                        color="var(--color-text-primary)"
-                        _hover={{ bg: "var(--color-bg-hover)" }}
-                        onClick={() =>
-                            onMoveTaskPlacement(
-                                task.id,
-                                getTaskPlacement(task, project.activeSprint) === "sprint" ? "product" : "sprint",
-                            )
-                        }
-                    >
-                        {getTaskPlacement(task, project.activeSprint) === "sprint" ? "To product backlog" : "Add to sprint"}
-                    </Button>
-                ) : null}
                 <Box as="span">
                     <select
                         value={task.priority}
@@ -139,8 +139,10 @@ function TaskRow({
 
 export function ProjectTasksPage({
     createTaskForm,
+    hiddenProductBacklogTaskIds,
     isCreateOpen,
     project,
+    onCleanupProductBacklogDoneTasks,
     onCreateTask,
     onCreateTaskFormChange,
     onToggleCreateForm,
@@ -150,14 +152,40 @@ export function ProjectTasksPage({
     onUpdateTaskStatus,
     onMoveTaskPlacement,
 }: ProjectTasksPageProps) {
+    const [draggedTaskId, setDraggedTaskId] = useState<number | null>(null);
+    const [hoveredSection, setHoveredSection] = useState<BacklogPlacement | null>(null);
+    const cleanupRef = useRef({ project, onCleanupProductBacklogDoneTasks });
+    cleanupRef.current = { project, onCleanupProductBacklogDoneTasks };
+
+    useEffect(() => {
+        return () => {
+            const { project: currentProject, onCleanupProductBacklogDoneTasks: onCleanup } = cleanupRef.current;
+            if (!currentProject.useSprints) {
+                return;
+            }
+
+            const taskIds = currentProject.tasks
+                .filter(
+                    (task) =>
+                        getTaskPlacement(task, currentProject.activeSprint) === "product" && task.status === "done",
+                )
+                .map((task) => task.id);
+            onCleanup(currentProject.id, taskIds);
+        };
+    }, []);
+
+    const hiddenProductTaskIdSet = useMemo(() => new Set(hiddenProductBacklogTaskIds), [hiddenProductBacklogTaskIds]);
     const tasks = sortTasksByPriority(project.tasks);
     const sprintBacklog = getSprintBacklogTasks(project);
-    const productBacklog = getProductBacklogTasks(project);
+    const productBacklog = getProductBacklogTasks(project).filter(
+        (task) => !(hiddenProductTaskIdSet.has(task.id) && task.status === "done"),
+    );
 
     const sections = project.useSprints
         ? [
               {
                   key: "sprint",
+                  placement: "sprint" as BacklogPlacement,
                   title: project.activeSprint ? `${project.activeSprint.name} backlog` : "Sprint backlog",
                   description: "The active sprint work currently flowing through the board.",
                   tasks: sprintBacklog,
@@ -165,6 +193,7 @@ export function ProjectTasksPage({
               },
               {
                   key: "product",
+                  placement: "product" as BacklogPlacement,
                   title: "Product backlog",
                   description: "Ready work that has not been pulled into the current sprint yet.",
                   tasks: productBacklog,
@@ -174,6 +203,7 @@ export function ProjectTasksPage({
         : [
               {
                   key: "all",
+                  placement: "product" as BacklogPlacement,
                   title: "All tasks",
                   description: "Keep tasks lightweight, update status and priority inline, and add new work from the create button instead of a permanent form.",
                   tasks,
@@ -181,8 +211,18 @@ export function ProjectTasksPage({
               },
           ];
 
+    function handleDrop(taskId: number, placement: BacklogPlacement): void {
+        if (!project.useSprints) {
+            return;
+        }
+
+        onMoveTaskPlacement(taskId, placement);
+        setDraggedTaskId(null);
+        setHoveredSection(null);
+    }
+
     return (
-        <Stack gap="6">
+        <Flex direction="column" gap="6" flex="1" minH="0">
             <Flex justify="space-between" align={{ base: "stretch", md: "center" }} gap="4" wrap="wrap">
                 <Stack gap="1">
                     <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="var(--color-text-muted)">
@@ -204,7 +244,7 @@ export function ProjectTasksPage({
                     bg="var(--color-accent)"
                     color="var(--color-text-inverse)"
                     _hover={{ bg: "var(--color-accent-hover)" }}
-                    onClick={() => onOpenCreateTask("todo", project.useSprints ? "product" : "product")}
+                    onClick={() => onOpenCreateTask("todo", "product")}
                 >
                     <ActionIcon>
                         <PlusIcon />
@@ -212,11 +252,58 @@ export function ProjectTasksPage({
                 </Button>
             </Flex>
 
-            <Stack gap="4">
-                {sections.map((section) => (
-                    <SurfaceCard key={section.key} p="0" overflow="hidden">
-                        <Stack gap="0">
-                            <Flex justify="space-between" align={{ base: "stretch", md: "center" }} gap="3" wrap="wrap" px="5" py="4" bg="var(--color-bg-muted)">
+            <Grid
+                templateColumns={project.useSprints ? { base: "1fr", xl: "repeat(2, minmax(0, 1fr))" } : { base: "1fr" }}
+                gap="4"
+                flex="1"
+                minH="0"
+            >
+                {sections.map((section) => {
+                    const isDropTarget = hoveredSection === section.placement && project.useSprints;
+
+                    return (
+                        <SurfaceCard
+                            key={section.key}
+                            p="0"
+                            overflow="hidden"
+                            display="flex"
+                            flexDirection="column"
+                            minH="0"
+                            borderColor={isDropTarget ? "var(--color-accent-border)" : "var(--color-border-default)"}
+                            bg={isDropTarget ? "var(--color-bg-hover)" : "var(--color-bg-card)"}
+                            onDragOver={(event) => {
+                                if (!project.useSprints) {
+                                    return;
+                                }
+                                event.preventDefault();
+                                setHoveredSection(section.placement);
+                            }}
+                            onDragLeave={() => {
+                                if (hoveredSection === section.placement) {
+                                    setHoveredSection(null);
+                                }
+                            }}
+                            onDrop={(event) => {
+                                if (!project.useSprints) {
+                                    return;
+                                }
+                                event.preventDefault();
+                                const dragValue = event.dataTransfer.getData("text/task-id");
+                                const taskId = dragValue ? Number(dragValue) : draggedTaskId;
+                                if (taskId !== null && Number.isFinite(taskId)) {
+                                    handleDrop(taskId, section.placement);
+                                }
+                            }}
+                        >
+                            <Flex
+                                justify="space-between"
+                                align={{ base: "stretch", md: "center" }}
+                                gap="3"
+                                wrap="wrap"
+                                px="5"
+                                py="4"
+                                bg="var(--color-bg-muted)"
+                            >
                                 <Stack gap="1">
                                     <Heading size="md" color="var(--color-text-primary)">
                                         {section.title}
@@ -234,30 +321,37 @@ export function ProjectTasksPage({
                                     Add task
                                 </Button>
                             </Flex>
-                            {section.tasks.length ? (
-                                section.tasks.map((task) => (
-                                    <TaskRow
-                                        key={task.id}
-                                        project={project}
-                                        task={task}
-                                        onOpenTask={onOpenTask}
-                                        onUpdateTaskPriority={onUpdateTaskPriority}
-                                        onUpdateTaskStatus={onUpdateTaskStatus}
-                                        onMoveTaskPlacement={onMoveTaskPlacement}
-                                    />
-                                ))
-                            ) : (
-                                <Stack p="6" gap="2">
-                                    <Text color="var(--color-text-primary)" fontWeight="600">
-                                        No tasks here yet.
-                                    </Text>
-                                    <Text color="var(--color-text-muted)">Add a task to start filling this backlog.</Text>
-                                </Stack>
-                            )}
-                        </Stack>
-                    </SurfaceCard>
-                ))}
-            </Stack>
+                            <Stack gap="0" flex="1" minH="0" overflowY="auto">
+                                {section.tasks.length ? (
+                                    section.tasks.map((task) => (
+                                        <TaskRow
+                                            key={task.id}
+                                            draggable={project.useSprints}
+                                            project={project}
+                                            task={task}
+                                            onDragEnd={() => {
+                                                setDraggedTaskId(null);
+                                                setHoveredSection(null);
+                                            }}
+                                            onDragStart={setDraggedTaskId}
+                                            onOpenTask={onOpenTask}
+                                            onUpdateTaskPriority={onUpdateTaskPriority}
+                                            onUpdateTaskStatus={onUpdateTaskStatus}
+                                        />
+                                    ))
+                                ) : (
+                                    <Stack p="6" gap="2">
+                                        <Text color="var(--color-text-primary)" fontWeight="600">
+                                            No tasks here yet.
+                                        </Text>
+                                        <Text color="var(--color-text-muted)">Add a task to start filling this backlog.</Text>
+                                    </Stack>
+                                )}
+                            </Stack>
+                        </SurfaceCard>
+                    );
+                })}
+            </Grid>
 
             <CreateTaskModal
                 form={createTaskForm}
@@ -267,6 +361,6 @@ export function ProjectTasksPage({
                 onCreateTask={onCreateTask}
                 onFormChange={onCreateTaskFormChange}
             />
-        </Stack>
+        </Flex>
     );
 }

@@ -47,7 +47,7 @@ ROLE_ORDER = {
 MENTION_PATTERN = re.compile(r"(?<![\w-])@([A-Za-z0-9_][A-Za-z0-9_-]{0,63})")
 ISSUE_URL_PATTERN = re.compile(r"^https?://github\.com/([^/]+/[^/]+)/issues/(\d+)")
 BOARD_COLUMNS = [
-    {"id": Task.STATUS_TODO, "label": "Todo"},
+    {"id": Task.STATUS_TODO, "label": "To Do"},
     {"id": Task.STATUS_IN_PROGRESS, "label": "In Progress"},
     {"id": Task.STATUS_IN_REVIEW, "label": "In Review"},
     {"id": Task.STATUS_DONE, "label": "Done"},
@@ -66,11 +66,12 @@ PRIORITY_LABELS = {
     Task.PRIORITY_CRITICAL: "Critical",
 }
 TASK_STATUS_LABELS = {
-    Task.STATUS_TODO: "Todo",
+    Task.STATUS_TODO: "To Do",
     Task.STATUS_IN_PROGRESS: "In Progress",
     Task.STATUS_IN_REVIEW: "In Review",
     Task.STATUS_DONE: "Done",
 }
+UNFINISHED_SPRINT_ACTIONS = {"done", "carryover", "product"}
 
 
 def _get_active_sprint(project: Project) -> Sprint | None:
@@ -95,9 +96,7 @@ def _serialize_board_columns(project: Project, active_sprint: Sprint | None) -> 
     return [
         {
             "id": column["id"],
-            "label": "Sprint Backlog"
-            if project.use_sprints and active_sprint and column["id"] == Task.STATUS_TODO
-            else column["label"],
+            "label": column["label"],
         }
         for column in BOARD_COLUMNS
     ]
@@ -1108,6 +1107,10 @@ def project_sprint_end_view(request, project_id: int):
         return _json_error(str(exc))
 
     review_text = (payload.get("reviewText") or "").strip()
+    unfinished_action = (payload.get("unfinishedAction") or "carryover").strip() or "carryover"
+    if unfinished_action not in UNFINISHED_SPRINT_ACTIONS:
+        return _json_error("Choose a valid action for unfinished sprint tasks.")
+
     sprint_tasks = list(
         Task.objects.filter(project=project, sprint=active_sprint)
         .select_related("bug_report")
@@ -1115,32 +1118,105 @@ def project_sprint_end_view(request, project_id: int):
         .order_by("status", "-updated_at", "-id")
     )
     completed_tasks = [task for task in sprint_tasks if task.status == Task.STATUS_DONE]
-    carryover_tasks = [task for task in sprint_tasks if task.status != Task.STATUS_DONE]
+    unfinished_tasks = [task for task in sprint_tasks if task.status != Task.STATUS_DONE]
+    carryover_tasks = []
+    returned_to_product_tasks = []
+    auto_completed_tasks = []
 
     active_sprint.status = Sprint.STATUS_COMPLETED
     active_sprint.review_text = review_text
     active_sprint.ended_at = timezone.now()
+
+    next_sprint = _create_sprint(project)
+
+    if unfinished_action == "done":
+        for task in unfinished_tasks:
+            task.status = Task.STATUS_DONE
+            task.save(update_fields=["status", "updated_at"])
+            _close_bug_from_resolution_task(task, request.user)
+        auto_completed_tasks = unfinished_tasks
+    elif unfinished_action == "product":
+        for task in unfinished_tasks:
+            task.sprint = None
+            task.save(update_fields=["sprint", "updated_at"])
+        returned_to_product_tasks = unfinished_tasks
+    else:
+        for task in unfinished_tasks:
+            task.sprint = next_sprint
+            task.save(update_fields=["sprint", "updated_at"])
+        carryover_tasks = unfinished_tasks
+
+    completed_task_snapshots = completed_tasks + auto_completed_tasks
     active_sprint.summary = {
         "totalCount": len(sprint_tasks),
-        "completedCount": len(completed_tasks),
+        "completedCount": len(completed_task_snapshots),
         "carryoverCount": len(carryover_tasks),
-        "completedTasks": [_serialize_sprint_task_snapshot(task) for task in completed_tasks],
+        "returnedToProductCount": len(returned_to_product_tasks),
+        "completedTasks": [_serialize_sprint_task_snapshot(task) for task in completed_task_snapshots],
         "carryoverTasks": [_serialize_sprint_task_snapshot(task) for task in carryover_tasks],
+        "returnedToProductTasks": [
+            _serialize_sprint_task_snapshot(task) for task in returned_to_product_tasks
+        ],
+        "unfinishedAction": unfinished_action,
     }
     active_sprint.save(update_fields=["status", "review_text", "ended_at", "summary", "updated_at"])
 
-    next_sprint = _create_sprint(project)
-    for task in carryover_tasks:
-        task.sprint = next_sprint
-        task.save(update_fields=["sprint", "updated_at"])
+    if unfinished_action == "done":
+        unfinished_summary = f"{len(auto_completed_tasks)} auto-completed tasks"
+    elif unfinished_action == "product":
+        unfinished_summary = f"{len(returned_to_product_tasks)} tasks returned to the product backlog"
+    else:
+        unfinished_summary = f"{len(carryover_tasks)} carryover tasks"
 
     _record_activity(
         project,
         request.user,
         "sprint.ended",
-        f"Ended {active_sprint.name} with {len(completed_tasks)} completed tasks and {len(carryover_tasks)} carryover tasks.",
-        metadata={"endedSprintId": active_sprint.id, "nextSprintId": next_sprint.id},
+        f"Ended {active_sprint.name} with {len(completed_task_snapshots)} completed tasks and {unfinished_summary}.",
+        metadata={
+            "endedSprintId": active_sprint.id,
+            "nextSprintId": next_sprint.id,
+            "unfinishedAction": unfinished_action,
+        },
     )
+
+    return JsonResponse({"project": _build_project_snapshot(project, request.user, membership)})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@jwt_required
+def project_sprint_update_view(request, project_id: int, sprint_id: int):
+    project, membership, error = _load_project(project_id, request.user)
+    if error:
+        return error
+    if not _role_at_least(membership, ProjectMembership.ROLE_ADMIN):
+        return _json_error("Only admins and owners can rename sprints.", 403)
+
+    sprint = Sprint.objects.filter(project=project, id=sprint_id).first()
+    if sprint is None:
+        return _json_error("Sprint not found.", 404)
+
+    try:
+        payload = _parse_json_body(request)
+    except ValueError as exc:
+        return _json_error(str(exc))
+
+    name = (payload.get("name") or "").strip()
+    if not name:
+        return _json_error("Sprint name is required.")
+
+    if name != sprint.name:
+        previous_name = sprint.name
+        sprint.name = name
+        sprint.save(update_fields=["name", "updated_at"])
+        _record_activity(
+            project,
+            request.user,
+            "sprint.renamed",
+            f'Renamed sprint "{previous_name}" to "{name}".',
+            metadata={"sprintId": sprint.id},
+        )
 
     return JsonResponse({"project": _build_project_snapshot(project, request.user, membership)})
 

@@ -2,6 +2,7 @@ export type TaskStatus = "todo" | "in_progress" | "in_review" | "done";
 export type BugStatus = "open" | "investigating" | "monitoring" | "closed";
 export type PriorityLevel = "low" | "medium" | "high" | "critical";
 export type BacklogPlacement = "sprint" | "product";
+export type EndSprintUnfinishedAction = "done" | "carryover" | "product";
 export type ProjectRole = "owner" | "admin" | "member" | "viewer";
 export type OrganizationRole = "owner" | "member";
 
@@ -141,8 +142,11 @@ export type SprintSummary = {
     totalCount?: number;
     completedCount?: number;
     carryoverCount?: number;
+    returnedToProductCount?: number;
     completedTasks?: SprintTaskSnapshot[];
     carryoverTasks?: SprintTaskSnapshot[];
+    returnedToProductTasks?: SprintTaskSnapshot[];
+    unfinishedAction?: EndSprintUnfinishedAction;
 };
 
 export type Sprint = {

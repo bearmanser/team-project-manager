@@ -92,7 +92,7 @@ export function ProjectSettingsPage({
                                     <Text>Use sprints for scrumban planning</Text>
                                 </Box>
                                 <Text color="var(--color-text-muted)" fontSize="sm">
-                                    When enabled, the board focuses on the active sprint, the Todo column becomes Sprint Backlog, and the tasks page splits sprint backlog from product backlog.
+                                    When enabled, the board focuses on the active sprint and the tasks page splits sprint backlog from product backlog.
                                 </Text>
                             </Stack>
                         </SurfaceCard>
