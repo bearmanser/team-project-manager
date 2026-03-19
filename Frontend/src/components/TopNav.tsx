@@ -97,6 +97,52 @@ function HeaderActionButton({
   );
 }
 
+function BrandWordmark() {
+  const words = [
+    { initial: "T", rest: "eam" },
+    { initial: "P", rest: "roject" },
+    { initial: "M", rest: "anager" },
+  ];
+
+  return (
+    <Flex
+      align="baseline"
+      wrap="wrap"
+      columnGap={{ base: "2", md: "3" }}
+      rowGap="1"
+      aria-label="Team Project Manager"
+    >
+      {words.map((word) => (
+        <Text
+          key={word.initial}
+          display="inline-flex"
+          alignItems="baseline"
+          color="var(--color-text-primary)"
+          lineHeight="1"
+        >
+          <Box
+            as="span"
+            fontSize={{ base: "3xl", md: "3xl" }}
+            fontWeight="900"
+            lineHeight="0.8"
+            mr="1"
+          >
+            {word.initial}
+          </Box>
+          <Box
+            as="span"
+            fontSize={{ base: "sm", md: "xl" }}
+            fontWeight="700"
+            letterSpacing="0.08em"
+          >
+            {word.rest}
+          </Box>
+        </Text>
+      ))}
+    </Flex>
+  );
+}
+
 export function TopNav({
   busyLabel,
   error,
@@ -118,17 +164,17 @@ export function TopNav({
         status: "error" as const,
       }
     : notice
-      ? {
-          title: notice,
-          status: "success" as const,
-        }
-      : busyLabel
-        ? {
-            title: busyLabel,
-            status: "neutral" as const,
-            loading: true,
-          }
-        : null;
+    ? {
+        title: notice,
+        status: "success" as const,
+      }
+    : busyLabel
+    ? {
+        title: busyLabel,
+        status: "neutral" as const,
+        loading: true,
+      }
+    : null;
 
   return (
     <Box
@@ -144,21 +190,7 @@ export function TopNav({
     >
       <Flex justify="space-between" align="center" gap="4" wrap="wrap">
         <Stack gap="0">
-          <Text
-            fontSize="xs"
-            textTransform="uppercase"
-            letterSpacing="0.18em"
-            color="var(--color-text-muted)"
-          >
-            Team Project Manager
-          </Text>
-          <Text
-            fontSize="xl"
-            fontWeight="700"
-            color="var(--color-text-primary)"
-          >
-            Delivery control center
-          </Text>
+          <BrandWordmark />
         </Stack>
 
         <HStack gap="3" align="center" wrap="wrap" justify="flex-end">
