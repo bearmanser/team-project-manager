@@ -9,7 +9,10 @@ type MentionTextareaProps = {
     placeholder?: string;
     members: ProjectMember[];
     minH?: string;
+    h?: string;
     onChange: (value: string) => void;
+    onSubmit?: () => void;
+    submitOnEnter?: boolean;
 };
 
 function getMentionQuery(value: string, selectionStart: number): { query: string; start: number; end: number } | null {
@@ -26,7 +29,16 @@ function getMentionQuery(value: string, selectionStart: number): { query: string
     };
 }
 
-export function MentionTextarea({ value, placeholder, members, minH = "120px", onChange }: MentionTextareaProps) {
+export function MentionTextarea({
+    value,
+    placeholder,
+    members,
+    minH = "120px",
+    h,
+    onChange,
+    onSubmit,
+    submitOnEnter = false,
+}: MentionTextareaProps) {
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
     const [selectionStart, setSelectionStart] = useState(0);
     const mention = getMentionQuery(value, selectionStart);
@@ -63,13 +75,14 @@ export function MentionTextarea({ value, placeholder, members, minH = "120px", o
     }
 
     return (
-        <Stack gap="2">
-            <Box position="relative">
+        <Stack gap="2" h={h ? "100%" : undefined}>
+            <Box position="relative" h={h ? "100%" : undefined}>
                 <Textarea
                     ref={textareaRef}
                     value={value}
                     placeholder={placeholder}
                     minH={minH}
+                    h={h}
                     bg="var(--color-bg-muted)"
                     borderColor="var(--color-border-strong)"
                     borderRadius="lg"
@@ -80,6 +93,15 @@ export function MentionTextarea({ value, placeholder, members, minH = "120px", o
                     }}
                     onClick={(event) => setSelectionStart((event.target as HTMLTextAreaElement).selectionStart ?? 0)}
                     onKeyUp={(event) => setSelectionStart((event.target as HTMLTextAreaElement).selectionStart ?? 0)}
+                    onKeyDown={(event) => {
+                        const target = event.target as HTMLTextAreaElement;
+                        setSelectionStart(target.selectionStart ?? value.length);
+
+                        if (submitOnEnter && event.key === "Enter" && !event.shiftKey) {
+                            event.preventDefault();
+                            onSubmit?.();
+                        }
+                    }}
                 />
                 {suggestions.length ? (
                     <Box

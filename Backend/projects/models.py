@@ -366,6 +366,46 @@ class BugComment(models.Model):
         ordering = ["created_at", "id"]
 
 
+class TaskCommentReaction(models.Model):
+    comment = models.ForeignKey(
+        TaskComment,
+        on_delete=models.CASCADE,
+        related_name="reactions",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="task_comment_reactions",
+    )
+    emoji = models.CharField(max_length=8)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["emoji", "id"]
+        unique_together = [("comment", "user")]
+
+
+class BugCommentReaction(models.Model):
+    comment = models.ForeignKey(
+        BugComment,
+        on_delete=models.CASCADE,
+        related_name="reactions",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="bug_comment_reactions",
+    )
+    emoji = models.CharField(max_length=8)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["emoji", "id"]
+        unique_together = [("comment", "user")]
+
+
 class Activity(models.Model):
     project = models.ForeignKey(
         Project,

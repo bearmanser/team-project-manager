@@ -7,6 +7,8 @@ import {
     addBugComment,
     addProjectMember,
     addTaskComment,
+    toggleBugCommentReaction,
+    toggleTaskCommentReaction,
     buildApiUrl,
     completeGitHubOauth,
     createBugReport,
@@ -1124,6 +1126,17 @@ function App() {
         );
     }
 
+    async function handleToggleTaskCommentReaction(commentId: number, emoji: string): Promise<void> {
+        if (!token) {
+            return;
+        }
+
+        await runProjectMutation(
+            "Updating task reaction",
+            () => toggleTaskCommentReaction(token, commentId, { emoji }),
+            "Reaction updated.",
+        );
+    }
     async function handleCreateBug(): Promise<void> {
         if (!token || !selectedProject) {
             return;
@@ -1194,6 +1207,17 @@ function App() {
         );
     }
 
+    async function handleToggleBugCommentReaction(commentId: number, emoji: string): Promise<void> {
+        if (!token) {
+            return;
+        }
+
+        await runProjectMutation(
+            "Updating bug reaction",
+            () => toggleBugCommentReaction(token, commentId, { emoji }),
+            "Reaction updated.",
+        );
+    }
     async function handleSaveProjectSettings(): Promise<void> {
         if (!token || !selectedProject) {
             return;
@@ -1550,7 +1574,9 @@ function App() {
                     onSaveTask={(taskId, payload) => void handleSaveTaskDetails(taskId, payload)}
                     onSaveBug={(bugId, payload) => void handleSaveBugDetails(bugId, payload)}
                     onAddTaskComment={(taskId, payload) => void handleAddTaskDetailComment(taskId, payload)}
+                    onToggleTaskCommentReaction={(commentId, emoji) => void handleToggleTaskCommentReaction(commentId, emoji)}
                     onAddBugComment={(bugId, payload) => void handleAddBugDetailComment(bugId, payload)}
+                    onToggleBugCommentReaction={(commentId, emoji) => void handleToggleBugCommentReaction(commentId, emoji)}
                 />
                 <WorkItemDetailModal
                     isOpen={Boolean(selectedBug)}
@@ -1560,7 +1586,9 @@ function App() {
                     onSaveTask={(taskId, payload) => void handleSaveTaskDetails(taskId, payload)}
                     onSaveBug={(bugId, payload) => void handleSaveBugDetails(bugId, payload)}
                     onAddTaskComment={(taskId, payload) => void handleAddTaskDetailComment(taskId, payload)}
+                    onToggleTaskCommentReaction={(commentId, emoji) => void handleToggleTaskCommentReaction(commentId, emoji)}
                     onAddBugComment={(bugId, payload) => void handleAddBugDetailComment(bugId, payload)}
+                    onToggleBugCommentReaction={(commentId, emoji) => void handleToggleBugCommentReaction(commentId, emoji)}
                 />
                 <EndSprintModal
                     isOpen={showEndSprintModal}

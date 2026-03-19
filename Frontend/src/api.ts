@@ -323,6 +323,21 @@ export function addTaskComment(
     );
 }
 
+export function toggleTaskCommentReaction(
+    token: string,
+    commentId: number,
+    payload: { emoji: string },
+): Promise<ProjectResponse> {
+    return request<ProjectResponse>(
+        `/api/task-comments/${commentId}/reactions/`,
+        {
+            method: "POST",
+            body: JSON.stringify(payload),
+        },
+        token,
+    );
+}
+
 export function addTaskIssueLink(
     token: string,
     taskId: number,
@@ -388,6 +403,21 @@ export function addBugComment(
 ): Promise<ProjectResponse> {
     return request<ProjectResponse>(
         `/api/bugs/${bugId}/comments/`,
+        {
+            method: "POST",
+            body: JSON.stringify(payload),
+        },
+        token,
+    );
+}
+
+export function toggleBugCommentReaction(
+    token: string,
+    commentId: number,
+    payload: { emoji: string },
+): Promise<ProjectResponse> {
+    return request<ProjectResponse>(
+        `/api/bug-comments/${commentId}/reactions/`,
         {
             method: "POST",
             body: JSON.stringify(payload),

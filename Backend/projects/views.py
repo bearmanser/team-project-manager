@@ -23,6 +23,7 @@ from accounts.models import UserProfile
 from .models import (
     Activity,
     BugComment,
+    BugCommentReaction,
     BugReport,
     GitHubIssueLink,
     Notification,
@@ -33,6 +34,7 @@ from .models import (
     Sprint,
     Task,
     TaskComment,
+    TaskCommentReaction,
 )
 
 
@@ -52,7 +54,8 @@ BOARD_COLUMNS = [
     {"id": Task.STATUS_IN_REVIEW, "label": "In Review"},
     {"id": Task.STATUS_DONE, "label": "Done"},
 ]
-INLINE_COMMENT_ANCHORS = {"description"}
+INLINE_COMMENT_ANCHORS = {"description", "comment"}
+COMMENT_REACTION_EMOJIS = ["\U0001F44D", "\u2764\uFE0F", "\U0001F389", "\U0001F440", "\U0001F525"]
 BUG_STATUS_LABELS = {
     BugReport.STATUS_OPEN: "Open",
     BugReport.STATUS_INVESTIGATING: "Investigating",
@@ -142,6 +145,13 @@ def _parse_comment_anchor(payload: dict) -> tuple[str, str, str]:
         return "", "", ""
 
     return anchor_type, anchor_id, anchor_label
+
+
+def _parse_comment_reaction(payload: dict) -> str:
+    emoji = str(payload.get("emoji") or "").strip()
+    if emoji not in COMMENT_REACTION_EMOJIS:
+        raise ValueError("Choose a valid reaction emoji.")
+    return emoji
 
 
 def _json_error(message: str, status: int = 400) -> JsonResponse:
@@ -545,7 +555,30 @@ def _serialize_issue_link(link: GitHubIssueLink) -> dict:
     }
 
 
-def _serialize_comment(comment) -> dict:
+def _serialize_comment_reactions(reactions: list, user_id: int | None) -> list[dict]:
+    grouped: dict[str, dict] = {}
+
+    for reaction in reactions:
+        entry = grouped.setdefault(
+            reaction.emoji,
+            {
+                "emoji": reaction.emoji,
+                "count": 0,
+                "reactedByUser": False,
+            },
+        )
+        entry["count"] += 1
+        if user_id is not None and reaction.user_id == user_id:
+            entry["reactedByUser"] = True
+
+    ordered: list[dict] = []
+    for emoji in COMMENT_REACTION_EMOJIS:
+        if emoji in grouped:
+            ordered.append(grouped[emoji])
+    return ordered
+
+
+def _serialize_comment(comment, *, reactions: list, user_id: int | None) -> dict:
     return {
         "id": comment.id,
         "body": comment.body,
@@ -553,6 +586,7 @@ def _serialize_comment(comment) -> dict:
         "anchorType": getattr(comment, "anchor_type", ""),
         "anchorId": getattr(comment, "anchor_id", ""),
         "anchorLabel": getattr(comment, "anchor_label", ""),
+        "reactions": _serialize_comment_reactions(reactions, user_id),
         "createdAt": comment.created_at.isoformat(),
         "updatedAt": comment.updated_at.isoformat(),
     }
@@ -603,6 +637,8 @@ def _serialize_task(
     task: Task,
     *,
     task_comments: list[TaskComment],
+    task_comment_reactions_by_comment: dict[int, list[TaskCommentReaction]],
+    current_user_id: int | None,
     task_activities: list[Activity],
     direct_issue_links: list[GitHubIssueLink],
     inherited_issue_links: list[GitHubIssueLink],
@@ -626,7 +662,14 @@ def _serialize_task(
         "branchRepositoryId": task.branch_repository_id,
         "directGitHubIssues": [_serialize_issue_link(link) for link in direct_issue_links],
         "inheritedGitHubIssues": [_serialize_issue_link(link) for link in inherited_issue_links],
-        "comments": [_serialize_comment(comment) for comment in task_comments],
+        "comments": [
+            _serialize_comment(
+                comment,
+                reactions=task_comment_reactions_by_comment[comment.id],
+                user_id=current_user_id,
+            )
+            for comment in task_comments
+        ],
         "activity": [_serialize_activity(activity) for activity in task_activities],
         "createdAt": task.created_at.isoformat(),
         "updatedAt": task.updated_at.isoformat(),
@@ -637,6 +680,8 @@ def _serialize_bug_report(
     bug_report: BugReport,
     *,
     bug_comments: list[BugComment],
+    bug_comment_reactions_by_comment: dict[int, list[BugCommentReaction]],
+    current_user_id: int | None,
     bug_activities: list[Activity],
     issue_links: list[GitHubIssueLink],
     bug_tasks: list[Task],
@@ -652,7 +697,14 @@ def _serialize_bug_report(
         "resolutionTaskTitle": bug_report.resolution_task.title if bug_report.resolution_task else "",
         "linkedGitHubIssues": [_serialize_issue_link(link) for link in issue_links],
         "tasks": [_serialize_task_summary(task, bug_report) for task in bug_tasks],
-        "comments": [_serialize_comment(comment) for comment in bug_comments],
+        "comments": [
+            _serialize_comment(
+                comment,
+                reactions=bug_comment_reactions_by_comment[comment.id],
+                user_id=current_user_id,
+            )
+            for comment in bug_comments
+        ],
         "activity": [_serialize_activity(activity) for activity in bug_activities],
         "closedAt": bug_report.closed_at.isoformat() if bug_report.closed_at else None,
         "createdAt": bug_report.created_at.isoformat(),
@@ -715,6 +767,12 @@ def _build_project_snapshot(
     bug_comments = list(
         BugComment.objects.filter(bug_report__project=project).select_related("author")
     )
+    task_comment_reactions = list(
+        TaskCommentReaction.objects.filter(comment__task__project=project).select_related("user", "comment")
+    )
+    bug_comment_reactions = list(
+        BugCommentReaction.objects.filter(comment__bug_report__project=project).select_related("user", "comment")
+    )
     activities = list(
         Activity.objects.filter(project=project)
         .select_related("actor", "task", "bug_report")
@@ -728,6 +786,14 @@ def _build_project_snapshot(
     bug_comments_by_bug: dict[int, list[BugComment]] = defaultdict(list)
     for comment in bug_comments:
         bug_comments_by_bug[comment.bug_report_id].append(comment)
+
+    task_comment_reactions_by_comment: dict[int, list[TaskCommentReaction]] = defaultdict(list)
+    for reaction in task_comment_reactions:
+        task_comment_reactions_by_comment[reaction.comment_id].append(reaction)
+
+    bug_comment_reactions_by_comment: dict[int, list[BugCommentReaction]] = defaultdict(list)
+    for reaction in bug_comment_reactions:
+        bug_comment_reactions_by_comment[reaction.comment_id].append(reaction)
 
     task_activities_by_task: dict[int, list[Activity]] = defaultdict(list)
     bug_activities_by_bug: dict[int, list[Activity]] = defaultdict(list)
@@ -754,6 +820,8 @@ def _build_project_snapshot(
         _serialize_task(
             task,
             task_comments=task_comments_by_task[task.id],
+            task_comment_reactions_by_comment=task_comment_reactions_by_comment,
+            current_user_id=user.id if user else None,
             task_activities=task_activities_by_task[task.id],
             direct_issue_links=direct_links_by_task[task.id],
             inherited_issue_links=links_by_bug[task.bug_report_id] if task.bug_report_id else [],
@@ -764,6 +832,8 @@ def _build_project_snapshot(
         _serialize_bug_report(
             bug_report,
             bug_comments=bug_comments_by_bug[bug_report.id],
+            bug_comment_reactions_by_comment=bug_comment_reactions_by_comment,
+            current_user_id=user.id if user else None,
             bug_activities=bug_activities_by_bug[bug_report.id],
             issue_links=links_by_bug[bug_report.id],
             bug_tasks=bug_tasks[bug_report.id],
@@ -1783,6 +1853,37 @@ def task_comment_view(request, task_id: int):
     )
     return JsonResponse({"project": _build_project_snapshot(project, request.user, membership)})
 
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@jwt_required
+def task_comment_reaction_view(request, comment_id: int):
+    comment = TaskComment.objects.filter(id=comment_id).select_related("task__project", "task__bug_report").first()
+    if comment is None:
+        return _json_error("Task comment not found.", 404)
+
+    project, membership, error = _load_project(comment.task.project_id, request.user)
+    if error:
+        return error
+    if not _role_at_least(membership, ProjectMembership.ROLE_MEMBER):
+        return _json_error("Only project members can react to task comments.", 403)
+
+    try:
+        payload = _parse_json_body(request)
+        emoji = _parse_comment_reaction(payload)
+    except ValueError as exc:
+        return _json_error(str(exc))
+
+    reaction = TaskCommentReaction.objects.filter(comment=comment, user=request.user).first()
+    if reaction and reaction.emoji == emoji:
+        reaction.delete()
+    elif reaction:
+        reaction.emoji = emoji
+        reaction.save(update_fields=["emoji", "updated_at"])
+    else:
+        TaskCommentReaction.objects.create(comment=comment, user=request.user, emoji=emoji)
+
+    return JsonResponse({"project": _build_project_snapshot(project, request.user, membership)})
 @csrf_exempt
 @require_http_methods(["POST"])
 @jwt_required
@@ -2042,6 +2143,37 @@ def bug_comment_view(request, bug_id: int):
     )
     return JsonResponse({"project": _build_project_snapshot(project, request.user, membership)})
 
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@jwt_required
+def bug_comment_reaction_view(request, comment_id: int):
+    comment = BugComment.objects.filter(id=comment_id).select_related("bug_report__project").first()
+    if comment is None:
+        return _json_error("Bug comment not found.", 404)
+
+    project, membership, error = _load_project(comment.bug_report.project_id, request.user)
+    if error:
+        return error
+    if not _role_at_least(membership, ProjectMembership.ROLE_MEMBER):
+        return _json_error("Only project members can react to bug comments.", 403)
+
+    try:
+        payload = _parse_json_body(request)
+        emoji = _parse_comment_reaction(payload)
+    except ValueError as exc:
+        return _json_error(str(exc))
+
+    reaction = BugCommentReaction.objects.filter(comment=comment, user=request.user).first()
+    if reaction and reaction.emoji == emoji:
+        reaction.delete()
+    elif reaction:
+        reaction.emoji = emoji
+        reaction.save(update_fields=["emoji", "updated_at"])
+    else:
+        BugCommentReaction.objects.create(comment=comment, user=request.user, emoji=emoji)
+
+    return JsonResponse({"project": _build_project_snapshot(project, request.user, membership)})
 
 @csrf_exempt
 @require_http_methods(["POST"])

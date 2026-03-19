@@ -38,10 +38,12 @@ urlpatterns = [
     path("projects/<int:project_id>/bugs/", views.project_bugs_view, name="project-bugs"),
     path("tasks/<int:task_id>/update/", views.task_update_view, name="task-update"),
     path("tasks/<int:task_id>/comments/", views.task_comment_view, name="task-comment"),
+    path("task-comments/<int:comment_id>/reactions/", views.task_comment_reaction_view, name="task-comment-reaction"),
     path("tasks/<int:task_id>/issues/", views.task_issue_link_view, name="task-issue-link"),
     path("tasks/<int:task_id>/branch/", views.task_branch_view, name="task-branch"),
     path("bugs/<int:bug_id>/update/", views.bug_update_view, name="bug-update"),
     path("bugs/<int:bug_id>/comments/", views.bug_comment_view, name="bug-comment"),
+    path("bug-comments/<int:comment_id>/reactions/", views.bug_comment_reaction_view, name="bug-comment-reaction"),
     path("bugs/<int:bug_id>/issues/", views.bug_issue_link_view, name="bug-issue-link"),
     path("bugs/<int:bug_id>/resolution/", views.bug_resolution_view, name="bug-resolution"),
     path(

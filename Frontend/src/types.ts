@@ -109,6 +109,12 @@ export type IssueLink = {
     createdAt: string;
 };
 
+export type CommentReactionSummary = {
+    emoji: string;
+    count: number;
+    reactedByUser: boolean;
+};
+
 export type CommentEntry = {
     id: number;
     body: string;
@@ -116,10 +122,10 @@ export type CommentEntry = {
     anchorType: string;
     anchorId: string;
     anchorLabel: string;
+    reactions: CommentReactionSummary[];
     createdAt: string;
     updatedAt: string;
 };
-
 export type ActivityEntry = {
     id: number;
     action: string;
