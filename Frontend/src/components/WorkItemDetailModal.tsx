@@ -50,6 +50,7 @@ type WorkItemDetailModalProps = {
       priority: string;
     }>
   ) => void;
+  onCreateTaskBranch: (task: Task) => void;
   onSaveBug: (
     bugId: number,
     payload: Partial<{
@@ -118,6 +119,7 @@ export function WorkItemDetailModal({
   bug,
   onClose,
   onSaveTask,
+  onCreateTaskBranch,
   onSaveBug,
   onAddTaskComment,
   onAddBugComment,
@@ -150,6 +152,8 @@ export function WorkItemDetailModal({
 
   const comments = item?.comments ?? [];
   const canSave = title.trim().length > 0;
+  const canCreateTaskBranch =
+    kind === "task" && Boolean(task) && project.permissions.canEditTasks && project.repositories.length > 0;
   const titleLabel = kind === "task" ? "Task name" : "Bug title";
 
   const commentIds = useMemo(
@@ -548,7 +552,20 @@ export function WorkItemDetailModal({
             </Flex>
           ) : null}
 
-          <Flex justify="flex-end">
+          <Flex justify="flex-end" gap="3" wrap="wrap">
+            {kind === "task" && task ? (
+              <Button
+                borderRadius="full"
+                variant="outline"
+                borderColor="var(--color-border-strong)"
+                color="var(--color-text-primary)"
+                _hover={{ bg: "var(--color-bg-hover)" }}
+                onClick={() => onCreateTaskBranch(task)}
+                disabled={!canCreateTaskBranch}
+              >
+                Create git branch
+              </Button>
+            ) : null}
             <Button
               borderRadius="full"
               variant="outline"
@@ -597,3 +614,4 @@ export function WorkItemDetailModal({
     </ModalFrame>
   );
 }
+

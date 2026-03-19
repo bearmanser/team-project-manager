@@ -41,9 +41,6 @@ export function OrganizationOverviewPage({
                     <Heading size="2xl" color="var(--color-text-primary)">
                         Pick a workspace
                     </Heading>
-                    <Text color="var(--color-text-secondary)" maxW="2xl">
-                        Create organizations, group projects underneath them, and keep the top level focused on the workspaces you actually use.
-                    </Text>
                 </Stack>
                 <Button minW="11" h="11" borderRadius="lg" bg="var(--color-accent)" color="var(--color-text-inverse)" _hover={{ bg: "var(--color-accent-hover)" }} onClick={onToggleCreateForm}>
                     <ActionIcon>
@@ -141,3 +138,4 @@ export function OrganizationOverviewPage({
         </Stack>
     );
 }
+

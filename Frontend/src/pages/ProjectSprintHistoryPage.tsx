@@ -18,9 +18,6 @@ export function ProjectSprintHistoryPage({ project }: ProjectSprintHistoryPagePr
                 <Heading size="2xl" color="var(--color-text-primary)">
                     {project.name}
                 </Heading>
-                <Text color="var(--color-text-secondary)" maxW="2xl">
-                    Review past sprints, the quick review notes captured at close-out, and what happened to unfinished work.
-                </Text>
             </Stack>
 
             {project.sprintHistory.length ? (
@@ -121,3 +118,4 @@ export function ProjectSprintHistoryPage({ project }: ProjectSprintHistoryPagePr
         </Stack>
     );
 }
+

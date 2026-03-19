@@ -66,9 +66,6 @@ export function OrganizationUsersPage({
                     <Heading size="2xl" color="var(--color-text-primary)">
                         Shared team directory
                     </Heading>
-                    <Text color="var(--color-text-secondary)" maxW="2xl">
-                        People show up once here and can still participate across multiple projects underneath the same organization.
-                    </Text>
                 </Stack>
                 <Button
                     borderRadius="lg"
@@ -197,3 +194,4 @@ export function OrganizationUsersPage({
         </Stack>
     );
 }
+

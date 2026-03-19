@@ -58,9 +58,6 @@ export function ProjectBugsPage({
                     <Heading size="2xl" color="var(--color-text-primary)">
                         {project.name}
                     </Heading>
-                    <Text color="var(--color-text-secondary)" maxW="2xl">
-                        Keep bug reports concise, update status and priority inline, and open the full detail modal when you need investigation context and threaded discussion.
-                    </Text>
                 </Stack>
                 <Button
                     minW="11"
@@ -227,3 +224,4 @@ export function ProjectBugsPage({
         </Stack>
     );
 }
+

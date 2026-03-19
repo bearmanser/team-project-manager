@@ -25,9 +25,6 @@ export function OrganizationSettingsPage({
                 <Heading size="2xl" color="var(--color-text-primary)">
                     {organization.name}
                 </Heading>
-                <Text color="var(--color-text-secondary)" maxW="2xl">
-                    Keep GitHub connected here and treat the organization as the parent container for every project underneath it.
-                </Text>
             </Stack>
 
             <Stack gap="4">
@@ -68,3 +65,4 @@ export function OrganizationSettingsPage({
         </Stack>
     );
 }
+

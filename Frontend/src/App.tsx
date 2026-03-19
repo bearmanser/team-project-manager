@@ -15,6 +15,7 @@ import {
     createOrganization,
     createProject,
     createTask,
+    createTaskBranch,
     deleteProject,
     endProjectSprint,
     getProject,
@@ -33,6 +34,7 @@ import { EndSprintModal } from "./components/EndSprintModal";
 import { EndSprintIncompleteTasksModal } from "./components/EndSprintIncompleteTasksModal";
 import { SideNav } from "./components/SideNav";
 import { SurfaceCard } from "./components/SurfaceCard";
+import { TaskBranchModal } from "./components/TaskBranchModal";
 import { WorkItemDetailModal } from "./components/WorkItemDetailModal";
 import { TopNav } from "./components/TopNav";
 import { LoginPage } from "./pages/LoginPage";
@@ -268,6 +270,9 @@ function App() {
     const [endSprintUnfinishedAction, setEndSprintUnfinishedAction] = useState<EndSprintUnfinishedAction>("carryover");
     const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
     const [selectedBugId, setSelectedBugId] = useState<number | null>(null);
+    const [branchTaskId, setBranchTaskId] = useState<number | null>(null);
+    const [branchNameDraft, setBranchNameDraft] = useState("");
+    const [baseBranchDraft, setBaseBranchDraft] = useState("");
     const [createOrganizationForm, setCreateOrganizationForm] = useState(initialOrganizationForm);
     const [createProjectForm, setCreateProjectForm] = useState(initialProjectForm);
     const [createTaskForm, setCreateTaskForm] = useState(initialTaskForm);
@@ -318,6 +323,13 @@ function App() {
 
         return selectedProject.bugReports.find((bug) => bug.id === selectedBugId) ?? null;
     }, [selectedBugId, selectedProject]);
+    const selectedBranchTask = useMemo<Task | null>(() => {
+        if (!selectedProject || branchTaskId === null) {
+            return null;
+        }
+
+        return selectedProject.tasks.find((task) => task.id === branchTaskId) ?? null;
+    }, [branchTaskId, selectedProject]);
 
     const organizationNavItems: NavItem<OrganizationSection>[] = useMemo(
         () => [
@@ -427,6 +439,9 @@ function App() {
         setProjectSection("board");
         setSelectedTaskId(null);
         setSelectedBugId(null);
+        setBranchTaskId(null);
+        setBranchNameDraft("");
+        setBaseBranchDraft("");
         setShowEndSprintModal(false);
         setShowEndSprintActionModal(false);
         setEndSprintReview("");
@@ -1111,6 +1126,51 @@ function App() {
         await runProjectMutation("Saving task", () => updateTask(token, taskId, payload), "Task saved.");
     }
 
+    function openTaskBranchPrompt(task: Task): void {
+        const repository = selectedProject?.repositories[0] ?? null;
+        if (!repository) {
+            setNotice(null);
+            setError("This project does not have a connected repository.");
+            return;
+        }
+
+        setBranchTaskId(task.id);
+        setBranchNameDraft(task.branchName || "");
+        setBaseBranchDraft(repository.defaultBranch);
+    }
+
+    function closeTaskBranchPrompt(): void {
+        setBranchTaskId(null);
+        setBranchNameDraft("");
+        setBaseBranchDraft("");
+    }
+
+    async function handleCreateTaskBranch(): Promise<void> {
+        if (!token || !selectedProject || !selectedBranchTask) {
+            return;
+        }
+
+        if (!selectedProject.repositories.length) {
+            setNotice(null);
+            setError("This project does not have a connected repository.");
+            return;
+        }
+
+        const didCreateBranch = await runProjectMutation(
+            "Creating git branch",
+            () =>
+                createTaskBranch(token, selectedBranchTask.id, {
+                    branchName: branchNameDraft.trim() || undefined,
+                    baseBranch: baseBranchDraft.trim() || undefined,
+                }),
+            "Git branch created.",
+        );
+
+        if (didCreateBranch) {
+            closeTaskBranchPrompt();
+        }
+    }
+
     async function handleAddTaskDetailComment(
         taskId: number,
         payload: { body: string; anchorType?: string; anchorId?: string; anchorLabel?: string },
@@ -1423,6 +1483,7 @@ function App() {
             </AppShell>
         );
     }
+
     if (selectedProject) {
         const projectSidebar = (
             <SideNav
@@ -1491,6 +1552,7 @@ function App() {
                     setShowEndSprintActionModal(false);
                     setShowEndSprintModal(true);
                 }}
+                onCreateTaskBranch={openTaskBranchPrompt}
             />
         );
 
@@ -1516,6 +1578,7 @@ function App() {
                     onUpdateTaskStatus={(taskId, status) => void handleUpdateTaskStatus(taskId, status)}
                     onMoveTaskPlacement={(taskId, placement) => void handleMoveTaskPlacement(taskId, placement)}
                     onRenameSprint={(name) => void handleRenameSprint(name)}
+                    onCreateTaskBranch={openTaskBranchPrompt}
                 />
             );
         }
@@ -1572,6 +1635,7 @@ function App() {
                     task={selectedTask}
                     onClose={() => setSelectedTaskId(null)}
                     onSaveTask={(taskId, payload) => void handleSaveTaskDetails(taskId, payload)}
+                    onCreateTaskBranch={openTaskBranchPrompt}
                     onSaveBug={(bugId, payload) => void handleSaveBugDetails(bugId, payload)}
                     onAddTaskComment={(taskId, payload) => void handleAddTaskDetailComment(taskId, payload)}
                     onToggleTaskCommentReaction={(commentId, emoji) => void handleToggleTaskCommentReaction(commentId, emoji)}
@@ -1584,11 +1648,23 @@ function App() {
                     bug={selectedBug}
                     onClose={() => setSelectedBugId(null)}
                     onSaveTask={(taskId, payload) => void handleSaveTaskDetails(taskId, payload)}
+                    onCreateTaskBranch={openTaskBranchPrompt}
                     onSaveBug={(bugId, payload) => void handleSaveBugDetails(bugId, payload)}
                     onAddTaskComment={(taskId, payload) => void handleAddTaskDetailComment(taskId, payload)}
                     onToggleTaskCommentReaction={(commentId, emoji) => void handleToggleTaskCommentReaction(commentId, emoji)}
                     onAddBugComment={(bugId, payload) => void handleAddBugDetailComment(bugId, payload)}
                     onToggleBugCommentReaction={(commentId, emoji) => void handleToggleBugCommentReaction(commentId, emoji)}
+                />
+                <TaskBranchModal
+                    baseBranch={baseBranchDraft}
+                    branchName={branchNameDraft}
+                    isOpen={Boolean(selectedBranchTask)}
+                    project={selectedProject}
+                    task={selectedBranchTask}
+                    onBaseBranchChange={setBaseBranchDraft}
+                    onBranchNameChange={setBranchNameDraft}
+                    onClose={closeTaskBranchPrompt}
+                    onSubmit={() => void handleCreateTaskBranch()}
                 />
                 <EndSprintModal
                     isOpen={showEndSprintModal}
@@ -1688,3 +1764,4 @@ function App() {
 }
 
 export default App;
+

@@ -93,6 +93,8 @@ export function DropdownMenu({
                   <Box
                       ref={menuRef}
                       position="fixed"
+                      onMouseDown={(event) => event.stopPropagation()}
+                      onClick={(event) => event.stopPropagation()}
                       top={`${menuPosition.top}px`}
                       right={menuPosition.right !== undefined ? `${menuPosition.right}px` : undefined}
                       left={menuPosition.left !== undefined ? `${menuPosition.left}px` : undefined}
@@ -117,7 +119,9 @@ export function DropdownMenu({
                                       bg: item.tone === "danger" ? "var(--color-danger-bg-soft)" : "var(--color-bg-hover)",
                                   }}
                                   disabled={item.disabled}
-                                  onClick={() => {
+                                  onMouseDown={(event) => event.stopPropagation()}
+                                  onClick={(event) => {
+                                      event.stopPropagation();
                                       item.onClick();
                                       close();
                                   }}
@@ -140,3 +144,4 @@ export function DropdownMenu({
         </>
     );
 }
+

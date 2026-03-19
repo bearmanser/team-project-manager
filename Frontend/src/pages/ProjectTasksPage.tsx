@@ -43,6 +43,7 @@ type ProjectTasksPageProps = {
     onUpdateTaskStatus: (taskId: number, status: TaskStatus) => void;
     onMoveTaskPlacement: (taskId: number, placement: BacklogPlacement) => void;
     onRenameSprint: (name: string) => void;
+    onCreateTaskBranch: (task: Task) => void;
 };
 
 function TaskRow({
@@ -257,11 +258,6 @@ export function ProjectTasksPage({
                     <Heading size="2xl" color="var(--color-text-primary)">
                         {project.name}
                     </Heading>
-                    <Text color="var(--color-text-secondary)" maxW="2xl">
-                        {project.useSprints
-                            ? "Plan work between the active sprint and product backlog without losing quick inline edits."
-                            : "Keep tasks lightweight, update status and priority inline, and add new work from the create button instead of a permanent form."}
-                    </Text>
                 </Stack>
                 <Button
                     minW="11"
@@ -484,3 +480,4 @@ export function ProjectTasksPage({
         </Flex>
     );
 }
+

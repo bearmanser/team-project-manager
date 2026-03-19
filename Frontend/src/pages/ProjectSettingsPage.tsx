@@ -35,9 +35,6 @@ export function ProjectSettingsPage({
                 <Heading size="2xl" color="var(--color-text-primary)">
                     {project.name}
                 </Heading>
-                <Text color="var(--color-text-secondary)" maxW="2xl">
-                    Keep the essentials here: naming, description, sprint mode, repository reference, and deletion when the project no longer belongs in this organization.
-                </Text>
             </Stack>
 
             <Stack gap="4">
@@ -153,3 +150,4 @@ export function ProjectSettingsPage({
         </Stack>
     );
 }
+

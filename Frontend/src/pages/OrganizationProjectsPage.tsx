@@ -55,9 +55,6 @@ export function OrganizationProjectsPage({
                     <Heading size="2xl" color="var(--color-text-primary)">
                         {organization.name}
                     </Heading>
-                    <Text color="var(--color-text-secondary)" maxW="2xl">
-                        Keep projects lightweight inside this organization and jump straight into the board, bugs, or tasks without extra summary chrome.
-                    </Text>
                 </Stack>
                 <Button minW="11" h="11" borderRadius="lg" bg="var(--color-accent)" color="var(--color-text-inverse)" _hover={{ bg: "var(--color-accent-hover)" }} onClick={onToggleCreateForm}>
                     <ActionIcon>
@@ -192,3 +189,4 @@ export function OrganizationProjectsPage({
         </Stack>
     );
 }
+
