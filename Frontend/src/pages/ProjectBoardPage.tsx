@@ -8,7 +8,6 @@ import { DropdownMenu } from "../components/DropdownMenu";
 import { ModalFrame } from "../components/ModalFrame";
 import { EditTextIcon, MoreIcon, PlusIcon } from "../components/icons";
 import { PriorityPill } from "../components/PriorityPill";
-import { StatusPill } from "../components/StatusPill";
 import { SurfaceCard } from "../components/SurfaceCard";
 import type { BacklogPlacement, BoardColumn, PriorityLevel, ProjectDetail, Task, TaskStatus } from "../types";
 import {
@@ -475,10 +474,6 @@ export function ProjectBoardPage({
                                                         <Text color="var(--color-text-muted)" fontSize="sm" lineClamp="2">
                                                             {task.description || "No description yet."}
                                                         </Text>
-                                                        <Stack direction="row" wrap="wrap">
-                                                            {task.isResolutionTask ? <StatusPill label="Resolution" /> : null}
-                                                            {task.bugReportTitle ? <StatusPill label={task.bugReportTitle} /> : null}
-                                                        </Stack>
                                                         <Text color="var(--color-text-strong)" fontSize="sm">
                                                             {task.assignees.length
                                                                 ? `Assigned to ${task.assignees.map((assignee) => assignee.username).join(", ")}`

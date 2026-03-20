@@ -29,10 +29,12 @@ import {
   getPrioritySelectStyle,
   getTaskStatusOptionStyle,
   getTaskStatusSelectStyle,
-  nativeSelectStyle,
   PRIORITY_OPTIONS,
   sortBugsByPriority,
 } from "../utils";
+import { ActionIcon } from "./ActionIcon";
+import { DropdownMenu } from "./DropdownMenu";
+import { EditTextIcon } from "./icons";
 import { MentionTextarea } from "./MentionTextarea";
 import { ModalFrame } from "./ModalFrame";
 
@@ -138,7 +140,6 @@ export function WorkItemDetailModal({
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
   const [resolvedBugIds, setResolvedBugIds] = useState<number[]>([]);
-  const [bugToAddId, setBugToAddId] = useState("");
 
   useEffect(() => {
     if (!item) {
@@ -153,7 +154,6 @@ export function WorkItemDetailModal({
     setReplyDrafts({});
     setActiveReplyId(null);
     setResolvedBugIds(task?.resolvedBugs.map((resolvedBug) => resolvedBug.id) ?? []);
-    setBugToAddId("");
   }, [item, task]);
 
   const comments = item?.comments ?? [];
@@ -205,19 +205,17 @@ export function WorkItemDetailModal({
       .map((resolvedBugId) => bugLookup.get(resolvedBugId) ?? null)
       .filter((currentBug): currentBug is BugReport => currentBug !== null);
   }, [kind, project.bugReports, resolvedBugIds]);
-  const availableResolvedBugs = useMemo(() => {
+  const selectedResolvedBugIdSet = useMemo(
+    () => new Set(resolvedBugIds),
+    [resolvedBugIds]
+  );
+  const sortedProjectBugs = useMemo(() => {
     if (kind !== "task") {
       return [] as BugReport[];
     }
 
-    const selectedIds = new Set(resolvedBugIds);
-    return sortBugsByPriority(
-      project.bugReports.filter(
-        (currentBug) =>
-          !selectedIds.has(currentBug.id) && currentBug.status !== "closed"
-      )
-    );
-  }, [kind, project.bugReports, resolvedBugIds]);
+    return sortBugsByPriority(project.bugReports);
+  }, [kind, project.bugReports]);
 
   if (!item || !kind) {
     return null;
@@ -309,18 +307,12 @@ export function WorkItemDetailModal({
     onToggleBugCommentReaction(commentId, emoji);
   }
 
-  function handleAddResolvedBug(): void {
-    const nextBugId = Number(bugToAddId);
-    if (!Number.isFinite(nextBugId) || resolvedBugIds.includes(nextBugId)) {
-      return;
-    }
-
-    setResolvedBugIds((current) => [...current, nextBugId]);
-    setBugToAddId("");
-  }
-
-  function handleRemoveResolvedBug(bugId: number): void {
-    setResolvedBugIds((current) => current.filter((currentBugId) => currentBugId !== bugId));
+  function handleToggleResolvedBug(bugId: number): void {
+    setResolvedBugIds((current) =>
+      current.includes(bugId)
+        ? current.filter((currentBugId) => currentBugId !== bugId)
+        : [...current, bugId]
+    );
   }
 
   const renderCommentThread = (comment: CommentEntry, depth = 0) => {
@@ -339,7 +331,7 @@ export function WorkItemDetailModal({
               : "var(--color-border-default)"
           }
           borderRadius="12px"
-          bg="white"
+          bg="var(--color-bg-card)"
           overflow="hidden"
           cursor="pointer"
           transition="border-color 0.2s ease"
@@ -378,7 +370,7 @@ export function WorkItemDetailModal({
                   py="0.5"
                   color="var(--color-text-muted)"
                   fontSize="xs"
-                  bg="white"
+                  bg="var(--color-bg-card)"
                 >
                   {contextLabel}
                 </Box>
@@ -411,7 +403,7 @@ export function WorkItemDetailModal({
                     size="xs"
                     variant="outline"
                     border={0}
-                    bg={isActive ? "var(--color-bg-muted)" : "white"}
+                    bg={isActive ? "var(--color-bg-soft)" : "var(--color-bg-card)"}
                     color="var(--color-text-primary)"
                     _hover={{ bg: "var(--color-bg-muted)" }}
                     onClick={() => handleToggleReaction(comment.id, emoji)}
@@ -524,13 +516,20 @@ export function WorkItemDetailModal({
             </Stack>
           </Stack>
 
-          <Stack
+          <Flex
+            direction="column"
             gap="4"
             minH="0"
+            h={{ xl: "full" }}
             order={{ base: 1, xl: 2 }}
-            overflowY={{ base: "visible", xl: "auto" }}
-            pr={{ xl: "1" }}
           >
+            <Stack
+              gap="4"
+              minH="0"
+              flex="1"
+              overflowY={{ base: "visible", xl: "auto" }}
+              pr={{ xl: "1" }}
+            >
             <Stack gap="2">
               <Heading size="sm" color="var(--color-text-primary)">
                 {titleLabel}
@@ -635,95 +634,113 @@ export function WorkItemDetailModal({
             {kind === "task" ? (
               <Stack gap="3">
                 <Stack gap="1">
-                  <Heading size="sm" color="var(--color-text-primary)">
-                    Bugs resolved by this task
-                  </Heading>
+                  <Flex align="center" justify="space-between" gap="3">
+                    <Heading size="sm" color="var(--color-text-primary)">
+                      Bugs resolved by this task
+                    </Heading>
+                    <DropdownMenu
+                      width="320px"
+                      items={
+                        sortedProjectBugs.length
+                          ? sortedProjectBugs.map((projectBug) => {
+                              const isSelected = selectedResolvedBugIdSet.has(projectBug.id);
+
+                              return {
+                                key: String(projectBug.id),
+                                label: projectBug.title,
+                                onClick: () => handleToggleResolvedBug(projectBug.id),
+                                closeOnClick: false,
+                                trailingContent: isSelected ? (
+                                  <Box
+                                    as="span"
+                                    color="var(--color-accent)"
+                                    fontWeight="700"
+                                    fontSize="sm"
+                                  >
+                                    {"\u2713"}
+                                  </Box>
+                                ) : (
+                                  <Box as="span" w="3.5" />
+                                ),
+                              };
+                            })
+                          : [
+                              {
+                                key: "no-bugs",
+                                label: "No bugs available",
+                                onClick: () => undefined,
+                                disabled: true,
+                              },
+                            ]
+                      }
+                      renderTrigger={({ toggle }) => (
+                        <Button
+                          minW="8"
+                          h="8"
+                          px="0"
+                          variant="ghost"
+                          borderRadius="10px"
+                          color="var(--color-text-muted)"
+                          _hover={{ bg: "var(--color-bg-hover)", color: "var(--color-text-primary)" }}
+                          aria-label="Edit resolved bugs"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            toggle();
+                          }}
+                          disabled={!sortedProjectBugs.length}
+                        >
+                          <ActionIcon>
+                            <EditTextIcon size={15} />
+                          </ActionIcon>
+                        </Button>
+                      )}
+                    />
+                  </Flex>
                   <Text color="var(--color-text-muted)" fontSize="sm">
                     These bugs will be closed when this task reaches Done.
                   </Text>
                 </Stack>
 
                 {selectedResolvedBugs.length ? (
-                  <Stack gap="2">
+                  <Flex gap="2" wrap="wrap">
                     {selectedResolvedBugs.map((resolvedBug) => (
-                      <Flex
+                      <Box
                         key={resolvedBug.id}
-                        justify="space-between"
-                        align={{ base: "flex-start", md: "center" }}
-                        gap="3"
-                        wrap="wrap"
                         borderWidth="1px"
                         borderColor="var(--color-border-default)"
-                        borderRadius="12px"
+                        borderRadius="full"
                         bg="var(--color-bg-muted)"
                         px="3"
-                        py="3"
+                        py="1.5"
+                        maxW="100%"
                       >
-                        <Stack gap="1" minW="240px" flex="1">
-                          <Text color="var(--color-text-primary)" fontWeight="600">
-                            {resolvedBug.title}
-                          </Text>
-                          <Text color="var(--color-text-muted)" fontSize="sm">
-                            {project.bugStatusLabels[resolvedBug.status]} - {getPriorityLabel(resolvedBug.priority)} priority
-                          </Text>
-                        </Stack>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          borderColor="var(--color-border-strong)"
+                        <Text
                           color="var(--color-text-primary)"
-                          _hover={{ bg: "var(--color-bg-hover)" }}
-                          onClick={() => handleRemoveResolvedBug(resolvedBug.id)}
+                          fontWeight="600"
+                          fontSize="sm"
+                          lineClamp="1"
                         >
-                          Remove
-                        </Button>
-                      </Flex>
+                          {resolvedBug.title}
+                        </Text>
+                      </Box>
                     ))}
-                  </Stack>
+                  </Flex>
                 ) : (
                   <Text color="var(--color-text-muted)" fontSize="sm">
                     This task will not close any bugs yet.
                   </Text>
                 )}
-
-                {availableResolvedBugs.length ? (
-                  <Flex gap="2" wrap="wrap" align={{ base: "stretch", md: "center" }}>
-                    <Box flex="1" minW="240px">
-                      <select
-                        value={bugToAddId}
-                        style={nativeSelectStyle}
-                        onChange={(event) => setBugToAddId(event.target.value)}
-                      >
-                        <option value="">Select a bug to add</option>
-                        {availableResolvedBugs.map((availableBug) => (
-                          <option key={availableBug.id} value={availableBug.id}>
-                            {availableBug.title}
-                          </option>
-                        ))}
-                      </select>
-                    </Box>
-                    <Button
-                      borderRadius="lg"
-                      variant="outline"
-                      borderColor="var(--color-border-strong)"
-                      color="var(--color-text-primary)"
-                      _hover={{ bg: "var(--color-bg-hover)", borderColor: "var(--color-accent-border)" }}
-                      onClick={handleAddResolvedBug}
-                      disabled={!bugToAddId}
-                    >
-                      Add bug
-                    </Button>
-                  </Flex>
-                ) : null}
               </Stack>
             ) : null}
 
-            <Flex
-              justify={canCreateTaskBranch ? "space-between" : "flex-end"}
-              gap="3"
-              wrap="wrap"
-              pt="1"
-            >
+            </Stack>
+
+            <Stack gap="1.5" pt="1" mt={{ xl: "auto" }}>
+              <Flex
+                justify={canCreateTaskBranch ? "space-between" : "flex-end"}
+                gap="3"
+                wrap="wrap"
+              >
               {kind === "task" && task ? (
                 <Button
                   borderRadius="full"
@@ -748,8 +765,19 @@ export function WorkItemDetailModal({
               >
                 Save changes
               </Button>
-            </Flex>
-          </Stack>
+              </Flex>
+              <Text
+                color="var(--color-text-muted)"
+                fontSize="xs"
+                visibility="hidden"
+                display={{ base: "none", xl: "block" }}
+                aria-hidden="true"
+                userSelect="none"
+              >
+                {commentHint}
+              </Text>
+            </Stack>
+          </Flex>
         </Grid>
       </Flex>
     </ModalFrame>

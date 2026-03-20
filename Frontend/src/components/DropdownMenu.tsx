@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
-import { Box, Button, Stack } from "@chakra-ui/react";
+import { Box, Button, Flex, Stack } from "@chakra-ui/react";
 
 export type DropdownItem = {
+    key?: string;
     label: string;
     onClick: () => void;
     disabled?: boolean;
     tone?: "default" | "danger";
+    trailingContent?: ReactNode;
+    closeOnClick?: boolean;
 };
 
 type DropdownMenuProps = {
@@ -110,7 +113,7 @@ export function DropdownMenu({
                       <Stack gap="1">
                           {items.map((item) => (
                               <Button
-                                  key={item.label}
+                                  key={item.key ?? item.label}
                                   justifyContent="flex-start"
                                   borderRadius="10px"
                                   variant="ghost"
@@ -123,10 +126,17 @@ export function DropdownMenu({
                                   onClick={(event) => {
                                       event.stopPropagation();
                                       item.onClick();
-                                      close();
+                                      if (item.closeOnClick !== false) {
+                                          close();
+                                      }
                                   }}
                               >
-                                  {item.label}
+                                  <Flex w="full" align="center" justify="space-between" gap="3">
+                                      <Box as="span" flex="1" minW="0" textAlign="left" overflow="hidden" textOverflow="ellipsis">
+                                          {item.label}
+                                      </Box>
+                                      {item.trailingContent}
+                                  </Flex>
                               </Button>
                           ))}
                       </Stack>
@@ -144,4 +154,3 @@ export function DropdownMenu({
         </>
     );
 }
-
