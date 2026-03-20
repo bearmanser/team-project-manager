@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useMemo, useState } from "react";
+﻿import { startTransition, useEffect, useMemo, useState } from "react";
 
 import { Box, Button, Heading, Stack, Text } from "@chakra-ui/react";
 
@@ -198,8 +198,43 @@ function normalizePath(pathname: string): string {
     return pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
 }
 
-function parseRoute(pathname: string): AppRoute {
+function normalizeBasePath(pathname: string): string {
     const normalizedPath = normalizePath(pathname);
+    return normalizedPath === "/" ? "/" : `${normalizedPath}/`;
+}
+
+const APP_BASE_URL = normalizeBasePath(import.meta.env.BASE_URL ?? "/");
+const APP_BASE_PATH = APP_BASE_URL === "/" ? "" : APP_BASE_URL.slice(0, -1);
+
+function stripAppBasePath(pathname: string): string {
+    const normalizedPath = normalizePath(pathname);
+    if (!APP_BASE_PATH) {
+        return normalizedPath;
+    }
+
+    if (normalizedPath === APP_BASE_PATH) {
+        return "/";
+    }
+
+    if (normalizedPath.startsWith(`${APP_BASE_PATH}/`)) {
+        const strippedPath = normalizedPath.slice(APP_BASE_PATH.length);
+        return strippedPath || "/";
+    }
+
+    return normalizedPath;
+}
+
+function toBrowserPath(pathname: string): string {
+    const normalizedPath = normalizePath(pathname);
+    if (!APP_BASE_PATH) {
+        return normalizedPath;
+    }
+
+    return normalizedPath === "/" ? APP_BASE_PATH : `${APP_BASE_PATH}${normalizedPath}`;
+}
+
+function parseRoute(pathname: string): AppRoute {
+    const normalizedPath = stripAppBasePath(pathname);
     if (normalizedPath === "/oauth/github/callback") {
         return { kind: "githubCallback" };
     }
@@ -432,15 +467,16 @@ function App() {
 
     function navigateToPath(path: string, replace = false): void {
         const normalizedPath = normalizePath(path);
-        const currentPath = normalizePath(window.location.pathname);
+        const currentPath = stripAppBasePath(window.location.pathname);
+        const browserPath = toBrowserPath(normalizedPath);
         if (normalizedPath === currentPath && !replace) {
             return;
         }
 
         if (replace) {
-            window.history.replaceState({}, document.title, normalizedPath);
+            window.history.replaceState({}, document.title, browserPath);
         } else {
-            window.history.pushState({}, document.title, normalizedPath);
+            window.history.pushState({}, document.title, browserPath);
         }
     }
 
@@ -1906,4 +1942,5 @@ function App() {
 }
 
 export default App;
+
 
