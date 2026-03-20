@@ -108,7 +108,7 @@ function BrandWordmark() {
     <Flex
       align="baseline"
       wrap="wrap"
-      columnGap={{ base: "2", md: "3" }}
+      columnGap={{ base: "2", md: "2" }}
       rowGap="1"
       aria-label="Team Project Manager"
     >
@@ -123,18 +123,12 @@ function BrandWordmark() {
           <Box
             as="span"
             fontSize={{ base: "3xl", md: "3xl" }}
-            fontWeight="900"
+            fontWeight="700"
             lineHeight="0.8"
-            mr="1"
           >
             {word.initial}
           </Box>
-          <Box
-            as="span"
-            fontSize={{ base: "sm", md: "xl" }}
-            fontWeight="700"
-            letterSpacing="0.08em"
-          >
+          <Box as="span" fontSize={{ base: "sm", md: "2xl" }} fontWeight="500">
             {word.rest}
           </Box>
         </Text>
