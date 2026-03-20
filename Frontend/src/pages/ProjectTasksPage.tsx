@@ -346,24 +346,12 @@ export function ProjectTasksPage({
             {project.name}
           </Heading>
         </Stack>
-        <Button
-          borderRadius="lg"
-          variant="outline"
-          borderColor="var(--color-border-strong)"
-          color="var(--color-text-primary)"
-          _hover={{ bg: "var(--color-bg-hover)", borderColor: "var(--color-accent-border)" }}
-          onClick={() => onOpenCreateTask("todo", "product")}
-        >
-          Add task
-        </Button>
       </Flex>
 
       <Grid
         templateColumns="1fr"
         templateRows={
-          project.useSprints
-            ? "repeat(2, minmax(0, 1fr))"
-            : "minmax(0, 1fr)"
+          project.useSprints ? "repeat(2, minmax(0, 1fr))" : "minmax(0, 1fr)"
         }
         gap="4"
         flex="1"
