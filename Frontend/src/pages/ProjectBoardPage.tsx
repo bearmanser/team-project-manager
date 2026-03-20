@@ -31,6 +31,9 @@ type ProjectBoardPageProps = {
         status: TaskStatus;
         priority: PriorityLevel;
         placement: BacklogPlacement;
+        bugReportId: number | null;
+        bugReportTitle: string;
+        markAsResolution: boolean;
     };
     isCreateTaskOpen: boolean;
     project: ProjectDetail;
@@ -39,6 +42,7 @@ type ProjectBoardPageProps = {
         field: "title" | "description" | "status" | "priority" | "placement",
         value: string,
     ) => void;
+    onMarkTaskAsResolutionChange: (value: boolean) => void;
     onOpenCreateTask: (status: TaskStatus, placement?: BacklogPlacement) => void;
     onOpenTask: (taskId: number) => void;
     onRenameSprint: (name: string) => void;
@@ -56,6 +60,7 @@ export function ProjectBoardPage({
     project,
     onCreateTask,
     onCreateTaskFormChange,
+    onMarkTaskAsResolutionChange,
     onOpenCreateTask,
     onOpenTask,
     onRenameSprint,
@@ -493,6 +498,7 @@ export function ProjectBoardPage({
                     onClose={onToggleCreateTaskForm}
                     onCreateTask={onCreateTask}
                     onFormChange={onCreateTaskFormChange}
+                    onMarkAsResolutionChange={onMarkTaskAsResolutionChange}
                 />
             </Flex>
 

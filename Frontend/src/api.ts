@@ -5,6 +5,7 @@ import type {
     GitHubOAuthStartResponse,
     NotificationResponse,
     OrganizationResponse,
+    ProjectGitHubIssuesResponse,
     ProjectResponse,
     UserResponse,
     WorkspaceResponse,
@@ -278,6 +279,31 @@ export function createBugReport(
 ): Promise<ProjectResponse> {
     return request<ProjectResponse>(
         `/api/projects/${projectId}/bugs/`,
+        {
+            method: "POST",
+            body: JSON.stringify(payload),
+        },
+        token,
+    );
+}
+
+export function getProjectGitHubIssues(
+    token: string,
+    projectId: number,
+): Promise<ProjectGitHubIssuesResponse> {
+    return request<ProjectGitHubIssuesResponse>(`/api/projects/${projectId}/github-issues/`, {}, token);
+}
+
+export function importBugFromGitHubIssue(
+    token: string,
+    projectId: number,
+    payload: {
+        repositoryFullName: string;
+        issueNumber: number;
+    },
+): Promise<ProjectResponse> {
+    return request<ProjectResponse>(
+        `/api/projects/${projectId}/bugs/import/`,
         {
             method: "POST",
             body: JSON.stringify(payload),

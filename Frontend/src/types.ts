@@ -109,6 +109,19 @@ export type IssueLink = {
     createdAt: string;
 };
 
+export type GitHubIssueCandidate = {
+    repositoryId: number;
+    repositoryFullName: string;
+    issueNumber: number;
+    title: string;
+    htmlUrl: string;
+    state: string;
+    authorLogin: string;
+    labels: string[];
+    bodyPreview: string;
+    updatedAt: string;
+};
+
 export type CommentReactionSummary = {
     emoji: string;
     count: number;
@@ -279,6 +292,10 @@ export type WorkspaceResponse = {
 
 export type ProjectResponse = {
     project: ProjectDetail;
+};
+
+export type ProjectGitHubIssuesResponse = {
+    issues: GitHubIssueCandidate[];
 };
 
 export type OrganizationResponse = {

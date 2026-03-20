@@ -9,6 +9,7 @@ urlpatterns = [
     path("projects/", views.projects_view, name="projects"),
     path("projects/<int:project_id>/", views.project_detail_view, name="project-detail"),
     path("projects/<int:project_id>/events/", views.project_events_view, name="project-events"),
+    path("projects/<int:project_id>/github-issues/", views.project_github_issues_view, name="project-github-issues"),
     path("projects/<int:project_id>/settings/", views.project_settings_view, name="project-settings"),
     path("projects/<int:project_id>/delete/", views.project_delete_view, name="project-delete"),
     path("projects/<int:project_id>/sprints/end/", views.project_sprint_end_view, name="project-sprint-end"),
@@ -35,6 +36,7 @@ urlpatterns = [
         name="project-member-remove",
     ),
     path("projects/<int:project_id>/tasks/", views.project_tasks_view, name="project-tasks"),
+    path("projects/<int:project_id>/bugs/import/", views.project_bug_import_view, name="project-bug-import"),
     path("projects/<int:project_id>/bugs/", views.project_bugs_view, name="project-bugs"),
     path("tasks/<int:task_id>/update/", views.task_update_view, name="task-update"),
     path("tasks/<int:task_id>/comments/", views.task_comment_view, name="task-comment"),
@@ -52,3 +54,4 @@ urlpatterns = [
         name="notification-read",
     ),
 ]
+

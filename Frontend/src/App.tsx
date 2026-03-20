@@ -6,6 +6,7 @@ import {
     ApiError,
     addBugComment,
     addProjectMember,
+    addProjectRepos,
     addTaskComment,
     toggleBugCommentReaction,
     toggleTaskCommentReaction,
@@ -19,10 +20,13 @@ import {
     deleteProject,
     endProjectSprint,
     getProject,
+    getProjectGitHubIssues,
     updateProjectSprint,
     getWorkspace,
+    importBugFromGitHubIssue,
     login,
     markNotificationRead,
+    removeProjectRepo,
     signup,
     startGitHubOauth,
     updateBugReport,
@@ -52,6 +56,7 @@ import type {
     BugReport,
     BugStatus,
     EndSprintUnfinishedAction,
+    GitHubIssueCandidate,
     Notification,
     OrganizationSummary,
     ProjectDetail,
@@ -99,6 +104,9 @@ const initialTaskForm = {
     status: "todo" as TaskStatus,
     priority: "medium" as PriorityLevel,
     placement: "product" as BacklogPlacement,
+    bugReportId: null as number | null,
+    bugReportTitle: "",
+    markAsResolution: false,
 };
 
 const initialBugForm = {
@@ -264,6 +272,7 @@ function App() {
     const [showCreateProjectForm, setShowCreateProjectForm] = useState(false);
     const [showCreateTaskForm, setShowCreateTaskForm] = useState(false);
     const [showCreateBugForm, setShowCreateBugForm] = useState(false);
+    const [showImportBugForm, setShowImportBugForm] = useState(false);
     const [showEndSprintModal, setShowEndSprintModal] = useState(false);
     const [showEndSprintActionModal, setShowEndSprintActionModal] = useState(false);
     const [endSprintReview, setEndSprintReview] = useState("");
@@ -277,6 +286,8 @@ function App() {
     const [createProjectForm, setCreateProjectForm] = useState(initialProjectForm);
     const [createTaskForm, setCreateTaskForm] = useState(initialTaskForm);
     const [createBugForm, setCreateBugForm] = useState(initialBugForm);
+    const [importableGitHubIssues, setImportableGitHubIssues] = useState<GitHubIssueCandidate[]>([]);
+    const [isLoadingImportableGitHubIssues, setIsLoadingImportableGitHubIssues] = useState(false);
     const [projectSettingsForm, setProjectSettingsForm] = useState({
         name: "",
         description: "",
@@ -442,6 +453,10 @@ function App() {
         setBranchTaskId(null);
         setBranchNameDraft("");
         setBaseBranchDraft("");
+        setCreateTaskForm(initialTaskForm);
+        setShowImportBugForm(false);
+        setImportableGitHubIssues([]);
+        setIsLoadingImportableGitHubIssues(false);
         setShowEndSprintModal(false);
         setShowEndSprintActionModal(false);
         setEndSprintReview("");
@@ -970,7 +985,7 @@ function App() {
                 organizationId: currentOrganization.id,
                 name: createProjectForm.name.trim(),
                 description: createProjectForm.description.trim(),
-                repositoryIds: [createProjectForm.repositoryId],
+                repositoryIds: createProjectForm.repositoryId ? [createProjectForm.repositoryId] : [],
             });
             setCreateProjectForm(initialProjectForm);
             setShowCreateProjectForm(false);
@@ -1051,6 +1066,63 @@ function App() {
         setShowCreateTaskForm(true);
     }
 
+    function openCreateTaskFromBug(bugId: number): void {
+        if (!selectedProject) {
+            return;
+        }
+
+        const bug = selectedProject.bugReports.find((item) => item.id === bugId);
+        if (!bug) {
+            return;
+        }
+
+        setCreateTaskForm({
+            ...initialTaskForm,
+            title: bug.title.startsWith("Fix:") ? bug.title : `Fix: ${bug.title}`,
+            description: bug.description,
+            priority: bug.priority,
+            placement: selectedProject.useSprints && selectedProject.activeSprint ? "sprint" : "product",
+            bugReportId: bug.id,
+            bugReportTitle: bug.title,
+            markAsResolution: !bug.resolutionTaskId,
+        });
+        setShowCreateTaskForm(true);
+    }
+
+    function closeImportBugForm(): void {
+        setShowImportBugForm(false);
+        setImportableGitHubIssues([]);
+    }
+
+    async function loadProjectGitHubIssueCandidates(projectId: number): Promise<void> {
+        if (!token) {
+            return;
+        }
+
+        setIsLoadingImportableGitHubIssues(true);
+        try {
+            const response = await getProjectGitHubIssues(token, projectId);
+            startTransition(() => {
+                setImportableGitHubIssues(response.issues);
+            });
+        } catch (reason) {
+            setError(getFriendlyError(reason));
+        } finally {
+            setIsLoadingImportableGitHubIssues(false);
+        }
+    }
+
+    async function handleOpenImportBugForm(): Promise<void> {
+        if (!selectedProject) {
+            return;
+        }
+
+        setError(null);
+        setNotice(null);
+        setShowImportBugForm(true);
+        await loadProjectGitHubIssueCandidates(selectedProject.id);
+    }
+
     function openTaskDetail(taskId: number): void {
         setSelectedBugId(null);
         setSelectedTaskId(taskId);
@@ -1076,8 +1148,10 @@ function App() {
                     priority: createTaskForm.priority,
                     placement: createTaskForm.placement,
                     assigneeIds: [],
+                    bugReportId: createTaskForm.bugReportId ?? undefined,
+                    markAsResolution: createTaskForm.markAsResolution,
                 }),
-            "Task added.",
+            createTaskForm.bugReportId ? "Task created from bug." : "Task added.",
         );
         setCreateTaskForm(initialTaskForm);
         setShowCreateTaskForm(false);
@@ -1278,6 +1352,49 @@ function App() {
             "Reaction updated.",
         );
     }
+    async function handleImportBugFromGitHubIssue(issue: GitHubIssueCandidate): Promise<void> {
+        if (!token || !selectedProject) {
+            return;
+        }
+
+        const didImportBug = await runProjectMutation(
+            "Importing GitHub issue",
+            () =>
+                importBugFromGitHubIssue(token, selectedProject.id, {
+                    repositoryFullName: issue.repositoryFullName,
+                    issueNumber: issue.issueNumber,
+                }),
+            "GitHub issue imported as a bug.",
+        );
+        if (didImportBug) {
+            await loadProjectGitHubIssueCandidates(selectedProject.id);
+        }
+    }
+
+    async function handleAddProjectRepository(repositoryId: string): Promise<void> {
+        if (!token || !selectedProject || !repositoryId) {
+            return;
+        }
+
+        await runProjectMutation(
+            "Connecting repository",
+            () => addProjectRepos(token, selectedProject.id, { repositoryIds: [repositoryId] }),
+            "Repository connected.",
+        );
+    }
+
+    async function handleRemoveProjectRepository(repositoryId: number): Promise<void> {
+        if (!token || !selectedProject) {
+            return;
+        }
+
+        await runProjectMutation(
+            "Disconnecting repository",
+            () => removeProjectRepo(token, selectedProject.id, repositoryId),
+            "Repository disconnected.",
+        );
+    }
+
     async function handleSaveProjectSettings(): Promise<void> {
         if (!token || !selectedProject) {
             return;
@@ -1540,6 +1657,12 @@ function App() {
                         [field]: value,
                     }))
                 }
+                onMarkTaskAsResolutionChange={(value) =>
+                    setCreateTaskForm((current) => ({
+                        ...current,
+                        markAsResolution: value,
+                    }))
+                }
                 onOpenCreateTask={openCreateTaskForm}
                 onOpenTask={openTaskDetail}
                 onToggleCreateTaskForm={() => setShowCreateTaskForm((current) => !current)}
@@ -1571,6 +1694,12 @@ function App() {
                             [field]: value,
                         }))
                     }
+                    onMarkTaskAsResolutionChange={(value) =>
+                        setCreateTaskForm((current) => ({
+                            ...current,
+                            markAsResolution: value,
+                        }))
+                    }
                     onToggleCreateForm={() => setShowCreateTaskForm((current) => !current)}
                     onOpenCreateTask={openCreateTaskForm}
                     onOpenTask={openTaskDetail}
@@ -1587,8 +1716,12 @@ function App() {
             projectContent = (
                 <ProjectBugsPage
                     createBugForm={createBugForm}
+                    githubIssues={importableGitHubIssues}
                     isCreateOpen={showCreateBugForm}
+                    isImportOpen={showImportBugForm}
+                    isImportLoading={isLoadingImportableGitHubIssues}
                     project={selectedProject}
+                    onCloseImport={closeImportBugForm}
                     onCreateBug={() => void handleCreateBug()}
                     onCreateBugFormChange={(field, value) =>
                         setCreateBugForm((current) => ({
@@ -1596,8 +1729,11 @@ function App() {
                             [field]: value,
                         }))
                     }
-                    onToggleCreateForm={() => setShowCreateBugForm((current) => !current)}
+                    onCreateTaskFromBug={openCreateTaskFromBug}
+                    onImportIssue={(issue) => void handleImportBugFromGitHubIssue(issue)}
                     onOpenBug={openBugDetail}
+                    onOpenImport={() => void handleOpenImportBugForm()}
+                    onToggleCreateForm={() => setShowCreateBugForm((current) => !current)}
                     onUpdateBugPriority={(bugId, priority) => void handleUpdateBugPriority(bugId, priority)}
                     onUpdateBugStatus={(bugId, status) => void handleUpdateBugStatus(bugId, status)}
                 />
@@ -1611,9 +1747,14 @@ function App() {
         if (projectSection === "settings") {
             projectContent = (
                 <ProjectSettingsPage
+                    availableRepos={workspace.availableRepos}
                     busyLabel={busyLabel}
+                    githubRepoError={workspace.githubRepoError}
+                    isGitHubConnected={user.githubConnected}
                     project={selectedProject}
                     projectSettingsForm={projectSettingsForm}
+                    onAddRepository={(repositoryId) => void handleAddProjectRepository(repositoryId)}
+                    onConnectGitHub={() => void handleConnectGitHub()}
                     onDeleteProject={() => void handleDeleteSelectedProject()}
                     onProjectSettingsChange={(field, value) =>
                         setProjectSettingsForm((current) => ({
@@ -1621,6 +1762,7 @@ function App() {
                             [field]: value,
                         }))
                     }
+                    onRemoveRepository={(repositoryId) => void handleRemoveProjectRepository(repositoryId)}
                     onSaveProjectSettings={() => void handleSaveProjectSettings()}
                 />
             );

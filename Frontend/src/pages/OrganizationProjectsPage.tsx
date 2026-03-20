@@ -45,6 +45,8 @@ export function OrganizationProjectsPage({
     onOpenProject,
     onToggleCreateForm,
 }: OrganizationProjectsPageProps) {
+    const canCreateProject = Boolean(createProjectForm.name.trim()) && !isCreatingProject;
+
     return (
         <Stack gap="6">
             <Flex justify="space-between" align={{ base: "stretch", md: "center" }} gap="4" wrap="wrap">
@@ -119,74 +121,91 @@ export function OrganizationProjectsPage({
 
             <ModalFrame
                 title="Add project"
-                description="Each project still maps to a single GitHub repository."
+                description="Create the project first, then optionally connect a GitHub repository now or later."
                 isOpen={showCreateForm}
                 onClose={onToggleCreateForm}
             >
-                {!isGitHubConnected ? (
-                    <Stack gap="4">
-                        <Text color="var(--color-text-strong)">
-                            Connect GitHub first so this project can point at a repository from day one.
+                <Stack
+                    as="form"
+                    gap="4"
+                    onSubmit={(event) => {
+                        event.preventDefault();
+                        onCreateProject();
+                    }}
+                >
+                    <Input
+                        value={createProjectForm.name}
+                        onChange={(event) => onCreateProjectFormChange("name", event.target.value)}
+                        placeholder="Client portal"
+                        bg="var(--color-bg-muted)"
+                        borderColor="var(--color-border-strong)"
+                        borderRadius="lg"
+                        color="var(--color-text-primary)"
+                    />
+                    <Textarea
+                        value={createProjectForm.description}
+                        onChange={(event) => onCreateProjectFormChange("description", event.target.value)}
+                        placeholder="What this project is responsible for."
+                        bg="var(--color-bg-muted)"
+                        borderColor="var(--color-border-strong)"
+                        borderRadius="lg"
+                        color="var(--color-text-primary)"
+                        minH="120px"
+                    />
+                    <Stack gap="2" p="3" borderRadius="lg" bg="var(--color-bg-muted)">
+                        <Text color="var(--color-text-primary)" fontWeight="600">
+                            GitHub repository
                         </Text>
-                        <Button borderRadius="lg" bg="var(--color-accent)" color="var(--color-text-inverse)" alignSelf="flex-start" _hover={{ bg: "var(--color-accent-hover)" }} onClick={onConnectGitHub}>
-                            Connect GitHub
-                        </Button>
+                        {isGitHubConnected ? (
+                            <>
+                                <select
+                                    value={createProjectForm.repositoryId}
+                                    style={nativeSelectStyle}
+                                    onChange={(event) => onCreateProjectFormChange("repositoryId", event.target.value)}
+                                >
+                                    <option value="">No repository yet</option>
+                                    {availableRepos.map((repo) => (
+                                        <option key={repo.id} value={repo.id}>
+                                            {repo.fullName}
+                                        </option>
+                                    ))}
+                                </select>
+                                <Text color="var(--color-text-muted)" fontSize="sm">
+                                    Optional. You can connect or swap repositories later in project settings.
+                                </Text>
+                            </>
+                        ) : (
+                            <>
+                                <Text color="var(--color-text-muted)">
+                                    GitHub is not connected yet. You can still create the project now and connect a repository later.
+                                </Text>
+                                <Button
+                                    borderRadius="lg"
+                                    variant="outline"
+                                    borderColor="var(--color-border-strong)"
+                                    color="var(--color-text-primary)"
+                                    alignSelf="flex-start"
+                                    _hover={{ bg: "var(--color-bg-hover)", borderColor: "var(--color-accent-border)" }}
+                                    onClick={onConnectGitHub}
+                                >
+                                    Connect GitHub
+                                </Button>
+                            </>
+                        )}
                     </Stack>
-                ) : (
-                    <Stack
-                        as="form"
-                        gap="4"
-                        onSubmit={(event) => {
-                            event.preventDefault();
-                            onCreateProject();
-                        }}
+                    <Button
+                        type="submit"
+                        borderRadius="lg"
+                        bg="var(--color-accent)"
+                        color="var(--color-text-inverse)"
+                        alignSelf="flex-start"
+                        disabled={!canCreateProject}
+                        _hover={{ bg: "var(--color-accent-hover)" }}
                     >
-                        <Input
-                            value={createProjectForm.name}
-                            onChange={(event) => onCreateProjectFormChange("name", event.target.value)}
-                            placeholder="Client portal"
-                            bg="var(--color-bg-muted)"
-                            borderColor="var(--color-border-strong)"
-                            borderRadius="lg"
-                            color="var(--color-text-primary)"
-                        />
-                        <select
-                            value={createProjectForm.repositoryId}
-                            style={nativeSelectStyle}
-                            onChange={(event) => onCreateProjectFormChange("repositoryId", event.target.value)}
-                        >
-                            <option value="">Choose one repository</option>
-                            {availableRepos.map((repo) => (
-                                <option key={repo.id} value={repo.id}>
-                                    {repo.fullName}
-                                </option>
-                            ))}
-                        </select>
-                        <Textarea
-                            value={createProjectForm.description}
-                            onChange={(event) => onCreateProjectFormChange("description", event.target.value)}
-                            placeholder="What this project is responsible for."
-                            bg="var(--color-bg-muted)"
-                            borderColor="var(--color-border-strong)"
-                            borderRadius="lg"
-                            color="var(--color-text-primary)"
-                            minH="120px"
-                        />
-                        <Button
-                            type="submit"
-                            borderRadius="lg"
-                            bg="var(--color-accent)"
-                            color="var(--color-text-inverse)"
-                            alignSelf="flex-start"
-                            disabled={isCreatingProject || !createProjectForm.repositoryId}
-                            _hover={{ bg: "var(--color-accent-hover)" }}
-                        >
-                            {isCreatingProject ? "Adding..." : "Add project"}
-                        </Button>
-                    </Stack>
-                )}
+                        {isCreatingProject ? "Adding..." : "Add project"}
+                    </Button>
+                </Stack>
             </ModalFrame>
         </Stack>
     );
 }
-

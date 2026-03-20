@@ -124,6 +124,19 @@ def get_github_repositories(access_token: str) -> list[dict[str, Any]]:
     return payload if isinstance(payload, list) else []
 
 
+def get_github_repository_issues(
+    access_token: str,
+    repository_full_name: str,
+    *,
+    state: str = "open",
+) -> list[dict[str, Any]]:
+    payload = _request_json(
+        f"{GITHUB_API_BASE}/repos/{repository_full_name}/issues?per_page=100&state={state}&sort=updated",
+        token=access_token,
+    )
+    return payload if isinstance(payload, list) else []
+
+
 def get_github_issue(access_token: str, repository_full_name: str, issue_number: int) -> dict[str, Any]:
     return _request_json(
         f"{GITHUB_API_BASE}/repos/{repository_full_name}/issues/{issue_number}",
@@ -164,3 +177,4 @@ def create_repository_branch(
         },
     )
     return f"https://github.com/{repository_full_name}/tree/{branch_name}"
+

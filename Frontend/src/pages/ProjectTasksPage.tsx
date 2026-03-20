@@ -44,6 +44,9 @@ type ProjectTasksPageProps = {
     status: TaskStatus;
     priority: PriorityLevel;
     placement: BacklogPlacement;
+    bugReportId: number | null;
+    bugReportTitle: string;
+    markAsResolution: boolean;
   };
   hiddenProductBacklogTaskIds: number[];
   isCreateOpen: boolean;
@@ -57,6 +60,7 @@ type ProjectTasksPageProps = {
     field: "title" | "description" | "status" | "priority" | "placement",
     value: string
   ) => void;
+  onMarkTaskAsResolutionChange: (value: boolean) => void;
   onToggleCreateForm: () => void;
   onOpenCreateTask: (status: TaskStatus, placement?: BacklogPlacement) => void;
   onOpenTask: (taskId: number) => void;
@@ -206,6 +210,7 @@ export function ProjectTasksPage({
   onCleanupProductBacklogDoneTasks,
   onCreateTask,
   onCreateTaskFormChange,
+  onMarkTaskAsResolutionChange,
   onToggleCreateForm,
   onOpenCreateTask,
   onOpenTask,
@@ -580,6 +585,7 @@ export function ProjectTasksPage({
         onClose={onToggleCreateForm}
         onCreateTask={onCreateTask}
         onFormChange={onCreateTaskFormChange}
+        onMarkAsResolutionChange={onMarkTaskAsResolutionChange}
       />
     </Flex>
   );

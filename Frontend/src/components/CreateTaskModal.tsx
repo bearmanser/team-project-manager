@@ -17,12 +17,16 @@ type CreateTaskModalProps = {
         status: TaskStatus;
         priority: PriorityLevel;
         placement: BacklogPlacement;
+        bugReportId: number | null;
+        bugReportTitle: string;
+        markAsResolution: boolean;
     };
     isOpen: boolean;
     project: ProjectDetail;
     onClose: () => void;
     onCreateTask: () => void;
     onFormChange: (field: "title" | "description" | "status" | "priority" | "placement", value: string) => void;
+    onMarkAsResolutionChange: (value: boolean) => void;
 };
 
 export function CreateTaskModal({
@@ -32,11 +36,18 @@ export function CreateTaskModal({
     onClose,
     onCreateTask,
     onFormChange,
+    onMarkAsResolutionChange,
 }: CreateTaskModalProps) {
+    const isBugLinked = Boolean(form.bugReportId);
+
     return (
         <ModalFrame
-            title="Add task"
-            description="Capture the work, choose its first status and priority, then place it in the current sprint or product backlog."
+            title={isBugLinked ? "Create bug task" : "Add task"}
+            description={
+                isBugLinked
+                    ? "Start from the bug details below, then choose where the follow-up task should land."
+                    : "Capture the work, choose its first status and priority, then place it in the current sprint or product backlog."
+            }
             isOpen={isOpen}
             onClose={onClose}
         >
@@ -48,6 +59,24 @@ export function CreateTaskModal({
                     onCreateTask();
                 }}
             >
+                {isBugLinked ? (
+                    <Stack gap="2" p="3" borderRadius="lg" bg="var(--color-bg-muted)">
+                        <Text fontSize="sm" color="var(--color-text-muted)">
+                            Based on bug
+                        </Text>
+                        <Text color="var(--color-text-primary)" fontWeight="700">
+                            {form.bugReportTitle}
+                        </Text>
+                        <label style={{ display: "flex", gap: 12, alignItems: "center", cursor: "pointer" }}>
+                            <input
+                                type="checkbox"
+                                checked={form.markAsResolution}
+                                onChange={(event) => onMarkAsResolutionChange(event.target.checked)}
+                            />
+                            <Text color="var(--color-text-primary)">Mark this as the resolution task</Text>
+                        </label>
+                    </Stack>
+                ) : null}
                 <Input
                     value={form.title}
                     onChange={(event) => onFormChange("title", event.target.value)}
@@ -114,7 +143,7 @@ export function CreateTaskModal({
                     alignSelf="flex-start"
                     _hover={{ bg: "var(--color-accent-hover)" }}
                 >
-                    Add task
+                    {isBugLinked ? "Create task from bug" : "Add task"}
                 </Button>
             </Stack>
         </ModalFrame>

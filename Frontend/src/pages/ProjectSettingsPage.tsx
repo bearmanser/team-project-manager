@@ -1,30 +1,59 @@
-import { Box, Button, Heading, Input, Link, Stack, Text, Textarea } from "@chakra-ui/react";
+import { useEffect, useMemo, useState } from "react";
+
+import { Box, Button, Heading, Link, Stack, Text, Textarea, Input } from "@chakra-ui/react";
 
 import { SurfaceCard } from "../components/SurfaceCard";
-import type { ProjectDetail } from "../types";
+import type { ProjectDetail, Repo } from "../types";
+import { nativeSelectStyle } from "../utils";
 
 type ProjectSettingsPageProps = {
+    availableRepos: Repo[];
     busyLabel: string | null;
+    githubRepoError: string | null;
+    isGitHubConnected: boolean;
     project: ProjectDetail;
     projectSettingsForm: {
         name: string;
         description: string;
         useSprints: boolean;
     };
+    onAddRepository: (repositoryId: string) => void;
+    onConnectGitHub: () => void;
     onDeleteProject: () => void;
     onProjectSettingsChange: (field: "name" | "description" | "useSprints", value: string | boolean) => void;
+    onRemoveRepository: (repositoryId: number) => void;
     onSaveProjectSettings: () => void;
 };
 
 export function ProjectSettingsPage({
+    availableRepos,
     busyLabel,
+    githubRepoError,
+    isGitHubConnected,
     project,
     projectSettingsForm,
+    onAddRepository,
+    onConnectGitHub,
     onDeleteProject,
     onProjectSettingsChange,
+    onRemoveRepository,
     onSaveProjectSettings,
 }: ProjectSettingsPageProps) {
-    const primaryRepo = project.repositories[0] ?? null;
+    const [selectedRepositoryId, setSelectedRepositoryId] = useState("");
+
+    const connectedRepoIds = useMemo(
+        () => new Set(project.repositories.map((repository) => repository.githubRepoId)),
+        [project.repositories],
+    );
+    const connectableRepos = useMemo(
+        () => availableRepos.filter((repo) => !connectedRepoIds.has(String(repo.id))),
+        [availableRepos, connectedRepoIds],
+    );
+    const isManagingRepos = busyLabel === "Connecting repository" || busyLabel === "Disconnecting repository";
+
+    useEffect(() => {
+        setSelectedRepositoryId(connectableRepos[0] ? String(connectableRepos[0].id) : "");
+    }, [connectableRepos]);
 
     return (
         <Stack gap="6">
@@ -99,28 +128,110 @@ export function ProjectSettingsPage({
                     </Stack>
                 </SurfaceCard>
 
+                {githubRepoError ? (
+                    <SurfaceCard p="3" bg="var(--color-danger-bg)" borderColor="var(--color-danger-border)">
+                        <Text fontSize="sm" color="var(--color-danger-text)">{githubRepoError}</Text>
+                    </SurfaceCard>
+                ) : null}
+
                 <SurfaceCard p="5" bg="var(--color-bg-muted)">
-                    <Stack gap="3">
-                        <Heading size="md" color="var(--color-text-primary)">
-                            Connected repository
-                        </Heading>
-                        {primaryRepo ? (
-                            <>
-                                <Text color="var(--color-text-strong)">{primaryRepo.fullName}</Text>
-                                <Text color="var(--color-text-muted)">
-                                    Default branch: {primaryRepo.defaultBranch} - {primaryRepo.visibility}
-                                </Text>
-                                <Link href={primaryRepo.htmlUrl} color="var(--color-link)" target="_blank" rel="noreferrer">
-                                    Open GitHub repository
-                                </Link>
-                            </>
-                        ) : (
-                            <Text color="var(--color-text-muted)">No repository connected.</Text>
-                        )}
-                        {project.repositories.length > 1 ? (
-                            <Text color="var(--color-danger-text)">
-                                This project still has legacy multi-repo data. The interface now treats the first repo as the primary one.
+                    <Stack gap="4">
+                        <Stack gap="1">
+                            <Heading size="md" color="var(--color-text-primary)">
+                                Connected repositories
+                            </Heading>
+                            <Text color="var(--color-text-muted)">
+                                GitHub is optional for this project. Connect a repo when you want issue import or branch creation.
                             </Text>
+                        </Stack>
+
+                        {project.repositories.length ? (
+                            project.repositories.map((repository) => (
+                                <SurfaceCard key={repository.id} p="4" bg="var(--color-bg-card)">
+                                    <Stack gap="2">
+                                        <Text color="var(--color-text-primary)" fontWeight="700">{repository.fullName}</Text>
+                                        <Text color="var(--color-text-muted)">
+                                            Default branch: {repository.defaultBranch} - {repository.visibility}
+                                        </Text>
+                                        <Link href={repository.htmlUrl} color="var(--color-link)" target="_blank" rel="noreferrer">
+                                            Open GitHub repository
+                                        </Link>
+                                        {project.permissions.canManageRepos ? (
+                                            <Button
+                                                borderRadius="lg"
+                                                variant="outline"
+                                                borderColor="var(--color-border-strong)"
+                                                color="var(--color-text-primary)"
+                                                alignSelf="flex-start"
+                                                disabled={isManagingRepos}
+                                                _hover={{ bg: "var(--color-bg-hover)", borderColor: "var(--color-accent-border)" }}
+                                                onClick={() => onRemoveRepository(repository.id)}
+                                            >
+                                                Remove repository
+                                            </Button>
+                                        ) : null}
+                                    </Stack>
+                                </SurfaceCard>
+                            ))
+                        ) : (
+                            <Text color="var(--color-text-muted)">No repositories connected yet.</Text>
+                        )}
+
+                        {project.permissions.canManageRepos ? (
+                            <SurfaceCard p="4" bg="var(--color-bg-card)">
+                                <Stack gap="3">
+                                    <Heading size="sm" color="var(--color-text-primary)">
+                                        Connect another repository
+                                    </Heading>
+                                    {!isGitHubConnected ? (
+                                        <>
+                                            <Text color="var(--color-text-muted)">
+                                                Connect GitHub on your account to attach repositories to this project.
+                                            </Text>
+                                            <Button
+                                                borderRadius="lg"
+                                                variant="outline"
+                                                borderColor="var(--color-border-strong)"
+                                                color="var(--color-text-primary)"
+                                                alignSelf="flex-start"
+                                                _hover={{ bg: "var(--color-bg-hover)", borderColor: "var(--color-accent-border)" }}
+                                                onClick={onConnectGitHub}
+                                            >
+                                                Connect GitHub
+                                            </Button>
+                                        </>
+                                    ) : connectableRepos.length ? (
+                                        <>
+                                            <select
+                                                value={selectedRepositoryId}
+                                                style={nativeSelectStyle}
+                                                onChange={(event) => setSelectedRepositoryId(event.target.value)}
+                                            >
+                                                {connectableRepos.map((repo) => (
+                                                    <option key={repo.id} value={repo.id}>
+                                                        {repo.fullName}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <Button
+                                                borderRadius="lg"
+                                                bg="var(--color-accent)"
+                                                color="var(--color-text-inverse)"
+                                                alignSelf="flex-start"
+                                                disabled={isManagingRepos || !selectedRepositoryId}
+                                                _hover={{ bg: "var(--color-accent-hover)" }}
+                                                onClick={() => onAddRepository(selectedRepositoryId)}
+                                            >
+                                                {busyLabel === "Connecting repository" ? busyLabel : "Connect repository"}
+                                            </Button>
+                                        </>
+                                    ) : (
+                                        <Text color="var(--color-text-muted)">
+                                            All repositories available to your GitHub account are already connected.
+                                        </Text>
+                                    )}
+                                </Stack>
+                            </SurfaceCard>
                         ) : null}
                     </Stack>
                 </SurfaceCard>
@@ -150,4 +261,3 @@ export function ProjectSettingsPage({
         </Stack>
     );
 }
-

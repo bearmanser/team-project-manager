@@ -1,11 +1,11 @@
-import { Box, Button, Flex, Heading, Input, Stack, Text, Textarea } from "@chakra-ui/react";
+import { Box, Button, Flex, Heading, Input, Link, Stack, Text, Textarea } from "@chakra-ui/react";
 
 import { ActionIcon } from "../components/ActionIcon";
 import { ModalFrame } from "../components/ModalFrame";
 import { PlusIcon } from "../components/icons";
 import { StatusPill } from "../components/StatusPill";
 import { SurfaceCard } from "../components/SurfaceCard";
-import type { BugStatus, PriorityLevel, ProjectDetail } from "../types";
+import type { BugStatus, GitHubIssueCandidate, PriorityLevel, ProjectDetail } from "../types";
 import {
     formatShortDate,
     getBugStatusOptionStyle,
@@ -25,24 +25,38 @@ type ProjectBugsPageProps = {
         status: BugStatus;
         priority: PriorityLevel;
     };
+    githubIssues: GitHubIssueCandidate[];
     isCreateOpen: boolean;
+    isImportOpen: boolean;
+    isImportLoading: boolean;
     project: ProjectDetail;
+    onCloseImport: () => void;
     onCreateBug: () => void;
     onCreateBugFormChange: (field: "title" | "description" | "status" | "priority", value: string) => void;
-    onToggleCreateForm: () => void;
+    onCreateTaskFromBug: (bugId: number) => void;
+    onImportIssue: (issue: GitHubIssueCandidate) => void;
     onOpenBug: (bugId: number) => void;
+    onOpenImport: () => void;
+    onToggleCreateForm: () => void;
     onUpdateBugPriority: (bugId: number, priority: PriorityLevel) => void;
     onUpdateBugStatus: (bugId: number, status: BugStatus) => void;
 };
 
 export function ProjectBugsPage({
     createBugForm,
+    githubIssues,
     isCreateOpen,
+    isImportOpen,
+    isImportLoading,
     project,
+    onCloseImport,
     onCreateBug,
     onCreateBugFormChange,
-    onToggleCreateForm,
+    onCreateTaskFromBug,
+    onImportIssue,
     onOpenBug,
+    onOpenImport,
+    onToggleCreateForm,
     onUpdateBugPriority,
     onUpdateBugStatus,
 }: ProjectBugsPageProps) {
@@ -59,29 +73,47 @@ export function ProjectBugsPage({
                         {project.name}
                     </Heading>
                 </Stack>
-                <Button
-                    minW="11"
-                    h="11"
-                    borderRadius="lg"
-                    bg="var(--color-accent)"
-                    color="var(--color-text-inverse)"
-                    _hover={{ bg: "var(--color-accent-hover)" }}
-                    onClick={onToggleCreateForm}
-                >
-                    <ActionIcon>
-                        <PlusIcon />
-                    </ActionIcon>
-                </Button>
+                <Flex gap="3" wrap="wrap">
+                    <Button
+                        borderRadius="lg"
+                        variant="outline"
+                        borderColor="var(--color-border-strong)"
+                        color="var(--color-text-primary)"
+                        disabled={!project.permissions.canCreateBugReports || !project.repositories.length}
+                        _hover={{ bg: "var(--color-bg-hover)", borderColor: "var(--color-accent-border)" }}
+                        onClick={onOpenImport}
+                    >
+                        Import issues
+                    </Button>
+                    <Button
+                        minW="11"
+                        h="11"
+                        borderRadius="lg"
+                        bg="var(--color-accent)"
+                        color="var(--color-text-inverse)"
+                        _hover={{ bg: "var(--color-accent-hover)" }}
+                        onClick={onToggleCreateForm}
+                    >
+                        <ActionIcon>
+                            <PlusIcon />
+                        </ActionIcon>
+                    </Button>
+                </Flex>
             </Flex>
 
             <SurfaceCard p="0" overflow="hidden">
                 {bugReports.length ? (
                     bugReports.map((bug) => {
-                        const meta = [
+                        const linkedIssue = bug.linkedGitHubIssues[0] ?? null;
+                        const metaParts = [
                             bug.description || "No description",
                             `Reporter ${bug.reporter.username}`,
                             `Updated ${formatShortDate(bug.updatedAt)}`,
-                        ].join(" - ");
+                        ];
+                        if (linkedIssue) {
+                            metaParts.push(`GitHub ${linkedIssue.repositoryFullName}#${linkedIssue.issueNumber}`);
+                        }
+                        const meta = metaParts.join(" - ");
 
                         return (
                             <Flex
@@ -112,6 +144,23 @@ export function ProjectBugsPage({
                                 </Stack>
                                 <Flex gap="2" wrap="wrap" align="center">
                                     {bug.resolutionTaskTitle ? <StatusPill label={bug.resolutionTaskTitle} /> : null}
+                                    {linkedIssue ? <StatusPill label={`Issue #${linkedIssue.issueNumber}`} /> : null}
+                                    {project.permissions.canCreateTasks ? (
+                                        <Button
+                                            size="sm"
+                                            borderRadius="lg"
+                                            variant="outline"
+                                            borderColor="var(--color-border-strong)"
+                                            color="var(--color-text-primary)"
+                                            _hover={{ bg: "var(--color-bg-hover)", borderColor: "var(--color-accent-border)" }}
+                                            onClick={(event) => {
+                                                event.stopPropagation();
+                                                onCreateTaskFromBug(bug.id);
+                                            }}
+                                        >
+                                            Create task
+                                        </Button>
+                                    ) : null}
                                 </Flex>
                                 <Flex gap="2" wrap="wrap" align="center">
                                     <Box as="span">
@@ -153,6 +202,67 @@ export function ProjectBugsPage({
                     </Stack>
                 )}
             </SurfaceCard>
+
+            <ModalFrame
+                title="Import GitHub issues"
+                description="Pull issues from connected repositories into the project as bug reports."
+                isOpen={isImportOpen}
+                onClose={onCloseImport}
+            >
+                {!project.repositories.length ? (
+                    <Text color="var(--color-text-muted)">
+                        Connect a repository to this project first, then you can import issues as bugs.
+                    </Text>
+                ) : isImportLoading ? (
+                    <Text color="var(--color-text-muted)">Loading GitHub issues...</Text>
+                ) : githubIssues.length ? (
+                    <Stack gap="3" maxH="420px" overflowY="auto" pr="1">
+                        {githubIssues.map((issue) => (
+                            <SurfaceCard key={`${issue.repositoryFullName}-${issue.issueNumber}`} p="4" bg="var(--color-bg-muted)">
+                                <Stack gap="2">
+                                    <Flex justify="space-between" gap="3" wrap="wrap">
+                                        <Stack gap="1" minW="0" flex="1">
+                                            <Text color="var(--color-text-primary)" fontWeight="700">
+                                                {issue.title}
+                                            </Text>
+                                            <Text color="var(--color-text-muted)" fontSize="sm">
+                                                {issue.repositoryFullName}#{issue.issueNumber} - opened by {issue.authorLogin || "unknown"} - updated {formatShortDate(issue.updatedAt)}
+                                            </Text>
+                                        </Stack>
+                                        <Button
+                                            borderRadius="lg"
+                                            bg="var(--color-accent)"
+                                            color="var(--color-text-inverse)"
+                                            alignSelf="flex-start"
+                                            _hover={{ bg: "var(--color-accent-hover)" }}
+                                            onClick={() => onImportIssue(issue)}
+                                        >
+                                            Import bug
+                                        </Button>
+                                    </Flex>
+                                    {issue.labels.length ? (
+                                        <Text color="var(--color-text-subtle)" fontSize="sm">
+                                            Labels: {issue.labels.join(", ")}
+                                        </Text>
+                                    ) : null}
+                                    {issue.bodyPreview ? (
+                                        <Text color="var(--color-text-muted)" fontSize="sm">
+                                            {issue.bodyPreview}
+                                        </Text>
+                                    ) : null}
+                                    <Link href={issue.htmlUrl} color="var(--color-link)" target="_blank" rel="noreferrer">
+                                        Open issue on GitHub
+                                    </Link>
+                                </Stack>
+                            </SurfaceCard>
+                        ))}
+                    </Stack>
+                ) : (
+                    <Text color="var(--color-text-muted)">
+                        No open GitHub issues are ready to import from the connected repositories.
+                    </Text>
+                )}
+            </ModalFrame>
 
             <ModalFrame
                 title="Add bug report"
@@ -224,4 +334,3 @@ export function ProjectBugsPage({
         </Stack>
     );
 }
-

@@ -17,6 +17,7 @@ from accounts.github import (
     create_repository_branch,
     get_github_issue,
     get_github_repositories,
+    get_github_repository_issues,
 )
 from accounts.models import UserProfile
 
@@ -203,6 +204,50 @@ def _serialize_available_repo(repo: dict) -> dict:
         "updatedAt": repo.get("updated_at") or "",
         "owner": owner.get("login", ""),
         "defaultBranch": repo.get("default_branch") or "main",
+    }
+
+
+def _get_project_github_access_token(project: Project, user=None) -> str:
+    if user is not None:
+        access_token = _get_github_access_token(user)
+        if access_token:
+            return access_token
+
+    return _get_github_access_token(project.owner)
+
+
+def _create_project_repository(project: Project, repo: dict) -> ProjectRepository:
+    owner = repo.get("owner") or {}
+    return ProjectRepository.objects.create(
+        project=project,
+        github_repo_id=str(repo.get("id")),
+        name=repo.get("name") or "",
+        full_name=repo.get("full_name") or "",
+        html_url=repo.get("html_url") or "",
+        default_branch=repo.get("default_branch") or "main",
+        visibility="private" if repo.get("private") else "public",
+        owner_login=owner.get("login", ""),
+    )
+
+
+def _serialize_github_issue_candidate(repository: ProjectRepository, issue: dict) -> dict:
+    body = (issue.get("body") or "").strip()
+    preview = re.sub(r"\s+", " ", body)
+    if len(preview) > 180:
+        preview = preview[:177].rstrip() + "..."
+
+    author = issue.get("user") or {}
+    return {
+        "repositoryId": repository.id,
+        "repositoryFullName": repository.full_name,
+        "issueNumber": issue.get("number"),
+        "title": issue.get("title") or "",
+        "htmlUrl": issue.get("html_url") or "",
+        "state": issue.get("state") or "open",
+        "authorLogin": author.get("login", ""),
+        "labels": [label.get("name") or "" for label in issue.get("labels") or [] if label.get("name")],
+        "bodyPreview": preview,
+        "updatedAt": issue.get("updated_at") or issue.get("created_at") or "",
     }
 
 
@@ -990,26 +1035,25 @@ def projects_view(request):
 
     if not name:
         return _json_error("Project name is required.")
-    if not repository_ids:
-        return _json_error("Choose at least one GitHub repository to create a project.")
 
-    access_token = _get_github_access_token(request.user)
-    if not access_token:
-        return _json_error("Connect your GitHub account before creating a project.")
-
-    try:
-        available_repos = get_github_repositories(access_token)
-    except GitHubAPIError as exc:
-        return _json_error(str(exc), exc.status_code)
-
-    available_repo_map = {str(repo.get("id")): repo for repo in available_repos}
     selected_repos = []
-    for repository_id in repository_ids:
-        repo = available_repo_map.get(repository_id)
-        if repo is None:
-            return _json_error("One or more selected repositories are no longer available.")
-        if repo not in selected_repos:
-            selected_repos.append(repo)
+    if repository_ids:
+        access_token = _get_github_access_token(request.user)
+        if not access_token:
+            return _json_error("Connect your GitHub account before selecting a GitHub repository.")
+
+        try:
+            available_repos = get_github_repositories(access_token)
+        except GitHubAPIError as exc:
+            return _json_error(str(exc), exc.status_code)
+
+        available_repo_map = {str(repo.get("id")): repo for repo in available_repos}
+        for repository_id in repository_ids:
+            repo = available_repo_map.get(repository_id)
+            if repo is None:
+                return _json_error("One or more selected repositories are no longer available.")
+            if repo not in selected_repos:
+                selected_repos.append(repo)
 
     project = Project.objects.create(
         name=name,
@@ -1024,23 +1068,18 @@ def projects_view(request):
         added_by=request.user,
     )
     for repo in selected_repos:
-        owner = repo.get("owner") or {}
-        ProjectRepository.objects.create(
-            project=project,
-            github_repo_id=str(repo.get("id")),
-            name=repo.get("name") or "",
-            full_name=repo.get("full_name") or "",
-            html_url=repo.get("html_url") or "",
-            default_branch=repo.get("default_branch") or "main",
-            visibility="private" if repo.get("private") else "public",
-            owner_login=owner.get("login", ""),
-        )
+        _create_project_repository(project, repo)
 
+    repo_description = (
+        f" and connected {len(selected_repos)} GitHub repos."
+        if selected_repos
+        else " without a connected GitHub repo."
+    )
     _record_activity(
         project,
         request.user,
         "project.created",
-        f"Created project \"{project.name}\" inside \"{organization.name}\" and connected {len(selected_repos)} GitHub repos.",
+        f"Created project \"{project.name}\" inside \"{organization.name}\"{repo_description}",
     )
     return JsonResponse({"project": _build_project_snapshot(project, request.user, membership)}, status=201)
 
@@ -1084,6 +1123,55 @@ def project_events_view(request, project_id: int):
     response["Cache-Control"] = "no-cache"
     response["X-Accel-Buffering"] = "no"
     return response
+
+
+@require_GET
+@jwt_required
+def project_github_issues_view(request, project_id: int):
+    project, membership, error = _load_project(project_id, request.user)
+    if error:
+        return error
+    if not _role_at_least(membership, ProjectMembership.ROLE_MEMBER):
+        return _json_error("Only project members can import GitHub issues as bugs.", 403)
+
+    repositories = list(ProjectRepository.objects.filter(project=project).order_by("full_name", "id"))
+    if not repositories:
+        return JsonResponse({"issues": []})
+
+    access_token = _get_project_github_access_token(project, request.user)
+    if not access_token:
+        return _json_error("Connect GitHub before importing issues.")
+
+    imported_issue_keys = set(
+        GitHubIssueLink.objects.filter(project=project, bug_report__isnull=False).values_list(
+            "repository_full_name", "issue_number"
+        )
+    )
+    seen_issue_keys = set()
+    issues = []
+    for repository in repositories:
+        try:
+            repository_issues = get_github_repository_issues(access_token, repository.full_name)
+        except GitHubAPIError as exc:
+            return _json_error(str(exc), exc.status_code)
+
+        for issue in repository_issues:
+            if issue.get("pull_request"):
+                continue
+
+            issue_number = issue.get("number")
+            if not isinstance(issue_number, int):
+                continue
+
+            issue_key = (repository.full_name, issue_number)
+            if issue_key in imported_issue_keys or issue_key in seen_issue_keys:
+                continue
+
+            seen_issue_keys.add(issue_key)
+            issues.append(_serialize_github_issue_candidate(repository, issue))
+
+    issues.sort(key=lambda item: item["updatedAt"], reverse=True)
+    return JsonResponse({"issues": issues})
 
 
 @csrf_exempt
@@ -1328,17 +1416,7 @@ def project_repo_add_view(request, project_id: int):
         repo = available_repo_map.get(repository_id)
         if repo is None:
             return _json_error("One or more selected repositories are no longer available.")
-        owner = repo.get("owner") or {}
-        ProjectRepository.objects.create(
-            project=project,
-            github_repo_id=str(repo.get("id")),
-            name=repo.get("name") or "",
-            full_name=repo.get("full_name") or "",
-            html_url=repo.get("html_url") or "",
-            default_branch=repo.get("default_branch") or "main",
-            visibility="private" if repo.get("private") else "public",
-            owner_login=owner.get("login", ""),
-        )
+        _create_project_repository(project, repo)
         added_count += 1
 
     if added_count == 0:
@@ -1366,8 +1444,6 @@ def project_repo_remove_view(request, project_id: int, repository_id: int):
     repository = ProjectRepository.objects.filter(project=project, id=repository_id).first()
     if repository is None:
         return _json_error("Repository not found.", 404)
-    if project.repositories.count() <= 1:
-        return _json_error("Projects must stay connected to at least one GitHub repository.")
 
     full_name = repository.full_name
     repository.delete()
@@ -1610,6 +1686,98 @@ def project_tasks_view(request, project_id: int):
         context_label=f'task "{task.title}"',
     )
     _close_bug_from_resolution_task(task, request.user)
+    return JsonResponse({"project": _build_project_snapshot(project, request.user, membership)}, status=201)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@jwt_required
+def project_bug_import_view(request, project_id: int):
+    project, membership, error = _load_project(project_id, request.user)
+    if error:
+        return error
+    if not _role_at_least(membership, ProjectMembership.ROLE_MEMBER):
+        return _json_error("Only project members can import GitHub issues as bugs.", 403)
+    if not ProjectRepository.objects.filter(project=project).exists():
+        return _json_error("Connect a GitHub repository before importing issues.")
+
+    try:
+        payload = _parse_json_body(request)
+        repository_full_name, issue_number, issue_url, fallback_title, fallback_state = _parse_issue_reference(payload)
+        _ensure_issue_repo_allowed(project, repository_full_name)
+    except ValueError as exc:
+        return _json_error(str(exc))
+
+    existing_link = (
+        GitHubIssueLink.objects.filter(
+            project=project,
+            bug_report__isnull=False,
+            repository_full_name=repository_full_name,
+            issue_number=issue_number,
+        )
+        .select_related("bug_report")
+        .first()
+    )
+    if existing_link is not None:
+        return _json_error(
+            f"That GitHub issue is already imported as bug \"{existing_link.bug_report.title}\".",
+            409,
+        )
+
+    access_token = _get_project_github_access_token(project, request.user)
+    if not access_token:
+        return _json_error("Connect GitHub before importing issues.")
+
+    try:
+        issue = get_github_issue(access_token, repository_full_name, issue_number)
+    except GitHubAPIError as exc:
+        return _json_error(str(exc), exc.status_code)
+
+    if issue.get("pull_request"):
+        return _json_error("Pull requests cannot be imported as bug reports.")
+
+    status = (payload.get("status") or BugReport.STATUS_OPEN).strip() or BugReport.STATUS_OPEN
+    priority = (payload.get("priority") or BugReport.PRIORITY_MEDIUM).strip() or BugReport.PRIORITY_MEDIUM
+    if status not in dict(BugReport.STATUS_CHOICES):
+        return _json_error("Choose a valid bug report status.")
+    if priority not in dict(BugReport.PRIORITY_CHOICES):
+        return _json_error("Choose a valid bug report priority.")
+
+    title = (issue.get("title") or fallback_title or f"Issue #{issue_number}").strip()
+    description = (payload.get("description") or "").strip() or (issue.get("body") or "").strip()
+    issue_url = issue.get("html_url") or issue_url
+    issue_state = (issue.get("state") or fallback_state or "open").strip() or "open"
+
+    bug_report = BugReport.objects.create(
+        project=project,
+        title=title,
+        description=description,
+        reporter=request.user,
+        status=status,
+        priority=priority,
+    )
+    GitHubIssueLink.objects.create(
+        project=project,
+        bug_report=bug_report,
+        repository_full_name=repository_full_name,
+        issue_number=issue_number,
+        title=title,
+        html_url=issue_url,
+        state=issue_state,
+        created_by=request.user,
+    )
+    _record_activity(
+        project,
+        request.user,
+        "bug.imported_from_github",
+        f"Imported GitHub issue {repository_full_name}#{issue_number} as bug \"{bug_report.title}\".",
+        bug_report=bug_report,
+        metadata={
+            "repositoryFullName": repository_full_name,
+            "issueNumber": issue_number,
+            "issueUrl": issue_url,
+        },
+    )
     return JsonResponse({"project": _build_project_snapshot(project, request.user, membership)}, status=201)
 
 
