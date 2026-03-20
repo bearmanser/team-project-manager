@@ -362,7 +362,17 @@ export function ProjectTasksPage({
         </Button>
       </Flex>
 
-      <Grid templateColumns="1fr" gap="4" flex="1" minH="0">
+      <Grid
+        templateColumns="1fr"
+        templateRows={
+          project.useSprints
+            ? "repeat(2, minmax(0, 1fr))"
+            : "minmax(0, 1fr)"
+        }
+        gap="4"
+        flex="1"
+        minH="0"
+      >
         {sections.map((section) => {
           const isDropTarget =
             hoveredSection === section.placement && project.useSprints;
@@ -376,6 +386,7 @@ export function ProjectTasksPage({
               overflow="hidden"
               display="flex"
               flexDirection="column"
+              h="full"
               minH="0"
               borderColor={
                 isDropTarget
@@ -544,7 +555,7 @@ export function ProjectTasksPage({
                   Add task
                 </Button>
               </Flex>
-              <Stack gap="0" flex="1" minH="0" overflowY="auto">
+              <Stack gap="0" flex="1" minH="0" overflowY="auto" pe="1">
                 {section.tasks.length ? (
                   section.tasks.map((task) => (
                     <TaskRow

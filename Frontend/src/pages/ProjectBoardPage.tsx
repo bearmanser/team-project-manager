@@ -299,7 +299,7 @@ export function ProjectBoardPage({
                     ) : null}
                 </Flex>
 
-                <SurfaceCard p="0" overflow="hidden" flex="1" minH="0">
+                <SurfaceCard p="0" overflow="hidden" flex="1" minH="0" display="flex" flexDirection="column">
                     <Grid
                         templateColumns={{
                             base: "1fr",
@@ -320,8 +320,11 @@ export function ProjectBoardPage({
                                     key={column.id}
                                     p="4"
                                     bg={isHovered ? "var(--color-bg-hover-strong)" : "var(--color-bg-muted)"}
-                                    h="full"
+                                    h={{ base: "24rem", xl: "full" }}
                                     minH="0"
+                                    display="flex"
+                                    flexDirection="column"
+                                    overflow="hidden"
                                     borderRightWidth={{
                                         base: "0",
                                         xl: columnIndex === project.boardColumns.length - 1 ? "0" : "1px",
@@ -350,7 +353,7 @@ export function ProjectBoardPage({
                                         setHoveredColumn(null);
                                     }}
                                 >
-                                    <Stack gap="4" h="full" minH="0">
+                                    <Stack gap="4" h="full" minH="0" flex="1" overflow="hidden">
                                         <Stack gap="1" flexShrink={0}>
                                             <Heading size="sm" color="var(--color-text-primary)">
                                                 {column.label}
@@ -360,7 +363,7 @@ export function ProjectBoardPage({
                                             </Text>
                                         </Stack>
 
-                                        <Stack gap="3" flex="1" minH="0" overflowY="auto">
+                                        <Stack gap="3" flex="1" minH="0" overflowY="auto" pe="1">
                                             {tasks.map((task) => (
                                                 <SurfaceCard
                                                     key={task.id}
@@ -382,14 +385,28 @@ export function ProjectBoardPage({
                                                     }}
                                                 >
                                                     <Stack gap="3">
-                                                        <Box position="relative" pt="6">
-                                                            <Box position="absolute" top="0" left="50%" transform="translateX(-50%)">
-                                                                <PriorityPill priority={task.priority} compact />
-                                                            </Box>
-                                                            <Flex justify="space-between" align="flex-start" gap="3">
+                                                        <Flex justify="space-between" align="flex-start" gap="3">
+                                                            <Stack gap="2" flex="1" minW="0">
+                                                                <Flex
+                                                                    align="center"
+                                                                    gap="1.5"
+                                                                    wrap="wrap"
+                                                                    color="var(--color-text-muted)"
+                                                                    fontSize="10px"
+                                                                    fontWeight="700"
+                                                                    letterSpacing="0.08em"
+                                                                    textTransform="uppercase"
+                                                                >
+                                                                    <Text as="span" color="inherit" fontSize="inherit">
+                                                                        Priority:
+                                                                    </Text>
+                                                                    <PriorityPill priority={task.priority} compact />
+                                                                </Flex>
                                                                 <Heading size="sm" color="var(--color-text-primary)" fontSize="md" flex="1">
                                                                     {task.title}
                                                                 </Heading>
+                                                            </Stack>
+                                                            <Box flexShrink={0}>
                                                                 <DropdownMenu
                                                                     width="230px"
                                                                     items={[
@@ -452,8 +469,9 @@ export function ProjectBoardPage({
                                                                         </Button>
                                                                     )}
                                                                 />
-                                                            </Flex>
-                                                        </Box>
+                                                            </Box>
+                                                        </Flex>
+
                                                         <Text color="var(--color-text-muted)" fontSize="sm" lineClamp="2">
                                                             {task.description || "No description yet."}
                                                         </Text>
@@ -477,6 +495,7 @@ export function ProjectBoardPage({
                                             color="var(--color-text-primary)"
                                             borderRadius="10px"
                                             _hover={{ bg: "var(--color-bg-hover)", borderColor: "var(--color-accent-border)" }}
+                                            flexShrink={0}
                                             onClick={() => onOpenCreateTask(column.id, project.useSprints ? "sprint" : "product")}
                                         >
                                             <ActionIcon>
