@@ -13,7 +13,6 @@ from django.views.decorators.http import require_GET, require_http_methods
 from accounts.auth import jwt_required
 from accounts.github import (
     GitHubAPIError,
-    close_github_issue,
     create_repository_branch,
     get_github_issue,
     get_github_repositories,
@@ -489,87 +488,41 @@ def _refresh_issue_details(
     )
 
 
-def _close_linked_github_issues(project: Project, task: Task, bug_report: BugReport, actor) -> None:
-    access_token = _get_github_access_token(project.owner)
-    if not access_token:
-        return
-
-    links = {}
-    for link in GitHubIssueLink.objects.filter(project=project).filter(
-        task=task
-    ) | GitHubIssueLink.objects.filter(project=project, bug_report=bug_report):
-        links[(link.repository_full_name, link.issue_number)] = link
-
-    if not links:
-        return
-
-    closed_labels: list[str] = []
-    failed_labels: list[str] = []
-    for link in links.values():
-        try:
-            close_github_issue(access_token, link.repository_full_name, link.issue_number)
-            if link.state != "closed":
-                link.state = "closed"
-                link.save(update_fields=["state"])
-            closed_labels.append(f"{link.repository_full_name}#{link.issue_number}")
-        except GitHubAPIError:
-            failed_labels.append(f"{link.repository_full_name}#{link.issue_number}")
-
-    if closed_labels:
-        _record_activity(
-            project,
-            actor,
-            "github.issue.closed",
-            f"Automatically closed linked GitHub issues: {', '.join(closed_labels)}.",
-            task=task,
-            bug_report=bug_report,
-        )
-
-    if failed_labels:
-        _record_activity(
-            project,
-            actor,
-            "github.issue.close_failed",
-            f"Could not close linked GitHub issues automatically: {', '.join(failed_labels)}.",
-            task=task,
-            bug_report=bug_report,
-        )
-
-
-def _close_bug_from_resolution_task(task: Task, actor) -> None:
-    bug_report = task.bug_report
-    if bug_report is None:
-        return
-    if bug_report.resolution_task_id != task.id:
-        return
+def _close_bugs_from_resolution_task(task: Task, actor) -> None:
     if task.status != Task.STATUS_DONE:
         return
-    if bug_report.status == BugReport.STATUS_CLOSED:
-        return
 
-    bug_report.status = BugReport.STATUS_CLOSED
-    bug_report.closed_at = timezone.now()
-    bug_report.save(update_fields=["status", "closed_at", "updated_at"])
-    _record_activity(
-        task.project,
-        actor,
-        "bug.auto_closed",
-        f"Closed bug \"{bug_report.title}\" because its resolution task reached Done.",
-        task=task,
-        bug_report=bug_report,
+    closed_at = timezone.now()
+    bug_reports = list(
+        BugReport.objects.filter(project=task.project, resolution_task=task)
+        .select_related("reporter")
     )
-    _close_linked_github_issues(task.project, task, bug_report, actor)
+    for bug_report in bug_reports:
+        if bug_report.status == BugReport.STATUS_CLOSED:
+            continue
 
-    if bug_report.reporter_id != actor.id:
-        Notification.objects.create(
-            recipient=bug_report.reporter,
-            actor=actor,
-            project=task.project,
+        bug_report.status = BugReport.STATUS_CLOSED
+        bug_report.closed_at = closed_at
+        bug_report.save(update_fields=["status", "closed_at", "updated_at"])
+        _record_activity(
+            task.project,
+            actor,
+            "bug.auto_closed",
+            f"Closed bug \"{bug_report.title}\" because its resolution task reached Done.",
             task=task,
             bug_report=bug_report,
-            kind=Notification.KIND_SYSTEM,
-            message=f"Bug \"{bug_report.title}\" was closed when its resolution task was completed.",
         )
+
+        if bug_report.reporter_id != actor.id:
+            Notification.objects.create(
+                recipient=bug_report.reporter,
+                actor=actor,
+                project=task.project,
+                task=task,
+                bug_report=bug_report,
+                kind=Notification.KIND_SYSTEM,
+                message=f"Bug \"{bug_report.title}\" was closed when its resolution task was completed.",
+            )
 
 
 def _can_edit_bug(membership: ProjectMembership, bug_report: BugReport, user) -> bool:
@@ -678,6 +631,15 @@ def _serialize_task_summary(task: Task, bug_report: BugReport | None = None) -> 
     }
 
 
+def _serialize_resolved_bug_summary(bug_report: BugReport) -> dict:
+    return {
+        "id": bug_report.id,
+        "title": bug_report.title,
+        "status": bug_report.status,
+        "priority": bug_report.priority,
+    }
+
+
 def _serialize_task(
     task: Task,
     *,
@@ -687,6 +649,7 @@ def _serialize_task(
     task_activities: list[Activity],
     direct_issue_links: list[GitHubIssueLink],
     inherited_issue_links: list[GitHubIssueLink],
+    resolved_bugs: list[BugReport],
 ) -> dict:
     bug_report = task.bug_report
     return {
@@ -705,6 +668,7 @@ def _serialize_task(
         "branchName": task.branch_name,
         "branchUrl": task.branch_url,
         "branchRepositoryId": task.branch_repository_id,
+        "resolvedBugs": [_serialize_resolved_bug_summary(bug_report) for bug_report in resolved_bugs],
         "directGitHubIssues": [_serialize_issue_link(link) for link in direct_issue_links],
         "inheritedGitHubIssues": [_serialize_issue_link(link) for link in inherited_issue_links],
         "comments": [
@@ -857,9 +821,13 @@ def _build_project_snapshot(
             links_by_bug[link.bug_report_id].append(link)
 
     bug_tasks: dict[int, list[Task]] = defaultdict(list)
+    resolved_bugs_by_task: dict[int, list[BugReport]] = defaultdict(list)
     for task in tasks:
         if task.bug_report_id:
             bug_tasks[task.bug_report_id].append(task)
+    for bug_report in bug_reports:
+        if bug_report.resolution_task_id:
+            resolved_bugs_by_task[bug_report.resolution_task_id].append(bug_report)
 
     serialized_tasks = [
         _serialize_task(
@@ -870,6 +838,7 @@ def _build_project_snapshot(
             task_activities=task_activities_by_task[task.id],
             direct_issue_links=direct_links_by_task[task.id],
             inherited_issue_links=links_by_bug[task.bug_report_id] if task.bug_report_id else [],
+            resolved_bugs=resolved_bugs_by_task[task.id],
         )
         for task in tasks
     ]
@@ -1291,7 +1260,7 @@ def project_sprint_end_view(request, project_id: int):
         for task in unfinished_tasks:
             task.status = Task.STATUS_DONE
             task.save(update_fields=["status", "updated_at"])
-            _close_bug_from_resolution_task(task, request.user)
+            _close_bugs_from_resolution_task(task, request.user)
         auto_completed_tasks = unfinished_tasks
     elif unfinished_action == "product":
         for task in unfinished_tasks:
@@ -1685,7 +1654,7 @@ def project_tasks_view(request, project_id: int):
         bug_report=bug_report,
         context_label=f'task "{task.title}"',
     )
-    _close_bug_from_resolution_task(task, request.user)
+    _close_bugs_from_resolution_task(task, request.user)
     return JsonResponse({"project": _build_project_snapshot(project, request.user, membership)}, status=201)
 
 
@@ -1967,7 +1936,66 @@ def task_update_view(request, task_id: int):
             )
             _notify_new_assignees(task, request.user, added_users)
 
-    _close_bug_from_resolution_task(task, request.user)
+    if "resolvedBugIds" in payload:
+        requested_bug_ids = []
+        for value in payload.get("resolvedBugIds") or []:
+            try:
+                requested_bug_ids.append(int(value))
+            except (TypeError, ValueError):
+                continue
+        requested_bug_ids = list(dict.fromkeys(requested_bug_ids))
+        requested_bugs = list(
+            BugReport.objects.filter(project=project, id__in=requested_bug_ids)
+            .select_related("reporter", "resolution_task")
+        )
+        found_bug_ids = {bug_report.id for bug_report in requested_bugs}
+        if len(found_bug_ids) != len(requested_bug_ids):
+            return _json_error("Choose valid bugs for this task to resolve.")
+
+        current_bug_ids = set(
+            BugReport.objects.filter(project=project, resolution_task=task).values_list("id", flat=True)
+        )
+        next_bug_ids = {bug_report.id for bug_report in requested_bugs}
+        removed_bug_ids = current_bug_ids - next_bug_ids
+
+        for bug_report in requested_bugs:
+            if bug_report.resolution_task_id == task.id:
+                continue
+
+            previous_task_title = bug_report.resolution_task.title if bug_report.resolution_task else None
+            bug_report.resolution_task = task
+            bug_report.save(update_fields=["resolution_task", "updated_at"])
+            _record_activity(
+                project,
+                request.user,
+                "bug.resolution_task_set",
+                (
+                    f"Changed bug \"{bug_report.title}\" resolution task from \"{previous_task_title}\" to \"{task.title}\"."
+                    if previous_task_title
+                    else f"Set task \"{task.title}\" as the resolution task for bug \"{bug_report.title}\"."
+                ),
+                task=task,
+                bug_report=bug_report,
+            )
+
+        if removed_bug_ids:
+            removed_bugs = list(
+                BugReport.objects.filter(project=project, id__in=removed_bug_ids, resolution_task=task)
+                .select_related("reporter")
+            )
+            for bug_report in removed_bugs:
+                bug_report.resolution_task = None
+                bug_report.save(update_fields=["resolution_task", "updated_at"])
+                _record_activity(
+                    project,
+                    request.user,
+                    "bug.resolution_task_cleared",
+                    f"Removed task \"{task.title}\" as the resolution task for bug \"{bug_report.title}\".",
+                    task=task,
+                    bug_report=bug_report,
+                )
+
+    _close_bugs_from_resolution_task(task, request.user)
     return JsonResponse({"project": _build_project_snapshot(project, request.user, membership)})
 
 
@@ -2449,7 +2477,7 @@ def bug_resolution_view(request, bug_id: int):
         task=task,
         bug_report=bug_report,
     )
-    _close_bug_from_resolution_task(task, request.user)
+    _close_bugs_from_resolution_task(task, request.user)
     return JsonResponse({"project": _build_project_snapshot(project, request.user, membership)})
 
 

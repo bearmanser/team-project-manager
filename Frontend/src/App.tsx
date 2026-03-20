@@ -1,4 +1,4 @@
-﻿import { startTransition, useEffect, useMemo, useState } from "react";
+import { startTransition, useEffect, useMemo, useState } from "react";
 
 import { Box, Button, Heading, Stack, Text } from "@chakra-ui/react";
 
@@ -1227,7 +1227,13 @@ function App() {
 
     async function handleSaveTaskDetails(
         taskId: number,
-        payload: Partial<{ title: string; description: string; status: string; priority: string }>,
+        payload: Partial<{
+            title: string;
+            description: string;
+            status: string;
+            priority: string;
+            resolvedBugIds: number[];
+        }>,
     ): Promise<void> {
         if (!token) {
             return;

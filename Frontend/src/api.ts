@@ -1,4 +1,4 @@
-﻿import type {
+import type {
     AuthResponse,
     DeleteProjectResponse,
     GitHubConnectResponse,
@@ -340,6 +340,7 @@ export function updateTask(
         priority: string;
         placement: "sprint" | "product";
         assigneeIds: number[];
+        resolvedBugIds: number[];
     }>,
 ): Promise<ProjectResponse> {
     return request<ProjectResponse>(

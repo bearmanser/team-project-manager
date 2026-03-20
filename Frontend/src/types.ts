@@ -197,12 +197,20 @@ export type Task = {
     branchName: string;
     branchUrl: string;
     branchRepositoryId: number | null;
+    resolvedBugs: ResolvedBugSummary[];
     directGitHubIssues: IssueLink[];
     inheritedGitHubIssues: IssueLink[];
     comments: CommentEntry[];
     activity: ActivityEntry[];
     createdAt: string;
     updatedAt: string;
+};
+
+export type ResolvedBugSummary = {
+    id: number;
+    title: string;
+    status: BugStatus;
+    priority: PriorityLevel;
 };
 
 export type BugTaskSummary = {

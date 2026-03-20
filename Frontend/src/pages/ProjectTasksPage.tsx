@@ -13,7 +13,7 @@ import {
 
 import { ActionIcon } from "../components/ActionIcon";
 import { CreateTaskModal } from "../components/CreateTaskModal";
-import { EditTextIcon, PlusIcon } from "../components/icons";
+import { EditTextIcon } from "../components/icons";
 import { StatusPill } from "../components/StatusPill";
 import { SurfaceCard } from "../components/SurfaceCard";
 import type {
@@ -150,10 +150,9 @@ function TaskRow({
         </Text>
       </Stack>
       <Flex gap="2" wrap="wrap" align="center">
-        {task.bugReportTitle ? (
-          <StatusPill label={task.bugReportTitle} />
-        ) : null}
-        {task.isResolutionTask ? <StatusPill label="Resolution" /> : null}
+        {task.resolvedBugs.map((bug) => (
+          <StatusPill key={bug.id} label={`Resolves bug: ${bug.title}`} />
+        ))}
         {task.branchName ? (
           <StatusPill label={"Git branch: " + task.branchName} />
         ) : null}
@@ -348,17 +347,14 @@ export function ProjectTasksPage({
           </Heading>
         </Stack>
         <Button
-          minW="11"
-          h="11"
           borderRadius="lg"
-          bg="var(--color-accent)"
-          color="var(--color-text-inverse)"
-          _hover={{ bg: "var(--color-accent-hover)" }}
+          variant="outline"
+          borderColor="var(--color-border-strong)"
+          color="var(--color-text-primary)"
+          _hover={{ bg: "var(--color-bg-hover)", borderColor: "var(--color-accent-border)" }}
           onClick={() => onOpenCreateTask("todo", "product")}
         >
-          <ActionIcon>
-            <PlusIcon />
-          </ActionIcon>
+          Add task
         </Button>
       </Flex>
 

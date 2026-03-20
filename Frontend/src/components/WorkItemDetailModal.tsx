@@ -29,11 +29,12 @@ import {
   getPrioritySelectStyle,
   getTaskStatusOptionStyle,
   getTaskStatusSelectStyle,
+  nativeSelectStyle,
   PRIORITY_OPTIONS,
+  sortBugsByPriority,
 } from "../utils";
 import { MentionTextarea } from "./MentionTextarea";
 import { ModalFrame } from "./ModalFrame";
-import { StatusPill } from "./StatusPill";
 
 type WorkItemDetailModalProps = {
   isOpen: boolean;
@@ -48,6 +49,7 @@ type WorkItemDetailModalProps = {
       description: string;
       status: string;
       priority: string;
+      resolvedBugIds: number[];
     }>
   ) => void;
   onCreateTaskBranch: (task: Task) => void;
@@ -135,6 +137,8 @@ export function WorkItemDetailModal({
   const [generalComment, setGeneralComment] = useState("");
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
+  const [resolvedBugIds, setResolvedBugIds] = useState<number[]>([]);
+  const [bugToAddId, setBugToAddId] = useState("");
 
   useEffect(() => {
     if (!item) {
@@ -148,12 +152,17 @@ export function WorkItemDetailModal({
     setGeneralComment("");
     setReplyDrafts({});
     setActiveReplyId(null);
-  }, [item]);
+    setResolvedBugIds(task?.resolvedBugs.map((resolvedBug) => resolvedBug.id) ?? []);
+    setBugToAddId("");
+  }, [item, task]);
 
   const comments = item?.comments ?? [];
   const canSave = title.trim().length > 0;
   const canCreateTaskBranch =
-    kind === "task" && Boolean(task) && project.permissions.canEditTasks && project.repositories.length > 0;
+    kind === "task" &&
+    Boolean(task) &&
+    project.permissions.canEditTasks &&
+    project.repositories.length > 0;
   const titleLabel = kind === "task" ? "Task name" : "Bug title";
 
   const commentIds = useMemo(
@@ -183,6 +192,32 @@ export function WorkItemDetailModal({
       ),
     [commentIds, comments]
   );
+  const selectedResolvedBugs = useMemo(() => {
+    if (kind !== "task") {
+      return [] as BugReport[];
+    }
+
+    const bugLookup = new Map(
+      project.bugReports.map((currentBug) => [currentBug.id, currentBug])
+    );
+
+    return resolvedBugIds
+      .map((resolvedBugId) => bugLookup.get(resolvedBugId) ?? null)
+      .filter((currentBug): currentBug is BugReport => currentBug !== null);
+  }, [kind, project.bugReports, resolvedBugIds]);
+  const availableResolvedBugs = useMemo(() => {
+    if (kind !== "task") {
+      return [] as BugReport[];
+    }
+
+    const selectedIds = new Set(resolvedBugIds);
+    return sortBugsByPriority(
+      project.bugReports.filter(
+        (currentBug) =>
+          !selectedIds.has(currentBug.id) && currentBug.status !== "closed"
+      )
+    );
+  }, [kind, project.bugReports, resolvedBugIds]);
 
   if (!item || !kind) {
     return null;
@@ -201,6 +236,7 @@ export function WorkItemDetailModal({
         description: description.trim(),
         status,
         priority,
+        resolvedBugIds,
       });
       return;
     }
@@ -271,6 +307,20 @@ export function WorkItemDetailModal({
     }
 
     onToggleBugCommentReaction(commentId, emoji);
+  }
+
+  function handleAddResolvedBug(): void {
+    const nextBugId = Number(bugToAddId);
+    if (!Number.isFinite(nextBugId) || resolvedBugIds.includes(nextBugId)) {
+      return;
+    }
+
+    setResolvedBugIds((current) => [...current, nextBugId]);
+    setBugToAddId("");
+  }
+
+  function handleRemoveResolvedBug(bugId: number): void {
+    setResolvedBugIds((current) => current.filter((currentBugId) => currentBugId !== bugId));
   }
 
   const renderCommentThread = (comment: CommentEntry, depth = 0) => {
@@ -421,24 +471,67 @@ export function WorkItemDetailModal({
       title={kind === "task" ? "Task details" : "Bug details"}
       description={
         kind === "task"
-          ? "Inspect the work, keep the workflow moving, and discuss directly in the thread below."
-          : "Inspect the issue, update triage, and keep discussion inside the thread below."
+          ? "Inspect the work, update the task, and keep the discussion flowing in the comments column."
+          : "Inspect the issue, update triage, and keep the discussion flowing in the comments column."
       }
       isOpen={isOpen}
       onClose={onClose}
-      maxW="1200px"
+      maxW="1280px"
     >
-      <Flex direction="column" h={{ base: "auto", lg: "calc(100vh - 240px)" }}>
-        <Stack gap="4">
-          <Grid
-            templateColumns={{
-              base: "1fr",
-              xl: "minmax(320px, 0.92fr) minmax(0, 1.08fr)",
-            }}
-            gap="5"
-            alignItems="stretch"
+      <Flex direction="column" h={{ base: "auto", xl: "calc(100vh - 240px)" }} minH="0">
+        <Grid
+          templateColumns={{
+            base: "1fr",
+            xl: "minmax(0, 1.2fr) minmax(360px, 0.8fr)",
+          }}
+          gap="6"
+          flex="1"
+          minH="0"
+        >
+          <Stack gap="3" minH="0" order={{ base: 2, xl: 1 }}>
+            <Heading size="sm" color="var(--color-text-primary)">
+              Comments
+            </Heading>
+
+            <Box
+              flex="1"
+              minH={{ base: "240px", xl: "0" }}
+              overflowY="auto"
+              pr={{ xl: "1" }}
+            >
+              {visibleComments.length ? (
+                <Stack gap="2">
+                  {visibleComments.map((comment) => renderCommentThread(comment))}
+                </Stack>
+              ) : (
+                <Text color="var(--color-text-muted)">No comments yet.</Text>
+              )}
+            </Box>
+
+            <Stack gap="1.5">
+              <MentionTextarea
+                value={generalComment}
+                onChange={setGeneralComment}
+                onSubmit={handleAddGeneralComment}
+                submitOnEnter
+                members={project.members}
+                placeholder="Add a comment. Use @username to mention someone."
+                minH="56px"
+              />
+              <Text color="var(--color-text-muted)" fontSize="xs">
+                {commentHint}
+              </Text>
+            </Stack>
+          </Stack>
+
+          <Stack
+            gap="4"
+            minH="0"
+            order={{ base: 1, xl: 2 }}
+            overflowY={{ base: "visible", xl: "auto" }}
+            pr={{ xl: "1" }}
           >
-            <Stack gap="3" h="full">
+            <Stack gap="2">
               <Heading size="sm" color="var(--color-text-primary)">
                 {titleLabel}
               </Heading>
@@ -456,74 +549,74 @@ export function WorkItemDetailModal({
                   fontWeight: 700,
                 }}
               />
+            </Stack>
 
-              <Grid
-                templateColumns={{
-                  base: "1fr",
-                  md: "repeat(2, minmax(0, 1fr))",
-                }}
-                gap="3"
-              >
-                {kind === "task" ? (
-                  <select
-                    value={status}
-                    style={getTaskStatusSelectStyle(status as TaskStatus)}
-                    onChange={(event) => setStatus(event.target.value)}
-                  >
-                    {project.boardColumns.map((column) => (
-                      <option
-                        key={column.id}
-                        value={column.id}
-                        style={getTaskStatusOptionStyle(column.id)}
-                      >
-                        {column.label}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <select
-                    value={status}
-                    style={getBugStatusSelectStyle(status as BugStatus)}
-                    onChange={(event) => setStatus(event.target.value)}
-                  >
-                    {Object.entries(project.bugStatusLabels).map(
-                      ([value, label]) => (
-                        <option
-                          key={value}
-                          value={value}
-                          style={getBugStatusOptionStyle(value as BugStatus)}
-                        >
-                          {label}
-                        </option>
-                      )
-                    )}
-                  </select>
-                )}
+            <Grid
+              templateColumns={{
+                base: "1fr",
+                md: "repeat(2, minmax(0, 1fr))",
+              }}
+              gap="3"
+            >
+              {kind === "task" ? (
                 <select
-                  value={priority}
-                  style={getPrioritySelectStyle(priority)}
-                  onChange={(event) =>
-                    setPriority(event.target.value as PriorityLevel)
-                  }
+                  value={status}
+                  style={getTaskStatusSelectStyle(status as TaskStatus)}
+                  onChange={(event) => setStatus(event.target.value)}
                 >
-                  {PRIORITY_OPTIONS.map((value) => (
+                  {project.boardColumns.map((column) => (
                     <option
-                      key={value}
-                      value={value}
-                      style={getPriorityOptionStyle(value)}
+                      key={column.id}
+                      value={column.id}
+                      style={getTaskStatusOptionStyle(column.id)}
                     >
-                      {getPriorityLabel(value)}
+                      {column.label}
                     </option>
                   ))}
                 </select>
-              </Grid>
-            </Stack>
+              ) : (
+                <select
+                  value={status}
+                  style={getBugStatusSelectStyle(status as BugStatus)}
+                  onChange={(event) => setStatus(event.target.value)}
+                >
+                  {Object.entries(project.bugStatusLabels).map(
+                    ([value, label]) => (
+                      <option
+                        key={value}
+                        value={value}
+                        style={getBugStatusOptionStyle(value as BugStatus)}
+                      >
+                        {label}
+                      </option>
+                    )
+                  )}
+                </select>
+              )}
+              <select
+                value={priority}
+                style={getPrioritySelectStyle(priority)}
+                onChange={(event) =>
+                  setPriority(event.target.value as PriorityLevel)
+                }
+              >
+                {PRIORITY_OPTIONS.map((value) => (
+                  <option
+                    key={value}
+                    value={value}
+                    style={getPriorityOptionStyle(value)}
+                  >
+                    {getPriorityLabel(value)}
+                  </option>
+                ))}
+              </select>
+            </Grid>
 
-            <Stack gap="3" h="full">
+            <Stack gap="2">
               <Heading size="sm" color="var(--color-text-primary)">
                 Description
               </Heading>
-              <Box flex="1" minH="0">
+              <Box minH="200px">
                 <MentionTextarea
                   value={description}
                   onChange={setDescription}
@@ -533,85 +626,132 @@ export function WorkItemDetailModal({
                       ? "Describe the work, context, and expected outcome."
                       : "Describe the issue, impact, and current behavior."
                   }
-                  minH="100%"
+                  minH="200px"
                   h="100%"
                 />
               </Box>
             </Stack>
-          </Grid>
 
-          {(kind === "task" && task?.bugReportTitle) ||
-          (kind === "bug" && bug?.resolutionTaskTitle) ? (
-            <Flex gap="2" wrap="wrap" align="center">
-              {kind === "task" && task?.bugReportTitle ? (
-                <StatusPill label={task.bugReportTitle} />
-              ) : null}
-              {kind === "bug" && bug?.resolutionTaskTitle ? (
-                <StatusPill label={bug.resolutionTaskTitle} />
-              ) : null}
-            </Flex>
-          ) : null}
+            {kind === "task" ? (
+              <Stack gap="3">
+                <Stack gap="1">
+                  <Heading size="sm" color="var(--color-text-primary)">
+                    Bugs resolved by this task
+                  </Heading>
+                  <Text color="var(--color-text-muted)" fontSize="sm">
+                    These bugs will be closed when this task reaches Done.
+                  </Text>
+                </Stack>
 
-          <Flex justify="flex-end" gap="3" wrap="wrap">
-            {kind === "task" && task ? (
+                {selectedResolvedBugs.length ? (
+                  <Stack gap="2">
+                    {selectedResolvedBugs.map((resolvedBug) => (
+                      <Flex
+                        key={resolvedBug.id}
+                        justify="space-between"
+                        align={{ base: "flex-start", md: "center" }}
+                        gap="3"
+                        wrap="wrap"
+                        borderWidth="1px"
+                        borderColor="var(--color-border-default)"
+                        borderRadius="12px"
+                        bg="var(--color-bg-muted)"
+                        px="3"
+                        py="3"
+                      >
+                        <Stack gap="1" minW="240px" flex="1">
+                          <Text color="var(--color-text-primary)" fontWeight="600">
+                            {resolvedBug.title}
+                          </Text>
+                          <Text color="var(--color-text-muted)" fontSize="sm">
+                            {project.bugStatusLabels[resolvedBug.status]} - {getPriorityLabel(resolvedBug.priority)} priority
+                          </Text>
+                        </Stack>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          borderColor="var(--color-border-strong)"
+                          color="var(--color-text-primary)"
+                          _hover={{ bg: "var(--color-bg-hover)" }}
+                          onClick={() => handleRemoveResolvedBug(resolvedBug.id)}
+                        >
+                          Remove
+                        </Button>
+                      </Flex>
+                    ))}
+                  </Stack>
+                ) : (
+                  <Text color="var(--color-text-muted)" fontSize="sm">
+                    This task will not close any bugs yet.
+                  </Text>
+                )}
+
+                {availableResolvedBugs.length ? (
+                  <Flex gap="2" wrap="wrap" align={{ base: "stretch", md: "center" }}>
+                    <Box flex="1" minW="240px">
+                      <select
+                        value={bugToAddId}
+                        style={nativeSelectStyle}
+                        onChange={(event) => setBugToAddId(event.target.value)}
+                      >
+                        <option value="">Select a bug to add</option>
+                        {availableResolvedBugs.map((availableBug) => (
+                          <option key={availableBug.id} value={availableBug.id}>
+                            {availableBug.title}
+                          </option>
+                        ))}
+                      </select>
+                    </Box>
+                    <Button
+                      borderRadius="lg"
+                      variant="outline"
+                      borderColor="var(--color-border-strong)"
+                      color="var(--color-text-primary)"
+                      _hover={{ bg: "var(--color-bg-hover)", borderColor: "var(--color-accent-border)" }}
+                      onClick={handleAddResolvedBug}
+                      disabled={!bugToAddId}
+                    >
+                      Add bug
+                    </Button>
+                  </Flex>
+                ) : null}
+              </Stack>
+            ) : null}
+
+            <Flex
+              justify={canCreateTaskBranch ? "space-between" : "flex-end"}
+              gap="3"
+              wrap="wrap"
+              pt="1"
+            >
+              {kind === "task" && task ? (
+                <Button
+                  borderRadius="full"
+                  variant="outline"
+                  borderColor="var(--color-border-strong)"
+                  color="var(--color-text-primary)"
+                  _hover={{ bg: "var(--color-bg-hover)" }}
+                  onClick={() => onCreateTaskBranch(task)}
+                  disabled={!canCreateTaskBranch}
+                >
+                  Create git branch
+                </Button>
+              ) : null}
               <Button
                 borderRadius="full"
                 variant="outline"
                 borderColor="var(--color-border-strong)"
                 color="var(--color-text-primary)"
                 _hover={{ bg: "var(--color-bg-hover)" }}
-                onClick={() => onCreateTaskBranch(task)}
-                disabled={!canCreateTaskBranch}
+                onClick={handleSave}
+                disabled={!canSave}
               >
-                Create git branch
+                Save changes
               </Button>
-            ) : null}
-            <Button
-              borderRadius="full"
-              variant="outline"
-              borderColor="var(--color-border-strong)"
-              color="var(--color-text-primary)"
-              _hover={{ bg: "var(--color-bg-hover)" }}
-              onClick={handleSave}
-              disabled={!canSave}
-            >
-              Save changes
-            </Button>
-          </Flex>
-        </Stack>
-
-        <Flex direction="column" gap="3" flex="1" minH="0">
-          <Heading size="sm" color="var(--color-text-primary)">
-            Comments
-          </Heading>
-
-          <Box flex="1" minH="0" overflowY="auto" pr="1">
-            {visibleComments.length ? (
-              <Stack gap="2">
-                {visibleComments.map((comment) => renderCommentThread(comment))}
-              </Stack>
-            ) : (
-              <Text color="var(--color-text-muted)">No comments yet.</Text>
-            )}
-          </Box>
-
-          <Stack gap="1.5">
-            <MentionTextarea
-              value={generalComment}
-              onChange={setGeneralComment}
-              onSubmit={handleAddGeneralComment}
-              submitOnEnter
-              members={project.members}
-              placeholder="Add a comment. Use @username to mention someone."
-              minH="56px"
-            />
-            <Text color="var(--color-text-muted)" fontSize="xs">
-              {commentHint}
-            </Text>
+            </Flex>
           </Stack>
-        </Flex>
+        </Grid>
       </Flex>
     </ModalFrame>
   );
 }
-

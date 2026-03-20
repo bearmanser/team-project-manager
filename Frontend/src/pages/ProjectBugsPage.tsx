@@ -1,9 +1,6 @@
 import { Box, Button, Flex, Heading, Input, Link, Stack, Text, Textarea } from "@chakra-ui/react";
 
-import { ActionIcon } from "../components/ActionIcon";
 import { ModalFrame } from "../components/ModalFrame";
-import { PlusIcon } from "../components/icons";
-import { StatusPill } from "../components/StatusPill";
 import { SurfaceCard } from "../components/SurfaceCard";
 import type { BugStatus, GitHubIssueCandidate, PriorityLevel, ProjectDetail } from "../types";
 import {
@@ -86,17 +83,14 @@ export function ProjectBugsPage({
                         Import issues
                     </Button>
                     <Button
-                        minW="11"
-                        h="11"
                         borderRadius="lg"
-                        bg="var(--color-accent)"
-                        color="var(--color-text-inverse)"
-                        _hover={{ bg: "var(--color-accent-hover)" }}
+                        variant="outline"
+                        borderColor="var(--color-border-strong)"
+                        color="var(--color-text-primary)"
+                        _hover={{ bg: "var(--color-bg-hover)", borderColor: "var(--color-accent-border)" }}
                         onClick={onToggleCreateForm}
                     >
-                        <ActionIcon>
-                            <PlusIcon />
-                        </ActionIcon>
+                        Add bug report
                     </Button>
                 </Flex>
             </Flex>
@@ -142,10 +136,8 @@ export function ProjectBugsPage({
                                         {meta}
                                     </Text>
                                 </Stack>
-                                <Flex gap="2" wrap="wrap" align="center">
-                                    {bug.resolutionTaskTitle ? <StatusPill label={bug.resolutionTaskTitle} /> : null}
-                                    {linkedIssue ? <StatusPill label={`Issue #${linkedIssue.issueNumber}`} /> : null}
-                                    {project.permissions.canCreateTasks ? (
+                                {project.permissions.canCreateTasks ? (
+                                    <Flex gap="2" wrap="wrap" align="center">
                                         <Button
                                             size="sm"
                                             borderRadius="lg"
@@ -160,8 +152,8 @@ export function ProjectBugsPage({
                                         >
                                             Create task
                                         </Button>
-                                    ) : null}
-                                </Flex>
+                                    </Flex>
+                                ) : null}
                                 <Flex gap="2" wrap="wrap" align="center">
                                     <Box as="span">
                                         <select
