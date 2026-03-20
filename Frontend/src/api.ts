@@ -1,4 +1,4 @@
-import type {
+﻿import type {
     AuthResponse,
     DeleteProjectResponse,
     GitHubConnectResponse,
@@ -11,7 +11,25 @@ import type {
     WorkspaceResponse,
 } from "./types";
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+function resolveApiBaseUrl(): string {
+    const configuredBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "").trim().replace(/\/$/, "");
+    if (configuredBaseUrl) {
+        return configuredBaseUrl;
+    }
+
+    if (typeof window === "undefined") {
+        return "";
+    }
+
+    const hostname = window.location.hostname.toLowerCase();
+    if (hostname === "grinderstudio.no" || hostname === "www.grinderstudio.no") {
+        return "https://team-project-manager-api.grinderstudio.no";
+    }
+
+    return "";
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 export class ApiError extends Error {
     status: number;
@@ -516,3 +534,4 @@ export function completeGitHubOauth(
         token,
     );
 }
+
