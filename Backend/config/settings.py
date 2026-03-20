@@ -46,6 +46,39 @@ def normalize_origin(value: str) -> str:
     return origin or stripped
 
 
+def expand_origin_variants(origins: list[str]) -> list[str]:
+    expanded_origins: list[str] = []
+
+    for origin in origins:
+        normalized_origin = normalize_origin(origin)
+        if not normalized_origin:
+            continue
+
+        if normalized_origin not in expanded_origins:
+            expanded_origins.append(normalized_origin)
+
+        parsed = urlparse(normalized_origin)
+        hostname = parsed.hostname or ""
+        if not hostname:
+            continue
+
+        if hostname.startswith("www."):
+            alternate_hostname = hostname[4:]
+        else:
+            alternate_hostname = f"www.{hostname}"
+
+        if parsed.port:
+            alternate_netloc = f"{alternate_hostname}:{parsed.port}"
+        else:
+            alternate_netloc = alternate_hostname
+
+        alternate_origin = f"{parsed.scheme}://{alternate_netloc}"
+        if alternate_origin not in expanded_origins:
+            expanded_origins.append(alternate_origin)
+
+    return expanded_origins
+
+
 load_env_file(BASE_DIR / ".env")
 
 
@@ -64,11 +97,11 @@ FRONTEND_ORIGIN = normalize_origin(
 DEFAULT_CORS_ALLOWED_ORIGINS = ",".join(
     [origin for origin in [FRONTEND_ORIGIN, "http://127.0.0.1:5173", "http://localhost:5173"] if origin]
 )
-CORS_ALLOWED_ORIGINS = [
+CORS_ALLOWED_ORIGINS = expand_origin_variants([
     normalize_origin(origin)
     for origin in split_csv(os.getenv("CORS_ALLOWED_ORIGINS", DEFAULT_CORS_ALLOWED_ORIGINS))
     if normalize_origin(origin)
-]
+])
 GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID", "")
 GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET", "")
 GITHUB_OAUTH_REDIRECT_URI = os.getenv(
@@ -158,4 +191,5 @@ USE_X_FORWARDED_HOST = True
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
 
