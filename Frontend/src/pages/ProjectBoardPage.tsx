@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Box, Button, Flex, Grid, Heading, Input, Stack, Text } from "@chakra-ui/react";
 
@@ -81,8 +81,23 @@ export function ProjectBoardPage({
 
     const activeSprint = project.activeSprint;
     const canRenameSprint = project.role === "owner" || project.role === "admin";
+    const sprintDraftRef = useRef({
+        sprintId: activeSprint?.id ?? null,
+        isDirty: false,
+    });
 
     useEffect(() => {
+        const nextSprintId = activeSprint?.id ?? null;
+        const isSameSprint = sprintDraftRef.current.sprintId === nextSprintId;
+        const shouldPreserveDraft = isSameSprint && sprintDraftRef.current.isDirty;
+
+        sprintDraftRef.current.sprintId = nextSprintId;
+
+        if (shouldPreserveDraft) {
+            return;
+        }
+
+        sprintDraftRef.current.isDirty = false;
         setSprintNameDraft(activeSprint?.name ?? "");
         setIsRenamingSprint(false);
     }, [activeSprint?.id, activeSprint?.name]);
@@ -173,17 +188,34 @@ export function ProjectBoardPage({
         closePriorityPrompt();
     }
 
+    function updateSprintNameDraft(value: string): void {
+        sprintDraftRef.current.isDirty = value !== (activeSprint?.name ?? "");
+        setSprintNameDraft(value);
+    }
+
+    function cancelSprintRename(): void {
+        sprintDraftRef.current.isDirty = false;
+        setSprintNameDraft(activeSprint?.name ?? "");
+        setIsRenamingSprint(false);
+    }
+
+    function openSprintRename(): void {
+        sprintDraftRef.current.isDirty = false;
+        setSprintNameDraft(activeSprint?.name ?? "");
+        setIsRenamingSprint(true);
+    }
+
     function submitSprintRename(): void {
         const nextName = sprintNameDraft.trim();
         if (!activeSprint) {
             return;
         }
         if (!nextName || nextName === activeSprint.name) {
-            setSprintNameDraft(activeSprint.name);
-            setIsRenamingSprint(false);
+            cancelSprintRename();
             return;
         }
 
+        sprintDraftRef.current.isDirty = false;
         onRenameSprint(nextName);
         setIsRenamingSprint(false);
     }
@@ -207,7 +239,7 @@ export function ProjectBoardPage({
                                 <Stack gap="3" maxW="420px">
                                     <Input
                                         value={sprintNameDraft}
-                                        onChange={(event) => setSprintNameDraft(event.target.value)}
+                                        onChange={(event) => updateSprintNameDraft(event.target.value)}
                                         bg="var(--color-bg-muted)"
                                         borderColor="var(--color-border-strong)"
                                         borderRadius="lg"
@@ -222,9 +254,8 @@ export function ProjectBoardPage({
                                                 event.preventDefault();
                                                 submitSprintRename();
                                             }
-                                            if (event.key === "Escape" && activeSprint) {
-                                                setSprintNameDraft(activeSprint.name);
-                                                setIsRenamingSprint(false);
+                                            if (event.key === "Escape") {
+                                                cancelSprintRename();
                                             }
                                         }}
                                     />
@@ -245,10 +276,7 @@ export function ProjectBoardPage({
                                             borderColor="var(--color-border-strong)"
                                             color="var(--color-text-primary)"
                                             _hover={{ bg: "var(--color-bg-hover)" }}
-                                            onClick={() => {
-                                                setSprintNameDraft(activeSprint.name);
-                                                setIsRenamingSprint(false);
-                                            }}
+                                            onClick={cancelSprintRename}
                                         >
                                             Cancel
                                         </Button>
@@ -268,7 +296,7 @@ export function ProjectBoardPage({
                                             borderRadius="lg"
                                             color="var(--color-text-muted)"
                                             _hover={{ bg: "var(--color-bg-hover)", color: "var(--color-text-primary)" }}
-                                            onClick={() => setIsRenamingSprint(true)}
+                                            onClick={openSprintRename}
                                             aria-label="Rename sprint"
                                         >
                                             <ActionIcon>
@@ -618,4 +646,5 @@ export function ProjectBoardPage({
         </>
     );
 }
+
 

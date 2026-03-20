@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useMemo, useState } from "react";
+import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 
 import { Box, Button, Heading, Stack, Text } from "@chakra-ui/react";
 
@@ -115,6 +115,18 @@ const initialBugForm = {
     status: "open" as BugStatus,
     priority: "medium" as PriorityLevel,
 };
+type ProjectSettingsForm = {
+    name: string;
+    description: string;
+    useSprints: boolean;
+};
+function getProjectSettingsForm(project: ProjectDetail): ProjectSettingsForm {
+    return {
+        name: project.name,
+        description: project.description,
+        useSprints: project.useSprints,
+    };
+}
 
 function getFriendlyError(error: unknown): string {
     if (error instanceof ApiError) {
@@ -323,12 +335,14 @@ function App() {
     const [createBugForm, setCreateBugForm] = useState(initialBugForm);
     const [importableGitHubIssues, setImportableGitHubIssues] = useState<GitHubIssueCandidate[]>([]);
     const [isLoadingImportableGitHubIssues, setIsLoadingImportableGitHubIssues] = useState(false);
-    const [projectSettingsForm, setProjectSettingsForm] = useState({
+    const [projectSettingsForm, setProjectSettingsForm] = useState<ProjectSettingsForm>({
         name: "",
         description: "",
         useSprints: false,
     });
     const [hiddenCompletedProductBacklogTaskIds, setHiddenCompletedProductBacklogTaskIds] = useState<Record<number, number[]>>({});
+    const projectSettingsDirtyFieldsRef = useRef<Set<keyof ProjectSettingsForm>>(new Set());
+    const projectSettingsProjectIdRef = useRef<number | null>(null);
 
     const user = workspace?.user ?? null;
     const unreadNotifications = (workspace?.notifications ?? []).filter((item) => !item.isRead);
@@ -438,6 +452,46 @@ function App() {
         return items;
     }, [selectedProject?.useSprints]);
 
+    function clearProjectSettingsDraft(projectId: number | null = null): void {
+        projectSettingsDirtyFieldsRef.current.clear();
+        projectSettingsProjectIdRef.current = projectId;
+        if (projectId === null) {
+            setProjectSettingsForm({
+                name: "",
+                description: "",
+                useSprints: false,
+            });
+        }
+    }
+
+    function applyProjectSettingsFromProject(
+        project: ProjectDetail,
+        options: { resetDirty?: boolean } = {},
+    ): void {
+        const nextForm = getProjectSettingsForm(project);
+        const shouldResetDirty =
+            options.resetDirty === true || projectSettingsProjectIdRef.current !== project.id;
+
+        if (shouldResetDirty) {
+            projectSettingsDirtyFieldsRef.current.clear();
+        }
+
+        projectSettingsProjectIdRef.current = project.id;
+
+        setProjectSettingsForm((current) => {
+            if (shouldResetDirty) {
+                return nextForm;
+            }
+
+            const dirtyFields = projectSettingsDirtyFieldsRef.current;
+            return {
+                name: dirtyFields.has("name") ? current.name : nextForm.name,
+                description: dirtyFields.has("description") ? current.description : nextForm.description,
+                useSprints: dirtyFields.has("useSprints") ? current.useSprints : nextForm.useSprints,
+            };
+        });
+    }
+
     function storeToken(nextToken: string | null): void {
         if (nextToken) {
             window.localStorage.setItem(TOKEN_STORAGE_KEY, nextToken);
@@ -510,6 +564,7 @@ function App() {
         setNotice(null);
         setError(null);
         setNotificationOpen(false);
+        clearProjectSettingsDraft();
         navigateToPath(LOGIN_PATH, true);
     }
 
@@ -517,11 +572,7 @@ function App() {
         const response = await getProject(sessionToken, projectId);
         startTransition(() => {
             setSelectedProject(response.project);
-            setProjectSettingsForm({
-                name: response.project.name,
-                description: response.project.description,
-                useSprints: response.project.useSprints,
-            });
+            applyProjectSettingsFromProject(response.project);
         });
         rememberProjectSelection(projectId);
         rememberOrganizationSelection(response.project.organizationId);
@@ -560,11 +611,7 @@ function App() {
                 rememberOrganizationSelection(projectOverride.organizationId);
                 startTransition(() => {
                     setSelectedProject(projectOverride);
-                    setProjectSettingsForm({
-                        name: projectOverride.name,
-                        description: projectOverride.description,
-                        useSprints: projectOverride.useSprints,
-                    });
+                    applyProjectSettingsFromProject(projectOverride);
                 });
             } else {
                 await loadProjectDetail(sessionToken, resolvedProjectId);
@@ -678,11 +725,7 @@ function App() {
             const response = await action();
             startTransition(() => {
                 setSelectedProject(response.project);
-                setProjectSettingsForm({
-                    name: response.project.name,
-                    description: response.project.description,
-                    useSprints: response.project.useSprints,
-                });
+                applyProjectSettingsFromProject(response.project, { resetDirty: true });
             });
             rememberProjectSelection(response.project.id);
             rememberOrganizationSelection(response.project.organizationId);
@@ -833,6 +876,7 @@ function App() {
                     ]);
                     startTransition(() => {
                         setSelectedProject(projectResponse.project);
+                        applyProjectSettingsFromProject(projectResponse.project);
                         setWorkspace(workspaceResponse);
                     });
                 } catch {
@@ -1459,6 +1503,7 @@ function App() {
         setShowEndSprintActionModal(false);
         setEndSprintReview("");
         setEndSprintUnfinishedAction("carryover");
+
     }
 
     function handleEndSprintRequest(): void {
@@ -1798,12 +1843,13 @@ function App() {
                     onAddRepository={(repositoryId) => void handleAddProjectRepository(repositoryId)}
                     onConnectGitHub={() => void handleConnectGitHub()}
                     onDeleteProject={() => void handleDeleteSelectedProject()}
-                    onProjectSettingsChange={(field, value) =>
+                    onProjectSettingsChange={(field, value) => {
+                        projectSettingsDirtyFieldsRef.current.add(field);
                         setProjectSettingsForm((current) => ({
                             ...current,
                             [field]: value,
-                        }))
-                    }
+                        }));
+                    }}
                     onRemoveRepository={(repositoryId) => void handleRemoveProjectRepository(repositoryId)}
                     onSaveProjectSettings={() => void handleSaveProjectSettings()}
                 />
@@ -1948,5 +1994,7 @@ function App() {
 }
 
 export default App;
+
+
 
 

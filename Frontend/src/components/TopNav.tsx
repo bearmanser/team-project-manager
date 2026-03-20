@@ -123,7 +123,7 @@ function BrandWordmark() {
           <Box
             as="span"
             fontSize={{ base: "3xl", md: "3xl" }}
-            fontWeight="700"
+            fontWeight="500"
             lineHeight="0.8"
           >
             {word.initial}
