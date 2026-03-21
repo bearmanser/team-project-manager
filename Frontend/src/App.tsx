@@ -1065,7 +1065,7 @@ function App() {
                 organizationId: currentOrganization.id,
                 name: createProjectForm.name.trim(),
                 description: createProjectForm.description.trim(),
-                repositoryIds: createProjectForm.repositoryId ? [createProjectForm.repositoryId] : [],
+                repositoryId: createProjectForm.repositoryId || undefined,
             });
             setCreateProjectForm(initialProjectForm);
             setShowCreateProjectForm(false);
@@ -1464,7 +1464,7 @@ function App() {
 
         await runProjectMutation(
             "Connecting repository",
-            () => addProjectRepos(token, selectedProject.id, { repositoryIds: [repositoryId] }),
+            () => addProjectRepos(token, selectedProject.id, { repositoryId }),
             "Repository connected.",
         );
     }
@@ -1994,7 +1994,4 @@ function App() {
 }
 
 export default App;
-
-
-
 

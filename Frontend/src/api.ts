@@ -124,7 +124,7 @@ export function getProject(token: string, projectId: number): Promise<ProjectRes
 
 export function createProject(
     token: string,
-    payload: { organizationId: number; name: string; description: string; repositoryIds: string[] },
+    payload: { organizationId: number; name: string; description: string; repositoryId?: string },
 ): Promise<ProjectResponse> {
     return request<ProjectResponse>(
         "/api/projects/",
@@ -195,7 +195,7 @@ export function deleteProject(token: string, projectId: number): Promise<DeleteP
 export function addProjectRepos(
     token: string,
     projectId: number,
-    payload: { repositoryIds: string[] },
+    payload: { repositoryId: string },
 ): Promise<ProjectResponse> {
     return request<ProjectResponse>(
         `/api/projects/${projectId}/repos/add/`,

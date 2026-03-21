@@ -138,10 +138,10 @@ export function ProjectSettingsPage({
                     <Stack gap="4">
                         <Stack gap="1">
                             <Heading size="md" color="var(--color-text-primary)">
-                                Connected repositories
+                                Connected repository
                             </Heading>
                             <Text color="var(--color-text-muted)">
-                                GitHub is optional for this project. Connect a repo when you want issue import or branch creation.
+                                GitHub is optional for this project. Each project can connect up to one repository for issue import and branch creation.
                             </Text>
                         </Stack>
 
@@ -174,19 +174,19 @@ export function ProjectSettingsPage({
                                 </SurfaceCard>
                             ))
                         ) : (
-                            <Text color="var(--color-text-muted)">No repositories connected yet.</Text>
+                            <Text color="var(--color-text-muted)">No repository connected yet.</Text>
                         )}
 
                         {project.permissions.canManageRepos ? (
                             <SurfaceCard p="4" bg="var(--color-bg-card)">
                                 <Stack gap="3">
                                     <Heading size="sm" color="var(--color-text-primary)">
-                                        Connect another repository
+                                        Connect repository
                                     </Heading>
                                     {!isGitHubConnected ? (
                                         <>
                                             <Text color="var(--color-text-muted)">
-                                                Connect GitHub on your account to attach repositories to this project.
+                                                Connect GitHub on your account to attach a repository to this project.
                                             </Text>
                                             <Button
                                                 borderRadius="lg"
@@ -227,7 +227,7 @@ export function ProjectSettingsPage({
                                         </>
                                     ) : (
                                         <Text color="var(--color-text-muted)">
-                                            All repositories available to your GitHub account are already connected.
+                                            No repositories are available from your GitHub account right now.
                                         </Text>
                                     )}
                                 </Stack>
@@ -261,3 +261,4 @@ export function ProjectSettingsPage({
         </Stack>
     );
 }
+

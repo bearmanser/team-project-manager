@@ -136,8 +136,13 @@ class ProjectRepository(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = [("project", "github_repo_id")]
         ordering = ["full_name", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["project"],
+                name="projects_single_repository_per_project",
+            )
+        ]
 
     def __str__(self) -> str:
         return f"Repository<{self.project_id}:{self.full_name}>"
@@ -493,3 +498,4 @@ class Notification(models.Model):
 
     class Meta:
         ordering = ["-created_at", "-id"]
+

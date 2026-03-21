@@ -197,7 +197,7 @@ export function ProjectBugsPage({
 
             <ModalFrame
                 title="Import GitHub issues"
-                description="Pull issues from connected repositories into the project as bug reports."
+                description="Pull issues from the connected repository into the project as bug reports."
                 isOpen={isImportOpen}
                 onClose={onCloseImport}
             >
@@ -251,7 +251,7 @@ export function ProjectBugsPage({
                     </Stack>
                 ) : (
                     <Text color="var(--color-text-muted)">
-                        No open GitHub issues are ready to import from the connected repositories.
+                        No open GitHub issues are ready to import from the connected repository.
                     </Text>
                 )}
             </ModalFrame>
@@ -326,3 +326,4 @@ export function ProjectBugsPage({
         </Stack>
     );
 }
+

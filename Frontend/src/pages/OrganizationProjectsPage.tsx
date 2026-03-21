@@ -171,7 +171,7 @@ export function OrganizationProjectsPage({
                                     ))}
                                 </select>
                                 <Text color="var(--color-text-muted)" fontSize="sm">
-                                    Optional. You can connect or swap repositories later in project settings.
+                                    Optional. You can connect one repository now or later in project settings.
                                 </Text>
                             </>
                         ) : (
@@ -209,3 +209,4 @@ export function OrganizationProjectsPage({
         </Stack>
     );
 }
+

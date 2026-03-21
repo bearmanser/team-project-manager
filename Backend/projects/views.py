@@ -229,6 +229,28 @@ def _create_project_repository(project: Project, repo: dict) -> ProjectRepositor
     )
 
 
+def _parse_selected_repository_id(payload: dict) -> str | None:
+    candidate_ids = []
+
+    repository_id = str(payload.get("repositoryId") or "").strip()
+    if repository_id:
+        candidate_ids.append(repository_id)
+
+    candidate_ids.extend(
+        str(item).strip() for item in payload.get("repositoryIds") or [] if str(item).strip()
+    )
+
+    selected_ids = []
+    for candidate_id in candidate_ids:
+        if candidate_id not in selected_ids:
+            selected_ids.append(candidate_id)
+
+    if len(selected_ids) > 1:
+        raise ValueError("Choose at most one repository per project.")
+
+    return selected_ids[0] if selected_ids else None
+
+
 def _serialize_github_issue_candidate(repository: ProjectRepository, issue: dict) -> dict:
     body = (issue.get("body") or "").strip()
     preview = re.sub(r"\s+", " ", body)
@@ -991,8 +1013,11 @@ def projects_view(request):
     organization_id = payload.get("organizationId")
     name = (payload.get("name") or "").strip()
     description = (payload.get("description") or "").strip()
-    repository_ids = [str(item) for item in payload.get("repositoryIds") or [] if str(item).strip()]
 
+    try:
+        repository_id = _parse_selected_repository_id(payload)
+    except ValueError as exc:
+        return _json_error(str(exc))
     try:
         organization_id = int(organization_id)
     except (TypeError, ValueError):
@@ -1005,8 +1030,8 @@ def projects_view(request):
     if not name:
         return _json_error("Project name is required.")
 
-    selected_repos = []
-    if repository_ids:
+    selected_repo = None
+    if repository_id:
         access_token = _get_github_access_token(request.user)
         if not access_token:
             return _json_error("Connect your GitHub account before selecting a GitHub repository.")
@@ -1017,12 +1042,9 @@ def projects_view(request):
             return _json_error(str(exc), exc.status_code)
 
         available_repo_map = {str(repo.get("id")): repo for repo in available_repos}
-        for repository_id in repository_ids:
-            repo = available_repo_map.get(repository_id)
-            if repo is None:
-                return _json_error("One or more selected repositories are no longer available.")
-            if repo not in selected_repos:
-                selected_repos.append(repo)
+        selected_repo = available_repo_map.get(repository_id)
+        if selected_repo is None:
+            return _json_error("The selected repository is no longer available.")
 
     project = Project.objects.create(
         name=name,
@@ -1036,14 +1058,10 @@ def projects_view(request):
         role=ProjectMembership.ROLE_OWNER,
         added_by=request.user,
     )
-    for repo in selected_repos:
-        _create_project_repository(project, repo)
+    if selected_repo is not None:
+        _create_project_repository(project, selected_repo)
 
-    repo_description = (
-        f" and connected {len(selected_repos)} GitHub repos."
-        if selected_repos
-        else " without a connected GitHub repo."
-    )
+    repo_description = " and connected a GitHub repository." if selected_repo else " without a connected GitHub repository."
     _record_activity(
         project,
         request.user,
@@ -1356,46 +1374,43 @@ def project_repo_add_view(request, project_id: int):
     if error:
         return error
     if membership.role != ProjectMembership.ROLE_OWNER:
-        return _json_error("Only the project owner can connect repositories.", 403)
+        return _json_error("Only the project owner can connect a repository.", 403)
 
     access_token = _get_github_access_token(request.user)
     if not access_token:
-        return _json_error("Connect GitHub before adding repositories.")
+        return _json_error("Connect GitHub before connecting a repository.")
 
     try:
         payload = _parse_json_body(request)
+        repository_id = _parse_selected_repository_id(payload)
     except ValueError as exc:
         return _json_error(str(exc))
 
-    repository_ids = [str(item) for item in payload.get("repositoryIds") or [] if str(item).strip()]
-    if not repository_ids:
-        return _json_error("Choose at least one repository to connect.")
+    if not repository_id:
+        return _json_error("Choose a repository to connect.")
+
+    existing_repository = project.repositories.order_by("id").first()
+    if existing_repository is not None:
+        if existing_repository.github_repo_id == repository_id:
+            return _json_error("That repository is already connected to this project.")
+        return _json_error("This project already has a connected repository. Remove it first to connect a different one.")
 
     try:
         available_repos = get_github_repositories(access_token)
     except GitHubAPIError as exc:
         return _json_error(str(exc), exc.status_code)
 
-    existing_ids = set(project.repositories.values_list("github_repo_id", flat=True))
     available_repo_map = {str(repo.get("id")): repo for repo in available_repos}
-    added_count = 0
-    for repository_id in repository_ids:
-        if repository_id in existing_ids:
-            continue
-        repo = available_repo_map.get(repository_id)
-        if repo is None:
-            return _json_error("One or more selected repositories are no longer available.")
-        _create_project_repository(project, repo)
-        added_count += 1
+    repo = available_repo_map.get(repository_id)
+    if repo is None:
+        return _json_error("The selected repository is no longer available.")
 
-    if added_count == 0:
-        return _json_error("All selected repositories are already connected to this project.")
-
+    _create_project_repository(project, repo)
     _record_activity(
         project,
         request.user,
         "project.repo_added",
-        f"Connected {added_count} additional GitHub repos to the project.",
+        f"Connected GitHub repository \"{repo.get('full_name') or repo.get('name') or repository_id}\" to the project.",
     )
     return JsonResponse({"project": _build_project_snapshot(project, request.user, membership)})
 
@@ -1408,7 +1423,7 @@ def project_repo_remove_view(request, project_id: int, repository_id: int):
     if error:
         return error
     if membership.role != ProjectMembership.ROLE_OWNER:
-        return _json_error("Only the project owner can disconnect repositories.", 403)
+        return _json_error("Only the project owner can disconnect the repository.", 403)
 
     repository = ProjectRepository.objects.filter(project=project, id=repository_id).first()
     if repository is None:
@@ -2492,8 +2507,4 @@ def notification_read_view(request, notification_id: int):
     notification.is_read = True
     notification.save(update_fields=["is_read"])
     return JsonResponse({"notification": _serialize_notification(notification)})
-
-
-
-
 
