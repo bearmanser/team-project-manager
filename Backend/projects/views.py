@@ -3,6 +3,7 @@ import re
 import time
 from collections import defaultdict
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.http import JsonResponse, StreamingHttpResponse
 from django.utils import timezone
@@ -75,6 +76,41 @@ TASK_STATUS_LABELS = {
     Task.STATUS_DONE: "Done",
 }
 UNFINISHED_SPRINT_ACTIONS = {"done", "carryover", "product"}
+DEFAULT_PROJECT_EVENTS_RETRY_MS = 2000
+DEFAULT_PROJECT_EVENTS_POLL_INTERVAL_SECONDS = 1.5
+DEFAULT_PROJECT_EVENTS_STREAM_MAX_SECONDS = 15.0
+
+
+def _get_project_events_retry_ms() -> int:
+    value = getattr(settings, "PROJECT_EVENTS_RETRY_MS", DEFAULT_PROJECT_EVENTS_RETRY_MS)
+    try:
+        return max(500, int(value))
+    except (TypeError, ValueError):
+        return DEFAULT_PROJECT_EVENTS_RETRY_MS
+
+
+def _get_project_events_poll_interval_seconds() -> float:
+    value = getattr(
+        settings,
+        "PROJECT_EVENTS_POLL_INTERVAL_SECONDS",
+        DEFAULT_PROJECT_EVENTS_POLL_INTERVAL_SECONDS,
+    )
+    try:
+        return max(0.1, float(value))
+    except (TypeError, ValueError):
+        return DEFAULT_PROJECT_EVENTS_POLL_INTERVAL_SECONDS
+
+
+def _get_project_events_stream_max_seconds() -> float:
+    value = getattr(
+        settings,
+        "PROJECT_EVENTS_STREAM_MAX_SECONDS",
+        DEFAULT_PROJECT_EVENTS_STREAM_MAX_SECONDS,
+    )
+    try:
+        return max(1.0, float(value))
+    except (TypeError, ValueError):
+        return DEFAULT_PROJECT_EVENTS_STREAM_MAX_SECONDS
 
 
 def _get_active_sprint(project: Project) -> Sprint | None:
@@ -1088,13 +1124,17 @@ def project_events_view(request, project_id: int):
     if error:
         return error
 
+    retry_ms = _get_project_events_retry_ms()
+    poll_interval_seconds = _get_project_events_poll_interval_seconds()
+    stream_max_seconds = _get_project_events_stream_max_seconds()
+
     def event_stream():
         last_seen = project.updated_at.isoformat()
-        yield "retry: 2000\n\n"
-        yield f"event: project.updated\ndata: {json.dumps({'updatedAt': last_seen})}\n\n"
+        yield f"retry: {retry_ms}\n\n"
+        yield f"event: stream.open\ndata: {json.dumps({'updatedAt': last_seen})}\n\n"
         started_at = time.monotonic()
-        while time.monotonic() - started_at < 300:
-            time.sleep(1.5)
+        while time.monotonic() - started_at < stream_max_seconds:
+            time.sleep(poll_interval_seconds)
             current_project = Project.objects.filter(id=project.id).first()
             if current_project is None:
                 yield "event: project.deleted\ndata: {}\n\n"
@@ -2507,4 +2547,3 @@ def notification_read_view(request, notification_id: int):
     notification.is_read = True
     notification.save(update_fields=["is_read"])
     return JsonResponse({"notification": _serialize_notification(notification)})
-

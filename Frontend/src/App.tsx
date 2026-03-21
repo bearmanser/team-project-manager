@@ -344,6 +344,8 @@ function App() {
     const [hiddenCompletedProductBacklogTaskIds, setHiddenCompletedProductBacklogTaskIds] = useState<Record<number, number[]>>({});
     const projectSettingsDirtyFieldsRef = useRef<Set<keyof ProjectSettingsForm>>(new Set());
     const projectSettingsProjectIdRef = useRef<number | null>(null);
+    const selectedProjectUpdatedAtRef = useRef<string | null>(null);
+    const isRefreshingProjectFromEventsRef = useRef(false);
 
     const user = workspace?.user ?? null;
     const unreadNotifications = (workspace?.notifications ?? []).filter((item) => !item.isRead);
@@ -876,6 +878,10 @@ function App() {
     }, [error, notice]);
 
     useEffect(() => {
+        selectedProjectUpdatedAtRef.current = selectedProject?.updatedAt ?? null;
+    }, [selectedProject?.id, selectedProject?.updatedAt]);
+
+    useEffect(() => {
         if (!token || !selectedProjectId) {
             return;
         }
@@ -884,13 +890,35 @@ function App() {
             buildApiUrl(`/api/projects/${selectedProjectId}/events/?token=${encodeURIComponent(token)}`),
         );
 
-        const handleUpdated = () => {
+        const parseUpdatedAt = (event: Event): string | null => {
+            if (!(event instanceof MessageEvent) || typeof event.data !== "string") {
+                return null;
+            }
+
+            try {
+                const payload = JSON.parse(event.data) as { updatedAt?: unknown };
+                return typeof payload.updatedAt === "string" ? payload.updatedAt : null;
+            } catch {
+                return null;
+            }
+        };
+
+        const refreshProject = (updatedAt: string | null = null) => {
+            if (updatedAt && updatedAt === selectedProjectUpdatedAtRef.current) {
+                return;
+            }
+            if (isRefreshingProjectFromEventsRef.current) {
+                return;
+            }
+
+            isRefreshingProjectFromEventsRef.current = true;
             void (async () => {
                 try {
                     const [projectResponse, workspaceResponse] = await Promise.all([
                         getProject(token, selectedProjectId),
                         getWorkspace(token),
                     ]);
+                    selectedProjectUpdatedAtRef.current = projectResponse.project.updatedAt;
                     startTransition(() => {
                         setSelectedProject(projectResponse.project);
                         applyProjectSettingsFromProject(projectResponse.project);
@@ -898,8 +926,18 @@ function App() {
                     });
                 } catch {
                     // Manual refresh paths will recover the UI.
+                } finally {
+                    isRefreshingProjectFromEventsRef.current = false;
                 }
             })();
+        };
+
+        const handleStreamOpen = (event: Event) => {
+            refreshProject(parseUpdatedAt(event));
+        };
+
+        const handleUpdated = (event: Event) => {
+            refreshProject(parseUpdatedAt(event));
         };
 
         const handleDeleted = () => {
@@ -910,14 +948,16 @@ function App() {
             void syncFromPath(token, { quiet: true });
         };
 
+        stream.addEventListener("stream.open", handleStreamOpen);
         stream.addEventListener("project.updated", handleUpdated);
         stream.addEventListener("project.deleted", handleDeleted);
-        stream.onerror = () => stream.close();
 
         return () => {
+            stream.removeEventListener("stream.open", handleStreamOpen);
             stream.removeEventListener("project.updated", handleUpdated);
             stream.removeEventListener("project.deleted", handleDeleted);
             stream.close();
+            isRefreshingProjectFromEventsRef.current = false;
         };
     }, [selectedOrganizationId, selectedProjectId, token]);
 
@@ -2011,4 +2051,3 @@ function App() {
 }
 
 export default App;
-
