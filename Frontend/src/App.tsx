@@ -3,6 +3,7 @@ import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { Box, Button, Heading, Stack, Text } from "@chakra-ui/react";
 
 import {
+    AUTH_TOKEN_INVALID_EVENT,
     ApiError,
     addBugComment,
     addProjectMember,
@@ -563,6 +564,7 @@ function App() {
         setProjectSection("board");
         setNotice(null);
         setError(null);
+        setBusyLabel(null);
         setNotificationOpen(false);
         clearProjectSettingsDraft();
         navigateToPath(LOGIN_PATH, true);
@@ -816,6 +818,21 @@ function App() {
         document.documentElement.dataset.theme = themeMode;
         window.localStorage.setItem(THEME_MODE_STORAGE_KEY, themeMode);
     }, [themeMode]);
+
+    useEffect(() => {
+        function handleAuthTokenInvalid(event: Event): void {
+            const message =
+                event instanceof CustomEvent && typeof event.detail?.message === "string"
+                    ? event.detail.message
+                    : "Your session has expired. Please sign in again.";
+
+            clearSession();
+            setError(message);
+        }
+
+        window.addEventListener(AUTH_TOKEN_INVALID_EVENT, handleAuthTokenInvalid);
+        return () => window.removeEventListener(AUTH_TOKEN_INVALID_EVENT, handleAuthTokenInvalid);
+    }, []);
 
     useEffect(() => {
         void bootstrapWorkspace();

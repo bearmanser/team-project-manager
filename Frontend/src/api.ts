@@ -30,6 +30,11 @@ function resolveApiBaseUrl(): string {
 }
 
 const API_BASE_URL = resolveApiBaseUrl();
+export const AUTH_TOKEN_INVALID_EVENT = "team-project-manager:auth-token-invalid";
+
+type AuthTokenInvalidEventDetail = {
+    message: string;
+};
 
 export class ApiError extends Error {
     status: number;
@@ -42,6 +47,26 @@ export class ApiError extends Error {
 
 export function buildApiUrl(path: string): string {
     return `${API_BASE_URL}${path}`;
+}
+
+function isAuthTokenInvalidError(status: number, payload: unknown): payload is { error: string } {
+    if (status !== 401 || typeof payload !== "object" || payload === null) {
+        return false;
+    }
+
+    return (payload as { error?: unknown }).error === "Invalid or expired token.";
+}
+
+function notifyAuthTokenInvalid(detail: AuthTokenInvalidEventDetail): void {
+    if (typeof window === "undefined") {
+        return;
+    }
+
+    window.dispatchEvent(
+        new CustomEvent<AuthTokenInvalidEventDetail>(AUTH_TOKEN_INVALID_EVENT, {
+            detail,
+        }),
+    );
 }
 
 async function request<T>(
@@ -69,6 +94,10 @@ async function request<T>(
     const payload = rawBody ? JSON.parse(rawBody) : {};
 
     if (!response.ok) {
+        if (isAuthTokenInvalidError(response.status, payload)) {
+            notifyAuthTokenInvalid({ message: payload.error });
+        }
+
         throw new ApiError(payload.error ?? "Request failed.", response.status);
     }
 
