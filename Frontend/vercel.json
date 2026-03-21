@@ -2,11 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
-      "source": "/team-project-manager",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/team-project-manager/:path((?!assets/|.*\\..*).*)",
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ]
