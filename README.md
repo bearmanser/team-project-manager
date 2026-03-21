@@ -1,117 +1,126 @@
 # Team Project Manager
 
-Team Project Manager is a full-stack web application for organizing software work in one place. It helps a team create organizations and projects, manage tasks and bug reports, run sprints, invite collaborators, connect GitHub repositories, and keep track of work as it moves from planning to completion.
+**Team Project Manager** is a project management and bug-tracking software built for software development teams and agile workflows. It brings planning, collaboration, and development tracking together in one place, making it easier to manage work from idea to deployment.
 
-![Team Project Manager example](./example-image.png)
+👉 **Live version:** [https://www.grinderstudio.no/team-project-manager](https://www.grinderstudio.no/team-project-manager)
 
-## What This Project Does
+---
 
-This project is designed to feel like a lightweight project hub for a development team.
+## Overview
 
-In practical terms, it lets users:
+This application is designed to help teams organize their work in a structured and practical way. It combines task management, bug tracking, sprint planning, and GitHub integration into a single platform.
 
-- create organizations and projects
-- manage tasks and bug reports
-- group work into sprints or use a continuous workflow
-- assign work to team members with role-based permissions
-- comment on work items and mention teammates
-- connect GitHub accounts and repositories
-- link GitHub issues and create branches from tasks
-- receive notifications when they are mentioned or assigned work
+Whether you're working in sprints or using a continuous workflow, the system adapts to how your team prefers to operate.
 
-For a non-technical audience, the easiest way to think about it is this:
+At its core, this is a tool built around how software teams actually work day-to-day, not just a generic task manager.
 
-It is a project management product built specifically around the way software teams actually work.
+---
+
+## Key Features
+
+* Create and manage organizations and projects
+* Track tasks and bug reports in a structured workflow
+* Plan and manage sprints or use a continuous delivery approach
+* Assign work with role-based permissions
+* Collaborate through comments and mentions
+* Receive notifications for updates and assignments
+* Connect GitHub accounts and repositories
+* Link GitHub issues directly to tasks
+* Create branches from within tasks
+
+---
 
 ## Frontend
 
-The frontend lives in [`Frontend`](./Frontend) and is the part users interact with in the browser.
+The frontend is located in [`Frontend`](./Frontend) and is what users interact with in the browser.
 
-It is built as a single-page application using:
+**Built with:**
 
-- React 19
-- TypeScript
-- Vite
-- Chakra UI
+* React 19
+* TypeScript
+* Vite
+* Chakra UI
 
-The frontend handles the user experience, including:
+**Responsibilities:**
 
-- login and sign-up flows
-- organization and project navigation
-- board, task, bug, sprint, and settings screens
-- modals for creating and editing work
-- notification and theme handling
+* Authentication (login and signup)
+* Navigation between organizations and projects
+* Task boards, sprint views, and bug tracking interfaces
+* Creating and editing work items through modals
+* Notifications and theme handling
 
-From an architecture point of view, the frontend is responsible for presentation and user interaction. It fetches data from the backend through JSON API calls and updates the interface based on the current workspace and selected project.
+The frontend acts as the presentation layer, communicating with the backend through API requests and updating the UI based on the current project state.
+
+---
 
 ## Backend
 
-The backend lives in [`Backend`](./Backend) and is responsible for business logic, data storage, authentication, permissions, and GitHub integration.
+The backend is located in [`Backend`](./Backend) and handles all core logic, data management, and integrations.
 
-It is built with:
+**Built with:**
 
-- Django 6
-- Python 3.13
-- SQLite
-- Gunicorn
-- Docker
+* Django 6
+* Python 3.13
+* SQLite
+* Gunicorn
+* Docker
 
-The backend provides API endpoints for:
+**Responsibilities:**
 
-- user authentication
-- workspace and project data
-- organizations and memberships
-- tasks and bug reports
-- sprint creation and sprint completion
-- comments, reactions, and notifications
-- GitHub OAuth, repository lookup, issue linking, and branch creation
+* Authentication and authorization
+* Data handling for projects, tasks, and organizations
+* Sprint management
+* Comments, activity tracking, and notifications
+* GitHub integration (OAuth, repositories, issues, branches)
 
-The data model is centered around a few core concepts:
+---
 
-- `Organization`: a parent space for related projects
-- `Project`: the main workspace for delivery
-- `Task`: planned or active work
-- `BugReport`: tracked issues and defects
-- `Sprint`: optional time-boxed delivery cycles
-- `ProjectMembership`: user roles and access control
-- `Notification` and `Activity`: collaboration and audit-style updates
+## Core Concepts
 
-## Project Architecture
+The system is structured around a few main entities:
 
-At a high level, the application follows a clear client-server structure:
+* **Organization** – A workspace containing multiple projects
+* **Project** – The main working area for a team
+* **Task** – Planned or ongoing work
+* **Bug Report** – Issues or defects that need fixing
+* **Sprint** – Optional time-based work cycles
+* **Project Membership** – Roles and permissions
+* **Notification & Activity** – Collaboration and updates
 
-1. The React frontend renders the interface and sends requests.
-2. The Django backend validates the request, applies business rules, and reads or updates data.
-3. The backend returns a JSON response that the frontend uses to refresh the visible workspace.
+---
 
-### Architecture at a glance
+## Architecture
 
-- The frontend is the presentation layer.
-- The Django backend is the application and API layer.
-- SQLite is the persistence layer for local data storage.
-- GitHub acts as an external integration for repos, issues, OAuth, and branch workflows.
+The application follows a clean client-server architecture:
 
-### How the pieces work together
+1. The frontend handles the user interface and interactions
+2. The backend processes requests, applies business logic, and manages data
+3. Data is exchanged through JSON APIs
 
-- A user signs in and receives a JWT access token.
-- The frontend uses that token to call protected API endpoints.
-- The backend checks permissions before allowing changes.
-- Project data is returned as structured snapshots that the frontend displays.
-- For project refresh behavior, the backend also exposes a lightweight event stream endpoint so the UI can detect updates without a full page reload.
+**How it works in practice:**
+
+* Users authenticate and receive a token
+* The frontend uses that token to access protected endpoints
+* The backend validates permissions before processing requests
+* Updated data is returned and rendered in the UI
+
+There is also a lightweight event system that allows the frontend to detect updates without requiring a full page reload, which is pretty fucking nice for responsiveness.
+
+---
 
 ## Technology Highlights
 
-This project showcases a mix of product thinking and technical implementation:
+* Full-stack web development with React and Django
+* Strong use of TypeScript for type safety
+* REST API design with structured domain modeling
+* JWT-based authentication
+* GitHub OAuth and repository integration
+* Role-based access control
+* Support for agile workflows (sprints and backlog)
+* Docker-based backend setup
+* Frontend optimized for modern deployment platforms
 
-- full-stack TypeScript and Python web development
-- modern React with a typed component-based UI
-- Django-based API design and domain modeling
-- custom JWT authentication
-- GitHub OAuth and repository integration
-- role-based access control
-- sprint and backlog workflow support
-- Dockerized backend deployment path
-- Vercel-friendly frontend setup
+---
 
 ## Repository Structure
 
@@ -122,15 +131,8 @@ team-project-manager/
 |- example-image.png
 ```
 
-## Why This Is Employer-Relevant
+---
 
-This repository demonstrates more than just UI work or isolated backend code. It shows the ability to build and connect the full product:
+## Summary
 
-- a usable frontend
-- a structured backend
-- authentication and authorization
-- external API integration
-- domain modeling for real team workflows
-- deployment-oriented setup for both client and server
-
-In short, it is a complete full-stack project management application with software-team-specific features, not just a static prototype.
+Team Project Manager is a full-stack application that demonstrates how modern project management tools can be built specifically for software teams. It combines planning, tracking, and development workflows into a cohesive system, making it useful both as a real tool and as a technical project showcasing end-to-end development.
