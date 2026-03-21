@@ -4,6 +4,7 @@
 
 👉 **Live version:** [https://www.grinderstudio.no/team-project-manager](https://www.grinderstudio.no/team-project-manager)
 
+![Team Project Manager example](./example-image.png)
 ---
 
 ## Overview
