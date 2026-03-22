@@ -16,6 +16,20 @@ export function PlusIcon({ size = 18, strokeWidth = 1.8 }: IconProps) {
     );
 }
 
+export function ChevronDownIcon({ size = 18, strokeWidth = 1.8 }: IconProps) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+                d="M6 9l6 6 6-6"
+                stroke="currentColor"
+                strokeWidth={strokeWidth}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            />
+        </svg>
+    );
+}
+
 export function CloseIcon({ size = 18, strokeWidth = 1.8 }: IconProps) {
     return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -103,3 +117,4 @@ export function MoonIcon({ size = 18, strokeWidth = 1.8 }: IconProps) {
         </svg>
     );
 }
+

@@ -2,9 +2,18 @@ from django.conf import settings
 from django.db import models
 
 
+LEGACY_PERSONAL_ORGANIZATION_DESCRIPTION = "Default workspace created for existing projects."
+PERSONAL_ORGANIZATION_DESCRIPTION = "Your personal workspace."
+
+
+def build_personal_organization_name(user) -> str:
+    return f"{user.username} workspace"
+
+
 class Organization(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
+    is_personal = models.BooleanField(default=False)
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -15,9 +24,45 @@ class Organization(models.Model):
 
     class Meta:
         ordering = ["name", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["owner"],
+                condition=models.Q(is_personal=True),
+                name="projects_single_personal_organization_per_owner",
+            )
+        ]
 
     def __str__(self) -> str:
         return f"Organization<{self.name}>"
+
+
+def ensure_personal_organization(user) -> Organization:
+    organization = Organization.objects.filter(owner=user, is_personal=True).order_by("id").first()
+    if organization is not None:
+        return organization
+
+    legacy_organization = (
+        Organization.objects.filter(
+            owner=user,
+            name=f"{user.username} organization",
+            description=LEGACY_PERSONAL_ORGANIZATION_DESCRIPTION,
+        )
+        .order_by("id")
+        .first()
+    )
+    if legacy_organization is not None:
+        legacy_organization.name = build_personal_organization_name(user)
+        legacy_organization.description = PERSONAL_ORGANIZATION_DESCRIPTION
+        legacy_organization.is_personal = True
+        legacy_organization.save(update_fields=["name", "description", "is_personal", "updated_at"])
+        return legacy_organization
+
+    return Organization.objects.create(
+        name=build_personal_organization_name(user),
+        description=PERSONAL_ORGANIZATION_DESCRIPTION,
+        is_personal=True,
+        owner=user,
+    )
 
 
 class Project(models.Model):

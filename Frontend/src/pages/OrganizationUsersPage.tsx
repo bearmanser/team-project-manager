@@ -61,7 +61,7 @@ export function OrganizationUsersPage({
             <Flex justify="space-between" align={{ base: "stretch", md: "center" }} gap="4" wrap="wrap">
                 <Stack gap="1">
                     <Text fontSize="xs" textTransform="uppercase" letterSpacing="0.16em" color="var(--color-text-muted)">
-                        Organization users
+                        People
                     </Text>
                     <Heading size="2xl" color="var(--color-text-primary)">
                         Shared team directory
@@ -188,7 +188,7 @@ export function OrganizationUsersPage({
                         </Button>
                     </Stack>
                 ) : (
-                    <Text color="var(--color-text-muted)">No manageable projects are available in this organization yet.</Text>
+                    <Text color="var(--color-text-muted)">No manageable projects are available in this workspace yet.</Text>
                 )}
             </ModalFrame>
         </Stack>

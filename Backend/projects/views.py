@@ -30,6 +30,7 @@ from .models import (
     Notification,
     Organization,
     Project,
+    ensure_personal_organization,
     ProjectMembership,
     ProjectRepository,
     Sprint,
@@ -295,7 +296,15 @@ def _serialize_github_issue_candidate(repository: ProjectRepository, issue: dict
     }
 
 
+def _organization_display_name(organization: Organization, user) -> str:
+    if organization.is_personal and organization.owner_id == user.id:
+        return user.username
+
+    return organization.name
+
+
 def _accessible_organizations(user) -> list[Organization]:
+    ensure_personal_organization(user)
     return list(
         (
             Organization.objects.filter(owner=user)
@@ -304,6 +313,7 @@ def _accessible_organizations(user) -> list[Organization]:
         .distinct()
         .order_by("-updated_at", "-id")
     )
+
 
 def _organization_member_count(organization: Organization) -> int:
     user_ids = set(
@@ -319,7 +329,9 @@ def _serialize_organization_summary(organization: Organization, user) -> dict:
     return {
         "id": organization.id,
         "name": organization.name,
+        "displayName": _organization_display_name(organization, user),
         "description": organization.description,
+        "isPersonal": organization.is_personal,
         "role": "owner" if organization.owner_id == user.id else "member",
         "memberCount": _organization_member_count(organization),
         "projectCount": organization.projects.count(),
@@ -343,6 +355,10 @@ def _touch_project(project: Project) -> None:
     Project.objects.filter(id=project.id).update(updated_at=now)
     _touch_organization(project.organization_id)
 
+
+
+def _sharing_allowed(project: Project) -> bool:
+    return not bool(project.organization and project.organization.is_personal)
 
 def _record_activity(
     project: Project,
@@ -385,6 +401,15 @@ def _load_project(project_id: int, user):
         return None, None, _json_error("Project not found.", 404)
 
     return project, membership, None
+
+
+def _load_owned_organization(organization_id: int, user):
+    ensure_personal_organization(user)
+    organization = Organization.objects.filter(id=organization_id, owner=user).first()
+    if organization is None:
+        return None, _json_error("Organization not found.", 404)
+
+    return organization, None
 
 
 def _role_at_least(membership: ProjectMembership, required_role: str) -> bool:
@@ -1014,6 +1039,47 @@ def organizations_view(request):
     )
 
 
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@jwt_required
+def organization_settings_view(request, organization_id: int):
+    organization, error = _load_owned_organization(organization_id, request.user)
+    if error:
+        return error
+    if organization.is_personal:
+        return _json_error("Personal workspaces cannot be edited here.", 403)
+
+    try:
+        payload = _parse_json_body(request)
+    except ValueError as exc:
+        return _json_error(str(exc))
+
+    name = (payload.get("name") or "").strip()
+    if not name:
+        return _json_error("Organization name is required.")
+
+    if name != organization.name:
+        organization.name = name
+        organization.save(update_fields=["name", "updated_at"])
+
+    return JsonResponse({"organization": _serialize_organization_summary(organization, request.user)})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@jwt_required
+def organization_delete_view(request, organization_id: int):
+    organization, error = _load_owned_organization(organization_id, request.user)
+    if error:
+        return error
+    if organization.is_personal:
+        return _json_error("Personal workspaces cannot be deleted.", 403)
+
+    deleted_organization_id = organization.id
+    organization.delete()
+    return JsonResponse({"success": True, "organizationId": deleted_organization_id})
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
 @jwt_required
@@ -1474,6 +1540,9 @@ def project_members_view(request, project_id: int):
         return error
     if not _role_at_least(membership, ProjectMembership.ROLE_ADMIN):
         return _json_error("Only admins and owners can manage users.", 403)
+    if not _sharing_allowed(project):
+        return _json_error("Personal workspaces do not support sharing projects.", 403)
+
 
     try:
         payload = _parse_json_body(request)
@@ -2532,3 +2601,9 @@ def notification_read_view(request, notification_id: int):
     notification.is_read = True
     notification.save(update_fields=["is_read"])
     return JsonResponse({"notification": _serialize_notification(notification)})
+
+
+
+
+
+

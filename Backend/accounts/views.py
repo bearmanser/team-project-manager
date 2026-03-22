@@ -19,6 +19,7 @@ from .github import (
     get_github_user,
 )
 from .models import UserProfile
+from projects.models import ensure_personal_organization
 
 
 User = get_user_model()
@@ -116,6 +117,7 @@ def signup_view(request):
 
     user = User.objects.create_user(username=username, email=email, password=password)
     _get_profile(user)
+    ensure_personal_organization(user)
     return _auth_response(user, status=201)
 
 

@@ -6,6 +6,16 @@ from . import views
 urlpatterns = [
     path("workspace/", views.workspace_view, name="workspace"),
     path("organizations/", views.organizations_view, name="organizations"),
+    path(
+        "organizations/<int:organization_id>/settings/",
+        views.organization_settings_view,
+        name="organization-settings",
+    ),
+    path(
+        "organizations/<int:organization_id>/delete/",
+        views.organization_delete_view,
+        name="organization-delete",
+    ),
     path("projects/", views.projects_view, name="projects"),
     path("projects/<int:project_id>/", views.project_detail_view, name="project-detail"),
     path("projects/<int:project_id>/events/", views.project_events_view, name="project-events"),
@@ -54,4 +64,6 @@ urlpatterns = [
         name="notification-read",
     ),
 ]
+
+
 

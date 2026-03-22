@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
-import { Box, Button, Flex, Stack } from "@chakra-ui/react";
+import { Box, Button, Flex, Stack, Text } from "@chakra-ui/react";
 
 export type DropdownItem = {
     key?: string;
@@ -13,10 +13,18 @@ export type DropdownItem = {
     closeOnClick?: boolean;
 };
 
-type DropdownMenuProps = {
+export type DropdownSection = {
+    key?: string;
+    label?: string;
     items: DropdownItem[];
+};
+
+type DropdownMenuProps = {
+    items?: DropdownItem[];
+    sections?: DropdownSection[];
     width?: string;
     align?: "left" | "right";
+    footerSlot?: ReactNode;
     renderTrigger: (args: { isOpen: boolean; toggle: () => void; close: () => void }) => ReactNode;
 };
 
@@ -28,14 +36,17 @@ type MenuPosition = {
 
 export function DropdownMenu({
     items,
+    sections,
     width = "220px",
     align = "right",
+    footerSlot,
     renderTrigger,
 }: DropdownMenuProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
     const menuRef = useRef<HTMLDivElement | null>(null);
+    const resolvedSections = sections ?? [{ items: items ?? [] }];
 
     useEffect(() => {
         if (!isOpen) {
@@ -110,35 +121,58 @@ export function DropdownMenu({
                       p="1.5"
                       zIndex="1400"
                   >
-                      <Stack gap="1">
-                          {items.map((item) => (
-                              <Button
-                                  key={item.key ?? item.label}
-                                  justifyContent="flex-start"
-                                  borderRadius="10px"
-                                  variant="ghost"
-                                  color={item.tone === "danger" ? "var(--color-danger-text)" : "var(--color-text-primary)"}
-                                  _hover={{
-                                      bg: item.tone === "danger" ? "var(--color-danger-bg-soft)" : "var(--color-bg-hover)",
-                                  }}
-                                  disabled={item.disabled}
-                                  onMouseDown={(event) => event.stopPropagation()}
-                                  onClick={(event) => {
-                                      event.stopPropagation();
-                                      item.onClick();
-                                      if (item.closeOnClick !== false) {
-                                          close();
-                                      }
-                                  }}
-                              >
-                                  <Flex w="full" align="center" justify="space-between" gap="3">
-                                      <Box as="span" flex="1" minW="0" textAlign="left" overflow="hidden" textOverflow="ellipsis">
-                                          {item.label}
-                                      </Box>
-                                      {item.trailingContent}
-                                  </Flex>
-                              </Button>
+                      <Stack gap="1.5">
+                          {resolvedSections.map((section, sectionIndex) => (
+                              <Stack key={section.key ?? section.label ?? String(sectionIndex)} gap="1">
+                                  {section.label ? (
+                                      <Text
+                                          px="2.5"
+                                          pt={sectionIndex === 0 ? "1" : "2"}
+                                          fontSize="xs"
+                                          textTransform="uppercase"
+                                          letterSpacing="0.14em"
+                                          color="var(--color-text-subtle)"
+                                      >
+                                          {section.label}
+                                      </Text>
+                                  ) : null}
+                                  <Stack gap="1">
+                                      {section.items.map((item) => (
+                                          <Button
+                                              key={item.key ?? item.label}
+                                              justifyContent="flex-start"
+                                              borderRadius="10px"
+                                              variant="ghost"
+                                              color={item.tone === "danger" ? "var(--color-danger-text)" : "var(--color-text-primary)"}
+                                              _hover={{
+                                                  bg: item.tone === "danger" ? "var(--color-danger-bg-soft)" : "var(--color-bg-hover)",
+                                              }}
+                                              disabled={item.disabled}
+                                              onMouseDown={(event) => event.stopPropagation()}
+                                              onClick={(event) => {
+                                                  event.stopPropagation();
+                                                  item.onClick();
+                                                  if (item.closeOnClick !== false) {
+                                                      close();
+                                                  }
+                                              }}
+                                          >
+                                              <Flex w="full" align="center" justify="space-between" gap="3">
+                                                  <Box as="span" flex="1" minW="0" textAlign="left" overflow="hidden" textOverflow="ellipsis">
+                                                      {item.label}
+                                                  </Box>
+                                                  {item.trailingContent}
+                                              </Flex>
+                                          </Button>
+                                      ))}
+                                  </Stack>
+                              </Stack>
                           ))}
+                          {footerSlot ? (
+                              <Box pt="1" borderTopWidth="1px" borderColor="var(--color-border-default)">
+                                  {footerSlot}
+                              </Box>
+                          ) : null}
                       </Stack>
                   </Box>,
                   document.body,
@@ -154,3 +188,4 @@ export function DropdownMenu({
         </>
     );
 }
+

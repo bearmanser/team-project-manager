@@ -44,7 +44,9 @@ export type Notification = {
 export type OrganizationSummary = {
     id: number;
     name: string;
+    displayName: string;
     description: string;
+    isPersonal: boolean;
     role: OrganizationRole;
     memberCount: number;
     projectCount: number;
@@ -310,6 +312,11 @@ export type OrganizationResponse = {
     organization: OrganizationSummary;
 };
 
+export type DeleteOrganizationResponse = {
+    success: boolean;
+    organizationId: number;
+};
+
 export type NotificationResponse = {
     notification: Notification;
 };
@@ -318,3 +325,6 @@ export type DeleteProjectResponse = {
     success: boolean;
     projectId: number;
 };
+
+
+

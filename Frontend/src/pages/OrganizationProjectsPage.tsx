@@ -55,7 +55,7 @@ export function OrganizationProjectsPage({
                         Projects
                     </Text>
                     <Heading size="2xl" color="var(--color-text-primary)">
-                        {organization.name}
+                        {organization.displayName}
                     </Heading>
                 </Stack>
                 <Button minW="11" h="11" borderRadius="lg" bg="var(--color-accent)" color="var(--color-text-inverse)" _hover={{ bg: "var(--color-accent-hover)" }} onClick={onToggleCreateForm}>
@@ -112,7 +112,7 @@ export function OrganizationProjectsPage({
                 ) : (
                     <Stack p="6" gap="2">
                         <Text color="var(--color-text-primary)" fontWeight="600">
-                            No projects in this organization yet.
+                            {organization.isPersonal ? "No projects in your account yet." : "No projects in this organization yet."}
                         </Text>
                         <Text color="var(--color-text-muted)">Use the add button to create one.</Text>
                     </Stack>

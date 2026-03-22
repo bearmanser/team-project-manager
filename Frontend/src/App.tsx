@@ -18,6 +18,7 @@ import {
     createProject,
     createTask,
     createTaskBranch,
+    deleteOrganization,
     deleteProject,
     endProjectSprint,
     getProject,
@@ -31,6 +32,7 @@ import {
     signup,
     startGitHubOauth,
     updateBugReport,
+    updateOrganizationSettings,
     updateProjectSettings,
     updateTask,
 } from "./api";
@@ -38,12 +40,12 @@ import { AppShell } from "./components/AppShell";
 import { EndSprintModal } from "./components/EndSprintModal";
 import { EndSprintIncompleteTasksModal } from "./components/EndSprintIncompleteTasksModal";
 import { SideNav } from "./components/SideNav";
+import { OrganizationSelector } from "./components/OrganizationSelector";
 import { SurfaceCard } from "./components/SurfaceCard";
 import { TaskBranchModal } from "./components/TaskBranchModal";
 import { WorkItemDetailModal } from "./components/WorkItemDetailModal";
 import { TopNav } from "./components/TopNav";
 import { LoginPage } from "./pages/LoginPage";
-import { OrganizationOverviewPage } from "./pages/OrganizationOverviewPage";
 import { OrganizationProjectsPage } from "./pages/OrganizationProjectsPage";
 import { OrganizationSettingsPage } from "./pages/OrganizationSettingsPage";
 import { OrganizationUsersPage } from "./pages/OrganizationUsersPage";
@@ -116,6 +118,17 @@ const initialBugForm = {
     status: "open" as BugStatus,
     priority: "medium" as PriorityLevel,
 };
+
+type OrganizationSettingsForm = {
+    name: string;
+};
+
+function getOrganizationSettingsForm(organization: OrganizationSummary): OrganizationSettingsForm {
+    return {
+        name: organization.name,
+    };
+}
+
 type ProjectSettingsForm = {
     name: string;
     description: string;
@@ -256,6 +269,18 @@ function parseStoredNumber(key: string): number | null {
     return Number.isFinite(parsed) ? parsed : null;
 }
 
+function resolveOrganizationSelection(
+    organizations: OrganizationSummary[],
+    preferredOrganizationId: number | null,
+): number | null {
+    if (organizations.some((organization) => organization.id === preferredOrganizationId)) {
+        return preferredOrganizationId;
+    }
+
+    const personalOrganization = organizations.find((organization) => organization.isPersonal);
+    return personalOrganization?.id ?? organizations[0]?.id ?? null;
+}
+
 const ORGANIZATIONS_PATH = "/organizations";
 const LOGIN_PATH = "/login";
 
@@ -394,6 +419,9 @@ function App() {
     const [branchNameDraft, setBranchNameDraft] = useState("");
     const [baseBranchDraft, setBaseBranchDraft] = useState("");
     const [createOrganizationForm, setCreateOrganizationForm] = useState(initialOrganizationForm);
+    const [organizationSettingsForm, setOrganizationSettingsForm] = useState<OrganizationSettingsForm>({
+        name: "",
+    });
     const [createProjectForm, setCreateProjectForm] = useState(initialProjectForm);
     const [createTaskForm, setCreateTaskForm] = useState(initialTaskForm);
     const [createBugForm, setCreateBugForm] = useState(initialBugForm);
@@ -457,26 +485,33 @@ function App() {
         return selectedProject.tasks.find((task) => task.id === branchTaskId) ?? null;
     }, [branchTaskId, selectedProject]);
 
-    const organizationNavItems: NavItem<OrganizationSection>[] = useMemo(
-        () => [
+    const organizationNavItems: NavItem<OrganizationSection>[] = useMemo(() => {
+        const items: NavItem<OrganizationSection>[] = [
             {
                 id: "projects",
                 label: "Projects",
-                description: "Open and add workspaces under this organization.",
+                description: "Open and add projects in this workspace.",
             },
-            {
+        ];
+
+        if (!currentOrganization?.isPersonal) {
+            items.push({
                 id: "users",
                 label: "Users",
-                description: "See the shared people attached to projects here.",
-            },
-            {
+                description: "See the people attached to projects here.",
+            });
+        }
+
+        if (!currentOrganization?.isPersonal && currentOrganization?.role === "owner") {
+            items.push({
                 id: "settings",
                 label: "Settings",
-                description: "GitHub connectivity and organization rules.",
-            },
-        ],
-        [],
-    );
+                description: "Rename or delete this organization.",
+            });
+        }
+
+        return items;
+    }, [currentOrganization?.isPersonal, currentOrganization?.role]);
 
     const projectNavItems: NavItem<ProjectSection>[] = useMemo(() => {
         const items: NavItem<ProjectSection>[] = [
@@ -706,11 +741,10 @@ function App() {
         const requestedOrganizationId = Object.prototype.hasOwnProperty.call(options, "preferredOrganizationId")
             ? options.preferredOrganizationId ?? null
             : selectedOrganizationId;
-        const resolvedOrganizationId = workspaceData.organizations.some(
-            (organization) => organization.id === requestedOrganizationId,
-        )
-            ? requestedOrganizationId
-            : null;
+        const resolvedOrganizationId = resolveOrganizationSelection(
+            workspaceData.organizations,
+            requestedOrganizationId,
+        );
 
         rememberOrganizationSelection(resolvedOrganizationId);
 
@@ -737,12 +771,13 @@ function App() {
         if (route.kind === "organizations") {
             setOrganizationSection("projects");
             clearProjectSelection();
-            rememberOrganizationSelection(null);
-            await hydrateWorkspace(sessionToken, {
-                preferredOrganizationId: null,
+            const result = await hydrateWorkspace(sessionToken, {
                 preferredProjectId: null,
                 quiet: options.quiet,
             });
+            if (result.resolvedOrganizationId !== null) {
+                navigateToPath(getOrganizationPath(result.resolvedOrganizationId), true);
+            }
             return;
         }
 
@@ -755,7 +790,10 @@ function App() {
                 quiet: options.quiet,
             });
             if (result.resolvedOrganizationId !== route.organizationId) {
-                navigateToPath(ORGANIZATIONS_PATH, true);
+                navigateToPath(
+                    result.resolvedOrganizationId ? getOrganizationPath(result.resolvedOrganizationId) : ORGANIZATIONS_PATH,
+                    true,
+                );
             }
             return;
         }
@@ -867,7 +905,7 @@ function App() {
                 await completeGitHubOauth(sessionToken, { code, state });
                 navigateToPath(ORGANIZATIONS_PATH, true);
                 await syncFromPath(sessionToken, { quiet: true });
-                setNotice("GitHub connected. Open an organization and add a project from the + button.");
+                setNotice("GitHub connected. Open a workspace and add a project from the + button.");
             } catch (reason) {
                 clearSession();
                 setError(getFriendlyError(reason));
@@ -946,6 +984,35 @@ function App() {
         setProjectSection("board");
         navigateToPath(getProjectPath(selectedProject.id, "board"), true);
     }, [projectSection, selectedProject]);
+
+    useEffect(() => {
+        if (!currentOrganization) {
+            setOrganizationSettingsForm({
+                name: "",
+            });
+            return;
+        }
+
+        const cannotManageOrganization = currentOrganization.isPersonal || currentOrganization.role !== "owner";
+        if (cannotManageOrganization) {
+            setOrganizationSettingsForm({
+                name: "",
+            });
+            if (organizationSection === "users" || organizationSection === "settings") {
+                setOrganizationSection("projects");
+                navigateToPath(getOrganizationPath(currentOrganization.id, "projects"), true);
+            }
+            return;
+        }
+
+        setOrganizationSettingsForm(getOrganizationSettingsForm(currentOrganization));
+    }, [
+        currentOrganization?.id,
+        currentOrganization?.isPersonal,
+        currentOrganization?.name,
+        currentOrganization?.role,
+        organizationSection,
+    ]);
 
     useEffect(() => {
         if (!error && !notice) {
@@ -1039,6 +1106,12 @@ function App() {
         if (!token || !currentOrganization || selectedProject || organizationSection !== "users") {
             return;
         }
+        if (currentOrganization.isPersonal) {
+            setOrganizationSection("projects");
+            navigateToPath(getOrganizationPath(currentOrganization.id, "projects"), true);
+            return;
+        }
+
 
         let cancelled = false;
         const fallbackOwner = currentOrganization.role === "owner" ? user : null;
@@ -1106,7 +1179,7 @@ function App() {
             }
 
             await syncFromPath(response.accessToken, { quiet: true });
-            setNotice("Account created. Add an organization when you are ready.");
+            setNotice("Account created. Your account workspace is ready.");
         } catch (reason) {
             clearSession();
             setError(getFriendlyError(reason));
@@ -1174,6 +1247,54 @@ function App() {
             navigateToPath(getOrganizationPath(response.organization.id), true);
             await syncFromPath(token, { quiet: true });
             setNotice("Organization added.");
+        } catch (reason) {
+            setError(getFriendlyError(reason));
+            return;
+        } finally {
+            setBusyLabel(null);
+        }
+    }
+
+    async function handleSaveOrganizationSettings(): Promise<void> {
+        if (!token || !currentOrganization || currentOrganization.isPersonal || currentOrganization.role !== "owner") {
+            return;
+        }
+
+        setError(null);
+        setNotice(null);
+        setBusyLabel("Saving organization settings");
+
+        try {
+            await updateOrganizationSettings(token, currentOrganization.id, {
+                name: organizationSettingsForm.name.trim(),
+            });
+            await syncFromPath(token, { quiet: true });
+            setNotice("Organization settings saved.");
+        } catch (reason) {
+            setError(getFriendlyError(reason));
+            return;
+        } finally {
+            setBusyLabel(null);
+        }
+    }
+
+    async function handleDeleteOrganization(): Promise<void> {
+        if (!token || !currentOrganization || currentOrganization.isPersonal || currentOrganization.role !== "owner") {
+            return;
+        }
+
+        const organizationId = currentOrganization.id;
+        setBusyLabel("Deleting organization");
+        setError(null);
+        setNotice(null);
+
+        try {
+            clearProjectSelection();
+            rememberOrganizationSelection(null);
+            await deleteOrganization(token, organizationId);
+            navigateToPath(ORGANIZATIONS_PATH, true);
+            await syncFromPath(token, { quiet: true });
+            setNotice("Organization deleted.");
         } catch (reason) {
             setError(getFriendlyError(reason));
             return;
@@ -1264,16 +1385,6 @@ function App() {
 
         setNotificationOpen(false);
         navigateToPath(getOrganizationPath(organizationId, section));
-        void syncFromPath(token, { quiet: true });
-    }
-
-    function openOrganizationOverview(): void {
-        if (!token) {
-            return;
-        }
-
-        setNotificationOpen(false);
-        navigateToPath(ORGANIZATIONS_PATH);
         void syncFromPath(token, { quiet: true });
     }
 
@@ -1809,21 +1920,9 @@ function App() {
     if (!currentOrganization) {
         return (
             <AppShell topNav={topNav}>
-                <OrganizationOverviewPage
-                    createOrganizationForm={createOrganizationForm}
-                    isCreatingOrganization={busyLabel === "Adding organization"}
-                    organizations={workspace.organizations}
-                    showCreateForm={showCreateOrganizationForm}
-                    onCreateOrganization={() => void handleCreateOrganization()}
-                    onCreateOrganizationFormChange={(field, value) =>
-                        setCreateOrganizationForm((current) => ({
-                            ...current,
-                            [field]: value,
-                        }))
-                    }
-                    onOpenOrganization={(organizationId) => openOrganization(organizationId)}
-                    onToggleCreateForm={() => setShowCreateOrganizationForm((current) => !current)}
-                />
+                <SurfaceCard p="5" bg="var(--color-bg-muted)">
+                    <Text color="var(--color-text-muted)">Loading workspace...</Text>
+                </SurfaceCard>
             </AppShell>
         );
     }
@@ -1837,7 +1936,7 @@ function App() {
                 topSlot={
                     <Stack gap="3">
                         <Text color="var(--color-text-subtle)" fontSize="sm">
-                            {currentOrganization.name}
+                            {currentOrganization.displayName}
                         </Text>
                         <select
                             value={String(selectedProject.id)}
@@ -1866,7 +1965,7 @@ function App() {
                         _hover={{ bg: "var(--color-bg-hover)", borderColor: "var(--color-accent-border)" }}
                         onClick={() => openOrganization(currentOrganization.id, "projects")}
                     >
-                        Back to organization
+                        {currentOrganization.isPersonal ? "Back to your account" : "Back to organization"}
                     </Button>
                 }
             />
@@ -2062,18 +2161,23 @@ function App() {
             items={organizationNavItems}
             activeItem={organizationSection}
             onSelect={(section) => openOrganization(currentOrganization.id, section)}
-            footerSlot={
-                <Button
-                    w="full"
-                    borderRadius="lg"
-                    variant="outline"
-                    borderColor="var(--color-border-strong)"
-                    color="var(--color-text-primary)"
-                    _hover={{ bg: "var(--color-bg-hover)", borderColor: "var(--color-accent-border)" }}
-                    onClick={openOrganizationOverview}
-                >
-                    All organizations
-                </Button>
+            topSlot={
+                <OrganizationSelector
+                    createOrganizationForm={createOrganizationForm}
+                    currentOrganization={currentOrganization}
+                    isCreatingOrganization={busyLabel === "Adding organization"}
+                    organizations={workspace.organizations}
+                    showCreateForm={showCreateOrganizationForm}
+                    onCreateOrganization={() => void handleCreateOrganization()}
+                    onCreateOrganizationFormChange={(field, value) =>
+                        setCreateOrganizationForm((current) => ({
+                            ...current,
+                            [field]: value,
+                        }))
+                    }
+                    onOpenOrganization={(organizationId) => openOrganization(organizationId)}
+                    onToggleCreateForm={() => setShowCreateOrganizationForm((current) => !current)}
+                />
             }
         />
     );
@@ -2101,7 +2205,7 @@ function App() {
         />
     );
 
-    if (organizationSection === "users") {
+    if (!currentOrganization.isPersonal && organizationSection === "users") {
         organizationContent = (
             <OrganizationUsersPage
                 isInviting={busyLabel === "Inviting user"}
@@ -2115,13 +2219,21 @@ function App() {
         );
     }
 
-    if (organizationSection === "settings") {
+
+    if (!currentOrganization.isPersonal && currentOrganization.role === "owner" && organizationSection === "settings") {
         organizationContent = (
             <OrganizationSettingsPage
-                githubRepoError={workspace.githubRepoError}
-                isGitHubConnected={user.githubConnected}
+                busyLabel={busyLabel}
                 organization={currentOrganization}
-                onConnectGitHub={() => void handleConnectGitHub()}
+                organizationSettingsForm={organizationSettingsForm}
+                onDeleteOrganization={() => void handleDeleteOrganization()}
+                onOrganizationSettingsChange={(field, value) =>
+                    setOrganizationSettingsForm((current) => ({
+                        ...current,
+                        [field]: value,
+                    }))
+                }
+                onSaveOrganizationSettings={() => void handleSaveOrganizationSettings()}
             />
         );
     }
@@ -2134,3 +2246,9 @@ function App() {
 }
 
 export default App;
+
+
+
+
+
+

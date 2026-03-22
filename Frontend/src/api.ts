@@ -1,5 +1,6 @@
 import type {
     AuthResponse,
+    DeleteOrganizationResponse,
     DeleteProjectResponse,
     GitHubConnectResponse,
     GitHubOAuthStartResponse,
@@ -142,6 +143,31 @@ export function createOrganization(
         {
             method: "POST",
             body: JSON.stringify(payload),
+        },
+        token,
+    );
+}
+
+export function updateOrganizationSettings(
+    token: string,
+    organizationId: number,
+    payload: { name: string },
+): Promise<OrganizationResponse> {
+    return request<OrganizationResponse>(
+        `/api/organizations/${organizationId}/settings/`,
+        {
+            method: "POST",
+            body: JSON.stringify(payload),
+        },
+        token,
+    );
+}
+
+export function deleteOrganization(token: string, organizationId: number): Promise<DeleteOrganizationResponse> {
+    return request<DeleteOrganizationResponse>(
+        `/api/organizations/${organizationId}/delete/`,
+        {
+            method: "POST",
         },
         token,
     );
@@ -564,4 +590,6 @@ export function completeGitHubOauth(
         token,
     );
 }
+
+
 
