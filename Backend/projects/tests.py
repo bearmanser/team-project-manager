@@ -1,6 +1,6 @@
 from datetime import timedelta
-from itertools import islice
 
+from asgiref.sync import async_to_sync
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.utils import timezone
@@ -12,7 +12,6 @@ from .models import Organization, Project, ProjectMembership
 
 @override_settings(
     PROJECT_EVENTS_POLL_INTERVAL_SECONDS=0.01,
-    PROJECT_EVENTS_STREAM_MAX_SECONDS=0.03,
 )
 class ProjectEventsViewTests(TestCase):
     def setUp(self):
@@ -45,10 +44,12 @@ class ProjectEventsViewTests(TestCase):
         return self.client.get(f"/api/projects/{self.project.id}/events/?token={self.token}")
 
     @staticmethod
-    def _collect_chunks(response, count: int) -> str:
+    async def _collect_chunks(stream, count: int) -> str:
         chunks: list[str] = []
-        for chunk in islice(response.streaming_content, count):
+        async for chunk in stream:
             chunks.append(chunk.decode() if isinstance(chunk, bytes) else chunk)
+            if len(chunks) >= count:
+                break
         return "".join(chunks)
 
     def test_stream_opens_without_emitting_project_updated_when_unchanged(self):
@@ -57,7 +58,8 @@ class ProjectEventsViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "text/event-stream")
 
-        payload = self._collect_chunks(response, 3)
+        stream = response.streaming_content
+        payload = async_to_sync(self._collect_chunks)(stream, 3)
 
         self.assertIn("retry: 2000", payload)
         self.assertIn("event: stream.open", payload)
@@ -65,18 +67,9 @@ class ProjectEventsViewTests(TestCase):
 
     def test_stream_emits_project_updated_after_project_timestamp_changes(self):
         response = self._open_stream()
-        iterator = iter(response.streaming_content)
-
-        next(iterator)
-        next(iterator)
+        stream = response.streaming_content
 
         Project.objects.filter(id=self.project.id).update(updated_at=timezone.now() + timedelta(seconds=1))
 
-        payload_parts: list[str] = []
-        for chunk in islice(iterator, 5):
-            payload_parts.append(chunk.decode() if isinstance(chunk, bytes) else chunk)
-            if "event: project.updated" in payload_parts[-1]:
-                break
-
-        payload = "".join(payload_parts)
+        payload = async_to_sync(self._collect_chunks)(stream, 6)
         self.assertIn("event: project.updated", payload)

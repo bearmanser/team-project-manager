@@ -141,6 +141,69 @@ function getFriendlyError(error: unknown): string {
     return "Something went wrong. Please try again.";
 }
 
+type WorkspaceProjectSummary = WorkspaceResponse["projects"][number];
+
+function buildProjectSummary(project: ProjectDetail): WorkspaceProjectSummary {
+    return {
+        id: project.id,
+        organizationId: project.organizationId,
+        name: project.name,
+        description: project.description,
+        role: project.role,
+        memberCount: project.members.length,
+        repoCount: project.repositories.length,
+        openBugCount: project.bugReports.filter((bug) => bug.status !== "closed").length,
+        taskCounts: {
+            todo: project.tasks.filter((task) => task.status === "todo").length,
+            in_progress: project.tasks.filter((task) => task.status === "in_progress").length,
+            in_review: project.tasks.filter((task) => task.status === "in_review").length,
+            done: project.tasks.filter((task) => task.status === "done").length,
+        },
+        updatedAt: project.updatedAt,
+    };
+}
+
+function mergeProjectIntoWorkspace(
+    current: WorkspaceResponse | null,
+    project: ProjectDetail,
+): WorkspaceResponse | null {
+    if (!current) {
+        return current;
+    }
+
+    const nextProjectSummary = buildProjectSummary(project);
+    const nextProjects = current.projects.some((entry) => entry.id === project.id)
+        ? current.projects.map((entry) => (entry.id === project.id ? nextProjectSummary : entry))
+        : [...current.projects, nextProjectSummary];
+    const organizationProjects = nextProjects.filter((entry) => entry.organizationId === project.organizationId);
+    const nextOrganizations = current.organizations.map((organization) => {
+        if (organization.id !== project.organizationId) {
+            return organization;
+        }
+
+        const repoCount = organizationProjects.reduce((total, entry) => total + entry.repoCount, 0);
+        const openBugCount = organizationProjects.reduce((total, entry) => total + entry.openBugCount, 0);
+        const updatedAt = organizationProjects.reduce(
+            (latest, entry) => (entry.updatedAt > latest ? entry.updatedAt : latest),
+            organization.updatedAt,
+        );
+
+        return {
+            ...organization,
+            projectCount: organizationProjects.length,
+            repoCount,
+            openBugCount,
+            updatedAt,
+        };
+    });
+
+    return {
+        ...current,
+        projects: nextProjects,
+        organizations: nextOrganizations,
+    };
+}
+
 function dedupeOrganizationUsers(
     projects: ProjectDetail[],
     fallbackOwner?: User | null,
@@ -577,6 +640,7 @@ function App() {
         startTransition(() => {
             setSelectedProject(response.project);
             applyProjectSettingsFromProject(response.project);
+            setWorkspace((current) => mergeProjectIntoWorkspace(current, response.project));
         });
         rememberProjectSelection(projectId);
         rememberOrganizationSelection(response.project.organizationId);
@@ -698,6 +762,25 @@ function App() {
 
         if (route.kind === "project") {
             setProjectSection(route.section);
+
+            if (selectedProject?.id === route.projectId) {
+                rememberProjectSelection(route.projectId);
+                rememberOrganizationSelection(selectedProject.organizationId);
+                return;
+            }
+
+            const knownProject = workspace?.projects.some((project) => project.id === route.projectId) ?? false;
+            if (knownProject) {
+                try {
+                    await loadProjectDetail(sessionToken, route.projectId);
+                    return;
+                } catch (reason) {
+                    if (!(reason instanceof ApiError) || reason.status !== 404) {
+                        throw reason;
+                    }
+                }
+            }
+
             const result = await hydrateWorkspace(sessionToken, {
                 preferredOrganizationId: null,
                 preferredProjectId: route.projectId,
@@ -914,15 +997,12 @@ function App() {
             isRefreshingProjectFromEventsRef.current = true;
             void (async () => {
                 try {
-                    const [projectResponse, workspaceResponse] = await Promise.all([
-                        getProject(token, selectedProjectId),
-                        getWorkspace(token),
-                    ]);
+                    const projectResponse = await getProject(token, selectedProjectId);
                     selectedProjectUpdatedAtRef.current = projectResponse.project.updatedAt;
                     startTransition(() => {
                         setSelectedProject(projectResponse.project);
                         applyProjectSettingsFromProject(projectResponse.project);
-                        setWorkspace(workspaceResponse);
+                        setWorkspace((current) => mergeProjectIntoWorkspace(current, projectResponse.project));
                     });
                 } catch {
                     // Manual refresh paths will recover the UI.
@@ -930,10 +1010,6 @@ function App() {
                     isRefreshingProjectFromEventsRef.current = false;
                 }
             })();
-        };
-
-        const handleStreamOpen = (event: Event) => {
-            refreshProject(parseUpdatedAt(event));
         };
 
         const handleUpdated = (event: Event) => {
@@ -948,12 +1024,10 @@ function App() {
             void syncFromPath(token, { quiet: true });
         };
 
-        stream.addEventListener("stream.open", handleStreamOpen);
         stream.addEventListener("project.updated", handleUpdated);
         stream.addEventListener("project.deleted", handleDeleted);
 
         return () => {
-            stream.removeEventListener("stream.open", handleStreamOpen);
             stream.removeEventListener("project.updated", handleUpdated);
             stream.removeEventListener("project.deleted", handleDeleted);
             stream.close();
@@ -1166,10 +1240,19 @@ function App() {
             return;
         }
 
-        setBusyLabel("Opening project");
         setError(null);
         setNotice(null);
         setNotificationOpen(false);
+
+        if (selectedProject?.id === projectId) {
+            setProjectSection(section);
+            rememberProjectSelection(projectId);
+            rememberOrganizationSelection(selectedProject.organizationId);
+            navigateToPath(getProjectPath(projectId, section));
+            return;
+        }
+
+        setBusyLabel("Opening project");
         navigateToPath(getProjectPath(projectId, section));
         void syncFromPath(token, { quiet: true }).finally(() => setBusyLabel(null));
     }

@@ -1,6 +1,6 @@
+import asyncio
 import json
 import re
-import time
 from collections import defaultdict
 
 from django.conf import settings
@@ -78,7 +78,6 @@ TASK_STATUS_LABELS = {
 UNFINISHED_SPRINT_ACTIONS = {"done", "carryover", "product"}
 DEFAULT_PROJECT_EVENTS_RETRY_MS = 2000
 DEFAULT_PROJECT_EVENTS_POLL_INTERVAL_SECONDS = 1.5
-DEFAULT_PROJECT_EVENTS_STREAM_MAX_SECONDS = 15.0
 
 
 def _get_project_events_retry_ms() -> int:
@@ -99,18 +98,6 @@ def _get_project_events_poll_interval_seconds() -> float:
         return max(0.1, float(value))
     except (TypeError, ValueError):
         return DEFAULT_PROJECT_EVENTS_POLL_INTERVAL_SECONDS
-
-
-def _get_project_events_stream_max_seconds() -> float:
-    value = getattr(
-        settings,
-        "PROJECT_EVENTS_STREAM_MAX_SECONDS",
-        DEFAULT_PROJECT_EVENTS_STREAM_MAX_SECONDS,
-    )
-    try:
-        return max(1.0, float(value))
-    except (TypeError, ValueError):
-        return DEFAULT_PROJECT_EVENTS_STREAM_MAX_SECONDS
 
 
 def _get_active_sprint(project: Project) -> Sprint | None:
@@ -1126,16 +1113,14 @@ def project_events_view(request, project_id: int):
 
     retry_ms = _get_project_events_retry_ms()
     poll_interval_seconds = _get_project_events_poll_interval_seconds()
-    stream_max_seconds = _get_project_events_stream_max_seconds()
 
-    def event_stream():
+    async def event_stream():
         last_seen = project.updated_at.isoformat()
         yield f"retry: {retry_ms}\n\n"
         yield f"event: stream.open\ndata: {json.dumps({'updatedAt': last_seen})}\n\n"
-        started_at = time.monotonic()
-        while time.monotonic() - started_at < stream_max_seconds:
-            time.sleep(poll_interval_seconds)
-            current_project = Project.objects.filter(id=project.id).first()
+        while True:
+            await asyncio.sleep(poll_interval_seconds)
+            current_project = await Project.objects.filter(id=project.id).only("updated_at").afirst()
             if current_project is None:
                 yield "event: project.deleted\ndata: {}\n\n"
                 break
