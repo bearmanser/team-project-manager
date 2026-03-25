@@ -14,6 +14,7 @@ import {
 import { PublicFooter } from "../components/PublicFooter";
 import { PublicPageHeader } from "../components/PublicPageHeader";
 import { SurfaceCard } from "../components/SurfaceCard";
+import example_image from "/example-image.png";
 
 type MarketingPageProps = {
   busyLabel: string | null;
@@ -260,7 +261,7 @@ export function MarketingPage({
                     Example project view
                   </Text>
                   <Image
-                    src="/example-image.png"
+                    src={example_image}
                     alt="Example project workspace in Team Project Manager"
                     w="full"
                     borderRadius="10px"
