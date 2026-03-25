@@ -56,7 +56,7 @@ type WorkItemDetailModalProps = {
       assigneeIds: number[];
       resolvedBugIds: number[];
     }>
-  ) => void;
+  ) => Promise<boolean>;
   onCreateTaskBranch: (task: Task) => void;
   onSaveBug: (
     bugId: number,
@@ -66,7 +66,7 @@ type WorkItemDetailModalProps = {
       status: string;
       priority: string;
     }>
-  ) => void;
+  ) => Promise<boolean>;
   onAddTaskComment: (
     taskId: number,
     payload: {
@@ -262,13 +262,13 @@ export function WorkItemDetailModal({
 
   const currentItem = item;
 
-  function handleSave(): void {
+  async function handleSave(): Promise<void> {
     if (!canSave) {
       return;
     }
 
     if (kind === "task") {
-      onSaveTask(currentItem.id, {
+      const didSave = await onSaveTask(currentItem.id, {
         title: title.trim(),
         description: description.trim(),
         status,
@@ -276,15 +276,21 @@ export function WorkItemDetailModal({
         assigneeIds,
         resolvedBugIds,
       });
+      if (didSave) {
+        onClose();
+      }
       return;
     }
 
-    onSaveBug(currentItem.id, {
+    const didSave = await onSaveBug(currentItem.id, {
       title: title.trim(),
       description: description.trim(),
       status,
       priority,
     });
+    if (didSave) {
+      onClose();
+    }
   }
 
   function submitComment(
@@ -913,7 +919,9 @@ export function WorkItemDetailModal({
                 borderColor="var(--color-border-strong)"
                 color="var(--color-text-primary)"
                 _hover={{ bg: "var(--color-bg-hover)" }}
-                onClick={handleSave}
+                onClick={() => {
+                  void handleSave();
+                }}
                 disabled={!canSave}
               >
                 Save changes

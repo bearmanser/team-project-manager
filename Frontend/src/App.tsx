@@ -1889,12 +1889,12 @@ function App() {
       assigneeIds: number[];
       resolvedBugIds: number[];
     }>
-  ): Promise<void> {
+  ): Promise<boolean> {
     if (!token) {
-      return;
+      return false;
     }
 
-    await runProjectMutation(
+    return runProjectMutation(
       "Saving task",
       () => updateTask(token, taskId, payload),
       "Task saved."
@@ -2038,12 +2038,12 @@ function App() {
       status: string;
       priority: string;
     }>
-  ): Promise<void> {
+  ): Promise<boolean> {
     if (!token) {
-      return;
+      return false;
     }
 
-    await runProjectMutation(
+    return runProjectMutation(
       "Saving bug report",
       () => updateBugReport(token, bugId, payload),
       "Bug saved."
@@ -2681,13 +2681,9 @@ function App() {
           project={selectedProject}
           task={selectedTask}
           onClose={() => setSelectedTaskId(null)}
-          onSaveTask={(taskId, payload) =>
-            void handleSaveTaskDetails(taskId, payload)
-          }
+          onSaveTask={handleSaveTaskDetails}
           onCreateTaskBranch={openTaskBranchPrompt}
-          onSaveBug={(bugId, payload) =>
-            void handleSaveBugDetails(bugId, payload)
-          }
+          onSaveBug={handleSaveBugDetails}
           onAddTaskComment={(taskId, payload) =>
             void handleAddTaskDetailComment(taskId, payload)
           }
@@ -2706,13 +2702,9 @@ function App() {
           project={selectedProject}
           bug={selectedBug}
           onClose={() => setSelectedBugId(null)}
-          onSaveTask={(taskId, payload) =>
-            void handleSaveTaskDetails(taskId, payload)
-          }
+          onSaveTask={handleSaveTaskDetails}
           onCreateTaskBranch={openTaskBranchPrompt}
-          onSaveBug={(bugId, payload) =>
-            void handleSaveBugDetails(bugId, payload)
-          }
+          onSaveBug={handleSaveBugDetails}
           onAddTaskComment={(taskId, payload) =>
             void handleAddTaskDetailComment(taskId, payload)
           }
