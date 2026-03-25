@@ -10,6 +10,7 @@ type NotificationPanelProps = {
     notifications: Notification[];
     onAcceptNotification: (notification: Notification) => void;
     onClose: () => void;
+    onOpenNotification: (notification: Notification) => void;
     onReadNotification: (notification: Notification) => void;
 };
 
@@ -17,6 +18,7 @@ export function NotificationPanel({
     notifications,
     onAcceptNotification,
     onClose,
+    onOpenNotification,
     onReadNotification,
 }: NotificationPanelProps) {
     return (
@@ -50,13 +52,45 @@ export function NotificationPanel({
                 </Flex>
 
                 {notifications.length ? (
-                    notifications.map((notification) => (
+                    notifications.map((notification) => {
+                        const isOpenable =
+                            notification.projectId !== null &&
+                            (notification.taskId !== null || notification.bugReportId !== null);
+
+                        return (
                         <Box
                             key={notification.id}
                             borderBottomWidth="1px"
                             borderColor="var(--color-border-default)"
                             pb="3"
                             _last={{ borderBottomWidth: "0", pb: "0" }}
+                            cursor={isOpenable ? "pointer" : "default"}
+                            borderRadius="lg"
+                            px="2"
+                            mx="-2"
+                            transition="background-color 0.2s ease"
+                            _hover={
+                                isOpenable
+                                    ? { bg: "var(--color-bg-hover)" }
+                                    : undefined
+                            }
+                            onClick={
+                                isOpenable
+                                    ? () => onOpenNotification(notification)
+                                    : undefined
+                            }
+                            onKeyDown={
+                                isOpenable
+                                    ? (event) => {
+                                          if (event.key === "Enter" || event.key === " ") {
+                                              event.preventDefault();
+                                              onOpenNotification(notification);
+                                          }
+                                      }
+                                    : undefined
+                            }
+                            role={isOpenable ? "button" : undefined}
+                            tabIndex={isOpenable ? 0 : undefined}
                         >
                             <Stack gap="2">
                                 <Text color="var(--color-text-primary)" fontWeight={notification.isRead ? "500" : "700"}>
@@ -74,7 +108,10 @@ export function NotificationPanel({
                                                 bg="var(--color-accent)"
                                                 color="var(--color-text-inverse)"
                                                 _hover={{ bg: "var(--color-accent-hover)" }}
-                                                onClick={() => onAcceptNotification(notification)}
+                                                onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    onAcceptNotification(notification);
+                                                }}
                                             >
                                                 {notification.action.label}
                                             </Button>
@@ -88,7 +125,10 @@ export function NotificationPanel({
                                                 color="var(--color-text-primary)"
                                                 bg="transparent"
                                                 _hover={{ bg: "var(--color-accent-surface)", borderColor: "var(--color-accent-border)" }}
-                                                onClick={() => onReadNotification(notification)}
+                                                onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    onReadNotification(notification);
+                                                }}
                                             >
                                                 Mark read
                                             </Button>
@@ -97,7 +137,8 @@ export function NotificationPanel({
                                 </Flex>
                             </Stack>
                         </Box>
-                    ))
+                    );
+                    })
                 ) : (
                     <Text color="var(--color-text-muted)">No notifications yet.</Text>
                 )}

@@ -423,6 +423,11 @@ function getStoredThemeMode(): "light" | "dark" {
 }
 
 function App() {
+  const [pendingNotificationTarget, setPendingNotificationTarget] = useState<{
+    projectId: number;
+    taskId: number | null;
+    bugReportId: number | null;
+  } | null>(null);
   const [signupForm, setSignupForm] = useState(initialSignupForm);
   const [loginForm, setLoginForm] = useState(initialLoginForm);
   const [token, setToken] = useState<string | null>(() =>
@@ -572,6 +577,38 @@ function App() {
       selectedProject.tasks.find((task) => task.id === branchTaskId) ?? null
     );
   }, [branchTaskId, selectedProject]);
+
+  useEffect(() => {
+    if (!pendingNotificationTarget || !selectedProject) {
+      return;
+    }
+
+    if (selectedProject.id !== pendingNotificationTarget.projectId) {
+      return;
+    }
+
+    if (pendingNotificationTarget.taskId !== null) {
+      const taskExists = selectedProject.tasks.some(
+        (task) => task.id === pendingNotificationTarget.taskId
+      );
+      if (taskExists) {
+        openTaskDetail(pendingNotificationTarget.taskId);
+      } else {
+        setError("The task for this notification is no longer available.");
+      }
+    } else if (pendingNotificationTarget.bugReportId !== null) {
+      const bugExists = selectedProject.bugReports.some(
+        (bug) => bug.id === pendingNotificationTarget.bugReportId
+      );
+      if (bugExists) {
+        openBugDetail(pendingNotificationTarget.bugReportId);
+      } else {
+        setError("The bug for this notification is no longer available.");
+      }
+    }
+
+    setPendingNotificationTarget(null);
+  }, [pendingNotificationTarget, selectedProject]);
 
   useEffect(() => {
     const workItemKey = selectedTask
@@ -1719,6 +1756,49 @@ function App() {
     }
   }
 
+  async function handleOpenNotification(
+    notification: Notification
+  ): Promise<void> {
+    if (
+      !token ||
+      notification.projectId === null ||
+      (notification.taskId === null && notification.bugReportId === null)
+    ) {
+      return;
+    }
+
+    setError(null);
+    setNotice(null);
+    setNotificationOpen(false);
+
+    if (selectedProject?.id === notification.projectId) {
+      if (notification.taskId !== null) {
+        openTaskDetail(notification.taskId);
+      } else if (notification.bugReportId !== null) {
+        openBugDetail(notification.bugReportId);
+      }
+      return;
+    }
+
+    setPendingNotificationTarget({
+      projectId: notification.projectId,
+      taskId: notification.taskId,
+      bugReportId: notification.bugReportId,
+    });
+    setBusyLabel("Opening item");
+    navigateToPath(getProjectPath(notification.projectId));
+
+    try {
+      await syncFromPath(token, { quiet: true });
+    } catch (reason) {
+      setPendingNotificationTarget(null);
+      setError(getFriendlyError(reason));
+      return;
+    } finally {
+      setBusyLabel(null);
+    }
+  }
+
   async function handleAcceptNotification(
     notification: Notification
   ): Promise<void> {
@@ -2429,6 +2509,9 @@ function App() {
       onLogout={clearSession}
       onAcceptNotification={(notification) =>
         void handleAcceptNotification(notification)
+      }
+      onOpenNotification={(notification) =>
+        void handleOpenNotification(notification)
       }
       onReadNotification={(notification) =>
         void handleReadNotification(notification)
