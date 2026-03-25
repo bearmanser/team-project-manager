@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 
 import {
   Box,
@@ -90,6 +91,7 @@ type WorkItemDetailModalProps = {
 };
 
 const commentHint = "Press Enter to send. Shift+Enter adds a new line.";
+const COMMENT_MENTION_PATTERN = /(?<![\w-])@([A-Za-z0-9_][A-Za-z0-9_-]{0,63})/g;
 const REACTION_EMOJIS = [
   "\u{1F44D}",
   "\u{2764}\u{FE0F}",
@@ -117,6 +119,43 @@ function getReactionSummary(
   emoji: string
 ): CommentReactionSummary | null {
   return reactions.find((reaction) => reaction.emoji === emoji) ?? null;
+}
+
+function renderCommentBody(body: string): ReactNode[] {
+  const segments: ReactNode[] = [];
+  let lastIndex = 0;
+
+  for (const match of body.matchAll(COMMENT_MENTION_PATTERN)) {
+    const startIndex = match.index ?? 0;
+    const mention = match[0];
+
+    if (startIndex > lastIndex) {
+      segments.push(body.slice(lastIndex, startIndex));
+    }
+
+    segments.push(
+      <Box
+        as="span"
+        key={`${startIndex}-${mention}`}
+        display="inline"
+        px="1.5"
+        py="0.5"
+        borderRadius="md"
+        bg="var(--color-accent-surface)"
+        color="var(--color-accent)"
+        fontWeight="600"
+      >
+        {mention}
+      </Box>
+    );
+    lastIndex = startIndex + mention.length;
+  }
+
+  if (lastIndex < body.length) {
+    segments.push(body.slice(lastIndex));
+  }
+
+  return segments.length ? segments : [body];
 }
 
 export function WorkItemDetailModal({
@@ -442,7 +481,7 @@ export function WorkItemDetailModal({
               wordBreak="break-word"
               fontSize="sm"
             >
-              {comment.body}
+              {renderCommentBody(comment.body)}
             </Text>
 
             <Flex wrap="wrap" onClick={(event) => event.stopPropagation()}>

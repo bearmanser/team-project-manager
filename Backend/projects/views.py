@@ -545,9 +545,8 @@ def _activate_organization_invite(
     organization_membership.save(update_fields=["status", "updated_at"])
     _sync_organization_membership_to_projects(organization_membership)
 
-    if notification is not None and not notification.is_read:
-        notification.is_read = True
-        notification.save(update_fields=["is_read"])
+    if notification is not None:
+        _close_notification(notification)
 
 
 
@@ -682,6 +681,45 @@ def _notify_mentions(
         notified_user_ids.add(user.id)
 
     return notified_user_ids
+
+
+def _close_notification(notification: Notification) -> None:
+    update_fields: list[str] = []
+    if not notification.is_read:
+        notification.is_read = True
+        update_fields.append("is_read")
+    if not notification.is_closed:
+        notification.is_closed = True
+        update_fields.append("is_closed")
+    if update_fields:
+        notification.save(update_fields=update_fields)
+
+
+def _close_related_notifications_for_user(
+    user,
+    *,
+    task_id: int | None = None,
+    bug_report_id: int | None = None,
+) -> list[int]:
+    if task_id is None and bug_report_id is None:
+        return []
+
+    notifications = Notification.objects.filter(
+        recipient=user,
+        is_closed=False,
+    ).exclude(kind=Notification.KIND_INVITE)
+
+    if task_id is not None and bug_report_id is not None:
+        notifications = notifications.filter(task_id=task_id, bug_report_id=bug_report_id)
+    elif task_id is not None:
+        notifications = notifications.filter(task_id=task_id)
+    else:
+        notifications = notifications.filter(bug_report_id=bug_report_id)
+
+    notification_ids = list(notifications.values_list("id", flat=True))
+    if notification_ids:
+        notifications.update(is_read=True, is_closed=True)
+    return notification_ids
 
 
 def _notify_new_assignees(task: Task, actor, assignees: list[User]) -> None:
@@ -939,6 +977,7 @@ def _serialize_notification(notification: Notification) -> dict:
         "kind": notification.kind,
         "message": notification.message,
         "isRead": notification.is_read,
+        "isClosed": notification.is_closed,
         "actor": _serialize_user(notification.actor) if notification.actor else None,
         "organizationId": notification.organization_id,
         "projectId": notification.project_id,
@@ -1245,7 +1284,10 @@ def workspace_view(request):
     ]
     notifications = [
         _serialize_notification(notification)
-        for notification in Notification.objects.filter(recipient=request.user)
+        for notification in Notification.objects.filter(
+            recipient=request.user,
+            is_closed=False,
+        )
         .select_related("actor", "organization")[:20]
     ]
 
@@ -3128,6 +3170,34 @@ def notification_read_view(request, notification_id: int):
     notification.is_read = True
     notification.save(update_fields=["is_read"])
     return JsonResponse({"notification": _serialize_notification(notification)})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@jwt_required
+def notification_close_related_view(request):
+    try:
+        payload = _parse_json_body(request)
+    except ValueError as exc:
+        return _json_error(str(exc))
+
+    task_id = payload.get("taskId")
+    bug_report_id = payload.get("bugReportId")
+    if task_id is None and bug_report_id is None:
+        return _json_error("Choose a related task or bug notification target.")
+
+    try:
+        resolved_task_id = int(task_id) if task_id is not None else None
+        resolved_bug_report_id = int(bug_report_id) if bug_report_id is not None else None
+    except (TypeError, ValueError):
+        return _json_error("Choose a valid related task or bug notification target.")
+
+    closed_notification_ids = _close_related_notifications_for_user(
+        request.user,
+        task_id=resolved_task_id,
+        bug_report_id=resolved_bug_report_id,
+    )
+    return JsonResponse({"closedNotificationIds": closed_notification_ids})
 
 
 

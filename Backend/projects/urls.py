@@ -93,6 +93,11 @@ urlpatterns = [
         views.notification_read_view,
         name="notification-read",
     ),
+    path(
+        "notifications/close-related/",
+        views.notification_close_related_view,
+        name="notification-close-related",
+    ),
 ]
 
 

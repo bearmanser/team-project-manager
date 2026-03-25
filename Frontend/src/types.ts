@@ -41,6 +41,7 @@ export type Notification = {
     kind: string;
     message: string;
     isRead: boolean;
+    isClosed: boolean;
     actor: User | null;
     organizationId: number | null;
     projectId: number | null;
@@ -338,6 +339,10 @@ export type DeleteOrganizationResponse = {
 
 export type NotificationResponse = {
     notification: Notification;
+};
+
+export type CloseRelatedNotificationsResponse = {
+    closedNotificationIds: number[];
 };
 
 export type OrganizationMembersResponse = {

@@ -623,6 +623,7 @@ class Notification(models.Model):
     message = models.CharField(max_length=255)
     metadata = models.JSONField(default=dict, blank=True)
     is_read = models.BooleanField(default=False)
+    is_closed = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

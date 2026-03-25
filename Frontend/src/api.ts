@@ -1,5 +1,6 @@
 import type {
     AuthResponse,
+    CloseRelatedNotificationsResponse,
     DeleteOrganizationResponse,
     DeleteProjectResponse,
     GitHubConnectResponse,
@@ -646,6 +647,20 @@ export function markNotificationRead(
         `/api/notifications/${notificationId}/read/`,
         {
             method: "POST",
+        },
+        token,
+    );
+}
+
+export function closeRelatedNotifications(
+    token: string,
+    payload: { taskId?: number; bugReportId?: number },
+): Promise<CloseRelatedNotificationsResponse> {
+    return request<CloseRelatedNotificationsResponse>(
+        "/api/notifications/close-related/",
+        {
+            method: "POST",
+            body: JSON.stringify(payload),
         },
         token,
     );

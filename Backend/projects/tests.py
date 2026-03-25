@@ -9,6 +9,7 @@ from django.utils import timezone
 from accounts.auth import create_access_token
 
 from .models import (
+    BugReport,
     LEGACY_PERSONAL_ORGANIZATION_DESCRIPTION,
     Notification,
     Organization,
@@ -588,6 +589,88 @@ class TaskNotificationTests(TestCase):
             notification.message,
             f'{self.commenter.username} commented on task "{self.task.title}" that you are assigned to.',
         )
+
+    def test_comment_mentions_create_a_mention_notification(self):
+        response = self.client.post(
+            f"/api/tasks/{self.task.id}/comments/",
+            data=json.dumps({"body": f"Please take a look @{self.assignee.username}"}),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {self.commenter_token}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        notification = Notification.objects.get(
+            recipient=self.assignee,
+            task=self.task,
+            kind=Notification.KIND_MENTION,
+        )
+        self.assertEqual(notification.actor, self.commenter)
+        self.assertEqual(
+            notification.message,
+            f'{self.commenter.username} mentioned you in task "{self.task.title}".',
+        )
+
+    def test_opening_task_detail_can_close_related_notifications(self):
+        self.task.assignees.set([self.assignee])
+        self.client.post(
+            f"/api/tasks/{self.task.id}/comments/",
+            data=json.dumps({"body": f"Please review this @{self.assignee.username}"}),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {self.commenter_token}",
+        )
+
+        response = self.client.post(
+            "/api/notifications/close-related/",
+            data=json.dumps({"taskId": self.task.id}),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {create_access_token(self.assignee.id)}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        closed_ids = response.json()["closedNotificationIds"]
+        notifications = list(
+            Notification.objects.filter(
+                recipient=self.assignee,
+                task=self.task,
+            ).order_by("id")
+        )
+        self.assertEqual(sorted(closed_ids), sorted(notification.id for notification in notifications))
+
+        for notification in notifications:
+            notification.refresh_from_db()
+            self.assertTrue(notification.is_read)
+            self.assertTrue(notification.is_closed)
+
+    def test_opening_bug_detail_can_close_related_notifications(self):
+        bug_report = BugReport.objects.create(
+            project=self.project,
+            title="Production issue",
+            description="",
+            reporter=self.owner,
+            status=BugReport.STATUS_OPEN,
+            priority=BugReport.PRIORITY_HIGH,
+        )
+        notification = Notification.objects.create(
+            recipient=self.assignee,
+            actor=self.commenter,
+            project=self.project,
+            bug_report=bug_report,
+            kind=Notification.KIND_SYSTEM,
+            message=f'Bug "{bug_report.title}" was closed when its resolution task was completed.',
+        )
+
+        response = self.client.post(
+            "/api/notifications/close-related/",
+            data=json.dumps({"bugReportId": bug_report.id}),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {create_access_token(self.assignee.id)}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["closedNotificationIds"], [notification.id])
+        notification.refresh_from_db()
+        self.assertTrue(notification.is_read)
+        self.assertTrue(notification.is_closed)
 
 
 

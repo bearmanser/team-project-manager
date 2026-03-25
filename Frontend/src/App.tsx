@@ -11,6 +11,7 @@ import {
   addTaskComment,
   buildApiUrl,
   cancelOrganizationInvite,
+  closeRelatedNotifications,
   completeGitHubOauth,
   createBugReport,
   createOrganization,
@@ -503,6 +504,7 @@ function App() {
   const selectedProjectUpdatedAtRef = useRef<string | null>(null);
   const isRefreshingProjectFromEventsRef = useRef(false);
   const githubRepoRetryCountRef = useRef(0);
+  const lastAutoClosedWorkItemKeyRef = useRef<string | null>(null);
 
   const user = workspace?.user ?? null;
   const githubRepoErrorMessage =
@@ -510,9 +512,10 @@ function App() {
     workspace?.user.githubConnected
       ? "GitHub connected, but repositories are still syncing. Please wait a moment and try again."
       : workspace?.githubRepoError ?? null;
-  const unreadNotifications = (workspace?.notifications ?? []).filter(
-    (item) => !item.isRead
+  const notifications = (workspace?.notifications ?? []).filter(
+    (item) => !item.isClosed
   );
+  const unreadNotifications = notifications.filter((item) => !item.isRead);
   const currentOrganization = useMemo<OrganizationSummary | null>(() => {
     if (!workspace || selectedOrganizationId === null) {
       return null;
@@ -569,6 +572,34 @@ function App() {
       selectedProject.tasks.find((task) => task.id === branchTaskId) ?? null
     );
   }, [branchTaskId, selectedProject]);
+
+  useEffect(() => {
+    const workItemKey = selectedTask
+      ? `task:${selectedTask.id}`
+      : selectedBug
+      ? `bug:${selectedBug.id}`
+      : null;
+
+    if (!workItemKey) {
+      lastAutoClosedWorkItemKeyRef.current = null;
+      return;
+    }
+
+    if (lastAutoClosedWorkItemKeyRef.current === workItemKey) {
+      return;
+    }
+
+    lastAutoClosedWorkItemKeyRef.current = workItemKey;
+    const payload = selectedTask
+      ? { taskId: selectedTask.id }
+      : { bugReportId: selectedBug!.id };
+
+    void handleCloseRelatedNotifications(payload).then((didClose) => {
+      if (!didClose && lastAutoClosedWorkItemKeyRef.current === workItemKey) {
+        lastAutoClosedWorkItemKeyRef.current = null;
+      }
+    });
+  }, [selectedBug, selectedTask, token]);
 
   const organizationNavItems: NavItem<OrganizationSection>[] = useMemo(() => {
     const items: NavItem<OrganizationSection>[] = [
@@ -1654,6 +1685,40 @@ function App() {
     }
   }
 
+  async function handleCloseRelatedNotifications(payload: {
+    taskId?: number;
+    bugReportId?: number;
+  }): Promise<boolean> {
+    if (!token) {
+      return false;
+    }
+
+    try {
+      const response = await closeRelatedNotifications(token, payload);
+      if (!response.closedNotificationIds.length) {
+        return true;
+      }
+
+      const closedIds = new Set(response.closedNotificationIds);
+      startTransition(() => {
+        setWorkspace((current) =>
+          current
+            ? {
+                ...current,
+                notifications: current.notifications.filter(
+                  (item) => !closedIds.has(item.id)
+                ),
+              }
+            : current
+        );
+      });
+      return true;
+    } catch (reason) {
+      setError(getFriendlyError(reason));
+      return false;
+    }
+  }
+
   async function handleAcceptNotification(
     notification: Notification
   ): Promise<void> {
@@ -2353,7 +2418,7 @@ function App() {
       busyLabel={busyLabel}
       error={error}
       notice={notice}
-      notifications={workspace?.notifications ?? []}
+      notifications={notifications}
       notificationOpen={notificationOpen}
       unreadCount={unreadNotifications.length}
       themeMode={themeMode}
