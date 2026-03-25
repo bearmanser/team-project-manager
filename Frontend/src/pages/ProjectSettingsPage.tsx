@@ -180,7 +180,7 @@ export function ProjectSettingsPage({
                                 <Text color="var(--color-text-muted)">No repository connected yet.</Text>
                             )}
 
-                            {project.permissions.canManageRepos ? (
+                            {project.permissions.canManageRepos && !project.repositories.length ? (
                                 <SurfaceCard p="4" bg="var(--color-bg-card)">
                                     <Stack gap="3">
                                         <Heading size="sm" color="var(--color-text-primary)">
@@ -274,3 +274,4 @@ export function ProjectSettingsPage({
         </>
     );
 }
+

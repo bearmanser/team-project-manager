@@ -577,6 +577,16 @@ export function startGitHubOauth(token: string): Promise<GitHubOAuthStartRespons
     return request<GitHubOAuthStartResponse>("/api/github/oauth/start/", {}, token);
 }
 
+export function disconnectGitHub(token: string): Promise<UserResponse> {
+    return request<UserResponse>(
+        "/api/github/disconnect/",
+        {
+            method: "POST",
+        },
+        token,
+    );
+}
+
 export function completeGitHubOauth(
     token: string,
     payload: { code: string; state: string },
@@ -590,6 +600,4 @@ export function completeGitHubOauth(
         token,
     );
 }
-
-
 

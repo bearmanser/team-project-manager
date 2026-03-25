@@ -27,6 +27,8 @@ type TopNavProps = {
   unreadCount: number;
   themeMode: "light" | "dark";
   user: User | null;
+  onConnectGitHub: () => void;
+  onDisconnectGitHub: () => void;
   onLogout: () => void;
   onReadNotification: (notification: Notification) => void;
   onToggleNotifications: () => void;
@@ -146,12 +148,19 @@ export function TopNav({
   unreadCount,
   themeMode,
   user,
+  onConnectGitHub,
+  onDisconnectGitHub,
   onLogout,
   onReadNotification,
   onToggleNotifications,
   onCloseNotifications,
   onToggleThemeMode,
 }: TopNavProps) {
+  const isManagingGitHub =
+    busyLabel === "Opening GitHub" ||
+    busyLabel === "Refreshing GitHub repositories" ||
+    busyLabel === "Disconnecting GitHub";
+
   const statusAlert = error
     ? {
         title: error,
@@ -255,8 +264,17 @@ export function TopNav({
           </Box>
 
           <DropdownMenu
-            width="160px"
+            width="200px"
             items={[
+              {
+                label: user?.githubConnected
+                  ? "Disconnect GitHub"
+                  : "Connect GitHub",
+                onClick: user?.githubConnected
+                  ? onDisconnectGitHub
+                  : onConnectGitHub,
+                disabled: isManagingGitHub,
+              },
               {
                 label: "Log out",
                 onClick: onLogout,

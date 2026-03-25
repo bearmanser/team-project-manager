@@ -42,6 +42,9 @@ The frontend is located in [`Frontend`](./Frontend) and is what users interact w
 * Vite
 * Chakra UI
 
+**Starts with:**
+npm run dev
+
 **Responsibilities:**
 
 * Authentication (login and signup)
@@ -65,6 +68,9 @@ The backend is located in [`Backend`](./Backend) and handles all core logic, dat
 * SQLite
 * Gunicorn
 * Docker
+
+**Starts with:**
+uvicorn config.asgi:application --reload --host 0.0.0.0 --port 8000
 
 **Responsibilities:**
 

@@ -174,6 +174,21 @@ def github_oauth_start_view(request):
 @csrf_exempt
 @require_http_methods(["POST"])
 @jwt_required
+def github_disconnect_view(request):
+    profile = _get_profile(request.user)
+    profile.github_user_id = None
+    profile.github_username = ""
+    profile.github_avatar_url = ""
+    profile.github_access_token = ""
+    profile.github_connected_at = None
+    profile.save()
+
+    return JsonResponse({"user": _serialize_user(request.user)})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@jwt_required
 def github_oauth_complete_view(request):
     try:
         payload = _parse_json_body(request)
@@ -215,15 +230,21 @@ def github_oauth_complete_view(request):
         profile.github_access_token = access_token
         profile.github_connected_at = timezone.now()
         profile.save()
-
-        repos = get_github_repositories(access_token)
     except GitHubAPIError as exc:
         return _json_error(str(exc), exc.status_code)
+
+    repos = []
+    github_repo_error = None
+    try:
+        repos = get_github_repositories(access_token)
+    except GitHubAPIError as exc:
+        github_repo_error = str(exc)
 
     return JsonResponse(
         {
             "user": _serialize_user(request.user),
             "repos": [_serialize_repo(repo) for repo in repos],
+            "githubRepoError": github_repo_error,
         }
     )
 
@@ -241,4 +262,5 @@ def github_repos_view(request):
         return _json_error(str(exc), exc.status_code)
 
     return JsonResponse({"repos": [_serialize_repo(repo) for repo in repos]})
+
 

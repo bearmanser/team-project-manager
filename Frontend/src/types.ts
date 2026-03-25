@@ -289,6 +289,7 @@ export type GitHubOAuthStartResponse = {
 export type GitHubConnectResponse = {
     user: User;
     repos: Repo[];
+    githubRepoError: string | null;
 };
 
 export type WorkspaceResponse = {
@@ -325,6 +326,7 @@ export type DeleteProjectResponse = {
     success: boolean;
     projectId: number;
 };
+
 
 
 

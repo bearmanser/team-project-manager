@@ -1,4 +1,5 @@
 import json
+import time
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -57,18 +58,27 @@ def _request_json(
         headers["Content-Type"] = "application/json"
 
     request = Request(url, data=encoded_data, headers=headers, method=method)
+    max_attempts = 4 if token else 1
 
-    try:
-        with urlopen(request, timeout=10) as response:
-            payload = response.read().decode("utf-8")
-            return json.loads(payload) if payload else {}
-    except HTTPError as exc:
-        raise GitHubAPIError(_parse_error_message(exc), exc.code) from exc
-    except URLError as exc:
-        raise GitHubAPIError(
-            "Unable to reach GitHub. Check your network connection and OAuth app settings.",
-            502,
-        ) from exc
+    for attempt in range(max_attempts):
+        try:
+            with urlopen(request, timeout=10) as response:
+                payload = response.read().decode("utf-8")
+                return json.loads(payload) if payload else {}
+        except HTTPError as exc:
+            message = _parse_error_message(exc)
+            should_retry = token and exc.code == 401 and message == "Bad credentials" and attempt < max_attempts - 1
+            if should_retry:
+                time.sleep(0.4 * (attempt + 1))
+                continue
+            raise GitHubAPIError(message, exc.code) from exc
+        except URLError as exc:
+            raise GitHubAPIError(
+                "Unable to reach GitHub. Check your network connection and OAuth app settings.",
+                502,
+            ) from exc
+
+    raise GitHubAPIError("GitHub request failed.", 502)
 
 
 def build_github_authorization_url(state: str) -> str:
@@ -177,4 +187,7 @@ def create_repository_branch(
         },
     )
     return f"https://github.com/{repository_full_name}/tree/{branch_name}"
+
+
+
 
