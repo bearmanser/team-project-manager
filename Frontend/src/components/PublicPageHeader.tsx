@@ -126,7 +126,11 @@ export function PublicPageHeader({
             onClick={onToggleThemeMode}
           >
             <ActionIcon>
-              {themeMode === "dark" ? <SunIcon size={18} /> : <MoonIcon size={18} />}
+              {themeMode === "dark" ? (
+                <SunIcon size={18} />
+              ) : (
+                <MoonIcon size={18} />
+              )}
             </ActionIcon>
           </HeaderActionButton>
 
@@ -150,9 +154,6 @@ export function PublicPageHeader({
                     <Accordion.Item
                       key={faq.question}
                       value={faq.question}
-                      borderWidth="1px"
-                      borderColor="var(--color-border-default)"
-                      borderRadius="10px"
                       overflow="hidden"
                     >
                       <Accordion.ItemTrigger
@@ -162,7 +163,12 @@ export function PublicPageHeader({
                         color="var(--color-text-primary)"
                         _hover={{ bg: "var(--color-bg-hover)" }}
                       >
-                        <Flex align="center" justify="space-between" w="full" gap="3">
+                        <Flex
+                          align="center"
+                          justify="space-between"
+                          w="full"
+                          gap="3"
+                        >
                           <Text fontWeight="600" textAlign="left">
                             {faq.question}
                           </Text>

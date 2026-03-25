@@ -41,7 +41,11 @@ export function HeaderActionButton({
   );
 }
 
-export function BrandWordmark({ size = "default" }: { size?: "default" | "small" }) {
+export function BrandWordmark({
+  size = "default",
+}: {
+  size?: "default" | "small";
+}) {
   const words = [
     { initial: "T", rest: "eam" },
     { initial: "P", rest: "roject" },
@@ -67,7 +71,9 @@ export function BrandWordmark({ size = "default" }: { size?: "default" | "small"
         >
           <Box
             as="span"
-            fontSize={isSmall ? { base: "xl", md: "xl" } : { base: "3xl", md: "3xl" }}
+            fontSize={
+              isSmall ? { base: "lg", md: "lg" } : { base: "3xl", md: "3xl" }
+            }
             fontWeight="500"
             lineHeight="0.8"
           >
@@ -75,7 +81,9 @@ export function BrandWordmark({ size = "default" }: { size?: "default" | "small"
           </Box>
           <Box
             as="span"
-            fontSize={isSmall ? { base: "xs", md: "sm" } : { base: "sm", md: "2xl" }}
+            fontSize={
+              isSmall ? { base: "xs", md: "sm" } : { base: "sm", md: "2xl" }
+            }
             fontWeight="500"
           >
             {word.rest}
