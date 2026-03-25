@@ -28,6 +28,7 @@ type TopNavProps = {
   onConnectGitHub: () => void;
   onDisconnectGitHub: () => void;
   onLogout: () => void;
+  onAcceptNotification: (notification: Notification) => void;
   onReadNotification: (notification: Notification) => void;
   onToggleNotifications: () => void;
   onCloseNotifications: () => void;
@@ -70,6 +71,7 @@ export function TopNav({
   onConnectGitHub,
   onDisconnectGitHub,
   onLogout,
+  onAcceptNotification,
   onReadNotification,
   onToggleNotifications,
   onCloseNotifications,
@@ -176,6 +178,7 @@ export function TopNav({
             {notificationOpen ? (
               <NotificationPanel
                 notifications={notifications}
+                onAcceptNotification={onAcceptNotification}
                 onClose={onCloseNotifications}
                 onReadNotification={onReadNotification}
               />

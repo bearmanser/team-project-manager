@@ -5,9 +5,11 @@ import type {
     GitHubConnectResponse,
     GitHubOAuthStartResponse,
     NotificationResponse,
+    OrganizationMembersResponse,
     OrganizationResponse,
     ProjectGitHubIssuesResponse,
     ProjectResponse,
+    SuccessResponse,
     UserResponse,
     WorkspaceResponse,
 } from "./types";
@@ -166,6 +168,82 @@ export function updateOrganizationSettings(
 export function deleteOrganization(token: string, organizationId: number): Promise<DeleteOrganizationResponse> {
     return request<DeleteOrganizationResponse>(
         `/api/organizations/${organizationId}/delete/`,
+        {
+            method: "POST",
+        },
+        token,
+    );
+}
+
+export function getOrganizationMembers(
+    token: string,
+    organizationId: number,
+): Promise<OrganizationMembersResponse> {
+    return request<OrganizationMembersResponse>(`/api/organizations/${organizationId}/members/`, {}, token);
+}
+
+export function inviteOrganizationMember(
+    token: string,
+    organizationId: number,
+    payload: { identifier: string; role: string },
+): Promise<OrganizationMembersResponse> {
+    return request<OrganizationMembersResponse>(
+        `/api/organizations/${organizationId}/members/`,
+        {
+            method: "POST",
+            body: JSON.stringify(payload),
+        },
+        token,
+    );
+}
+
+export function updateOrganizationMemberRole(
+    token: string,
+    organizationId: number,
+    membershipId: number,
+    payload: { role: string },
+): Promise<OrganizationMembersResponse> {
+    return request<OrganizationMembersResponse>(
+        `/api/organizations/${organizationId}/members/${membershipId}/role/`,
+        {
+            method: "POST",
+            body: JSON.stringify(payload),
+        },
+        token,
+    );
+}
+
+export function removeOrganizationMember(
+    token: string,
+    organizationId: number,
+    membershipId: number,
+): Promise<SuccessResponse> {
+    return request<SuccessResponse>(
+        `/api/organizations/${organizationId}/members/${membershipId}/remove/`,
+        {
+            method: "POST",
+        },
+        token,
+    );
+}
+
+export function cancelOrganizationInvite(
+    token: string,
+    organizationId: number,
+    membershipId: number,
+): Promise<SuccessResponse> {
+    return request<SuccessResponse>(
+        `/api/organizations/${organizationId}/members/${membershipId}/cancel/`,
+        {
+            method: "POST",
+        },
+        token,
+    );
+}
+
+export function leaveOrganization(token: string, organizationId: number): Promise<SuccessResponse> {
+    return request<SuccessResponse>(
+        `/api/organizations/${organizationId}/leave/`,
         {
             method: "POST",
         },
@@ -580,6 +658,19 @@ export function startGitHubOauth(token: string): Promise<GitHubOAuthStartRespons
 export function disconnectGitHub(token: string): Promise<UserResponse> {
     return request<UserResponse>(
         "/api/github/disconnect/",
+        {
+            method: "POST",
+        },
+        token,
+    );
+}
+
+export function acceptNotification(
+    token: string,
+    notificationId: number,
+): Promise<NotificationResponse> {
+    return request<NotificationResponse>(
+        `/api/notifications/${notificationId}/accept/`,
         {
             method: "POST",
         },

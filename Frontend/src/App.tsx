@@ -5,11 +5,12 @@ import { Box, Button, Heading, Stack, Text } from "@chakra-ui/react";
 import {
   AUTH_TOKEN_INVALID_EVENT,
   ApiError,
+  acceptNotification,
   addBugComment,
-  addProjectMember,
   addProjectRepos,
   addTaskComment,
   buildApiUrl,
+  cancelOrganizationInvite,
   completeGitHubOauth,
   createBugReport,
   createOrganization,
@@ -20,18 +21,23 @@ import {
   deleteProject,
   disconnectGitHub,
   endProjectSprint,
+  getOrganizationMembers,
   getProject,
   getProjectGitHubIssues,
   getWorkspace,
   importBugFromGitHubIssue,
+  inviteOrganizationMember,
+  leaveOrganization,
   login,
   markNotificationRead,
+  removeOrganizationMember,
   removeProjectRepo,
   signup,
   startGitHubOauth,
   toggleBugCommentReaction,
   toggleTaskCommentReaction,
   updateBugReport,
+  updateOrganizationMemberRole,
   updateOrganizationSettings,
   updateProjectSettings,
   updateProjectSprint,
@@ -63,22 +69,17 @@ import type {
   EndSprintUnfinishedAction,
   GitHubIssueCandidate,
   Notification,
+  OrganizationMember,
   OrganizationSummary,
   PriorityLevel,
   ProjectDetail,
   ProjectRole,
   Task,
   TaskStatus,
-  User,
   WorkspaceResponse,
 } from "./types";
 import { sidebarSelectStyle } from "./utils";
-import type {
-  NavItem,
-  OrganizationSection,
-  OrganizationUser,
-  ProjectSection,
-} from "./view-models";
+import type { NavItem, OrganizationSection, ProjectSection } from "./view-models";
 
 const TOKEN_STORAGE_KEY = "team-project-manager.jwt";
 const SELECTED_ORGANIZATION_STORAGE_KEY =
@@ -265,48 +266,6 @@ function mergeProjectIntoWorkspace(
   };
 }
 
-function dedupeOrganizationUsers(
-  projects: ProjectDetail[],
-  fallbackOwner?: User | null
-): OrganizationUser[] {
-  const registry = new Map<number, OrganizationUser>();
-
-  projects.forEach((project) => {
-    project.members.forEach((member) => {
-      const existing = registry.get(member.user.id);
-      if (existing) {
-        if (!existing.projectNames.includes(project.name)) {
-          existing.projectNames.push(project.name);
-        }
-        if (!existing.roles.includes(member.role)) {
-          existing.roles.push(member.role);
-        }
-        return;
-      }
-
-      registry.set(member.user.id, {
-        id: member.user.id,
-        user: member.user,
-        projectNames: [project.name],
-        roles: [member.role],
-      });
-    });
-  });
-
-  if (fallbackOwner && !registry.has(fallbackOwner.id)) {
-    registry.set(fallbackOwner.id, {
-      id: fallbackOwner.id,
-      user: fallbackOwner,
-      projectNames: [],
-      roles: ["owner"],
-    });
-  }
-
-  return [...registry.values()].sort((left, right) =>
-    left.user.username.localeCompare(right.user.username)
-  );
-}
-
 function parseStoredNumber(key: string): number | null {
   const rawValue = window.localStorage.getItem(key);
   if (!rawValue) {
@@ -485,7 +444,7 @@ function App() {
     useState<OrganizationSection>("projects");
   const [projectSection, setProjectSection] = useState<ProjectSection>("board");
   const [organizationUsers, setOrganizationUsers] = useState<
-    OrganizationUser[]
+    OrganizationMember[]
   >([]);
   const [organizationUsersLoading, setOrganizationUsersLoading] =
     useState(false);
@@ -616,7 +575,11 @@ function App() {
       {
         id: "projects",
         label: "Projects",
-        description: "Open and add projects in this workspace.",
+        description:
+          currentOrganization?.role === "owner" ||
+          currentOrganization?.role === "admin"
+            ? "Open and add projects in this workspace."
+            : "Open the projects shared with this organization.",
       },
     ];
 
@@ -628,14 +591,16 @@ function App() {
       });
     }
 
-    if (
-      !currentOrganization?.isPersonal &&
-      currentOrganization?.role === "owner"
-    ) {
+    if (!currentOrganization?.isPersonal) {
       items.push({
         id: "settings",
         label: "Settings",
-        description: "Rename or delete this organization.",
+        description:
+          currentOrganization?.role === "owner"
+            ? "Organization details and danger zone."
+            : currentOrganization?.role === "admin"
+            ? "Organization details and leave organization."
+            : "Leave organization.",
       });
     }
 
@@ -1194,16 +1159,11 @@ function App() {
       return;
     }
 
-    const cannotManageOrganization =
-      currentOrganization.isPersonal || currentOrganization.role !== "owner";
-    if (cannotManageOrganization) {
+    if (currentOrganization.isPersonal) {
       setOrganizationSettingsForm({
         name: "",
       });
-      if (
-        organizationSection === "users" ||
-        organizationSection === "settings"
-      ) {
+      if (organizationSection === "users" || organizationSection === "settings") {
         setOrganizationSection("projects");
         navigateToPath(
           getOrganizationPath(currentOrganization.id, "projects"),
@@ -1213,9 +1173,19 @@ function App() {
       return;
     }
 
-    setOrganizationSettingsForm(
-      getOrganizationSettingsForm(currentOrganization)
-    );
+    if (
+      currentOrganization.role === "owner" ||
+      currentOrganization.role === "admin"
+    ) {
+      setOrganizationSettingsForm(
+        getOrganizationSettingsForm(currentOrganization)
+      );
+      return;
+    }
+
+    setOrganizationSettingsForm({
+      name: "",
+    });
   }, [
     currentOrganization?.id,
     currentOrganization?.isPersonal,
@@ -1363,30 +1333,15 @@ function App() {
     }
 
     let cancelled = false;
-    const fallbackOwner = currentOrganization.role === "owner" ? user : null;
-
-    if (currentOrganizationProjects.length === 0) {
-      setOrganizationUsers(dedupeOrganizationUsers([], fallbackOwner));
-      return;
-    }
 
     void (async () => {
       try {
         setOrganizationUsersLoading(true);
-        const responses = await Promise.all(
-          currentOrganizationProjects.map((project) =>
-            getProject(token, project.id)
-          )
-        );
+        const response = await getOrganizationMembers(token, currentOrganization.id);
         if (cancelled) {
           return;
         }
-        setOrganizationUsers(
-          dedupeOrganizationUsers(
-            responses.map((response) => response.project),
-            fallbackOwner
-          )
-        );
+        setOrganizationUsers(response.members);
       } catch (reason) {
         if (!cancelled) {
           setError(getFriendlyError(reason));
@@ -1403,11 +1358,9 @@ function App() {
     };
   }, [
     currentOrganization,
-    currentOrganizationProjects,
     organizationSection,
     selectedProject,
     token,
-    user,
   ]);
 
   async function handleSubmitSignup(connectGitHub: boolean): Promise<void> {
@@ -1557,7 +1510,8 @@ function App() {
       !token ||
       !currentOrganization ||
       currentOrganization.isPersonal ||
-      currentOrganization.role !== "owner"
+      (currentOrganization.role !== "owner" &&
+        currentOrganization.role !== "admin")
     ) {
       return;
     }
@@ -1610,8 +1564,43 @@ function App() {
     }
   }
 
+  async function handleLeaveCurrentOrganization(): Promise<void> {
+    if (
+      !token ||
+      !currentOrganization ||
+      currentOrganization.isPersonal ||
+      currentOrganization.role === "owner"
+    ) {
+      return;
+    }
+
+    const organizationId = currentOrganization.id;
+    setBusyLabel("Leaving organization");
+    setError(null);
+    setNotice(null);
+
+    try {
+      clearProjectSelection();
+      rememberOrganizationSelection(null);
+      await leaveOrganization(token, organizationId);
+      navigateToPath(ORGANIZATIONS_PATH, true);
+      await syncFromPath(token, { quiet: true });
+      setNotice("You left the organization.");
+    } catch (reason) {
+      setError(getFriendlyError(reason));
+      return;
+    } finally {
+      setBusyLabel(null);
+    }
+  }
+
   async function handleCreateProject(): Promise<void> {
-    if (!token || !currentOrganization) {
+    if (
+      !token ||
+      !currentOrganization ||
+      (currentOrganization.role !== "owner" &&
+        currentOrganization.role !== "admin")
+    ) {
       return;
     }
 
@@ -1662,6 +1651,40 @@ function App() {
       });
     } catch (reason) {
       setError(getFriendlyError(reason));
+    }
+  }
+
+  async function handleAcceptNotification(
+    notification: Notification
+  ): Promise<void> {
+    if (!token || !notification.action) {
+      return;
+    }
+
+    setError(null);
+    setNotice(null);
+    setBusyLabel("Accepting invite");
+
+    try {
+      const response = await acceptNotification(token, notification.id);
+      startTransition(() => {
+        setWorkspace((current) =>
+          current
+            ? {
+                ...current,
+                notifications: current.notifications.map((item) =>
+                  item.id === notification.id ? response.notification : item
+                ),
+              }
+            : current
+        );
+      });
+      await syncFromPath(token, { quiet: true });
+      setNotice("Invite accepted.");
+    } catch (reason) {
+      setError(getFriendlyError(reason));
+    } finally {
+      setBusyLabel(null);
     }
   }
 
@@ -2220,8 +2243,7 @@ function App() {
     }
   }
 
-  async function handleInviteProjectUser(
-    projectId: number,
+  async function handleInviteOrganizationUser(
     identifier: string,
     role: ProjectRole
   ): Promise<void> {
@@ -2234,12 +2256,89 @@ function App() {
     setNotice(null);
 
     try {
-      await addProjectMember(token, projectId, {
+      const response = await inviteOrganizationMember(token, currentOrganization.id, {
         identifier,
         role,
       });
+      setOrganizationUsers(response.members);
       await syncFromPath(token, { quiet: true });
       setNotice("User invited.");
+    } catch (reason) {
+      setError(getFriendlyError(reason));
+      return;
+    } finally {
+      setBusyLabel(null);
+    }
+  }
+
+  async function handleChangeOrganizationUserRole(
+    membershipId: number,
+    role: ProjectRole
+  ): Promise<void> {
+    if (!token || !currentOrganization) {
+      return;
+    }
+
+    setBusyLabel("Changing organization role");
+    setError(null);
+    setNotice(null);
+
+    try {
+      const response = await updateOrganizationMemberRole(
+        token,
+        currentOrganization.id,
+        membershipId,
+        { role }
+      );
+      setOrganizationUsers(response.members);
+      await syncFromPath(token, { quiet: true });
+      setNotice("Role updated.");
+    } catch (reason) {
+      setError(getFriendlyError(reason));
+      return;
+    } finally {
+      setBusyLabel(null);
+    }
+  }
+
+  async function handleRemoveOrganizationUser(membershipId: number): Promise<void> {
+    if (!token || !currentOrganization) {
+      return;
+    }
+
+    setBusyLabel("Removing user");
+    setError(null);
+    setNotice(null);
+
+    try {
+      await removeOrganizationMember(token, currentOrganization.id, membershipId);
+      const response = await getOrganizationMembers(token, currentOrganization.id);
+      setOrganizationUsers(response.members);
+      await syncFromPath(token, { quiet: true });
+      setNotice("User removed.");
+    } catch (reason) {
+      setError(getFriendlyError(reason));
+      return;
+    } finally {
+      setBusyLabel(null);
+    }
+  }
+
+  async function handleCancelOrganizationInvite(membershipId: number): Promise<void> {
+    if (!token || !currentOrganization) {
+      return;
+    }
+
+    setBusyLabel("Canceling invite");
+    setError(null);
+    setNotice(null);
+
+    try {
+      await cancelOrganizationInvite(token, currentOrganization.id, membershipId);
+      const response = await getOrganizationMembers(token, currentOrganization.id);
+      setOrganizationUsers(response.members);
+      await syncFromPath(token, { quiet: true });
+      setNotice("Invite canceled.");
     } catch (reason) {
       setError(getFriendlyError(reason));
       return;
@@ -2262,6 +2361,9 @@ function App() {
       onConnectGitHub={() => void handleConnectGitHub()}
       onDisconnectGitHub={() => void handleDisconnectGitHub()}
       onLogout={clearSession}
+      onAcceptNotification={(notification) =>
+        void handleAcceptNotification(notification)
+      }
       onReadNotification={(notification) =>
         void handleReadNotification(notification)
       }
@@ -2690,6 +2792,9 @@ function App() {
       organization={currentOrganization}
       projects={currentOrganizationProjects}
       availableRepos={workspace.availableRepos}
+      canCreateProject={
+        currentOrganization.role === "owner" || currentOrganization.role === "admin"
+      }
       createProjectForm={createProjectForm}
       githubRepoError={githubRepoErrorMessage}
       isGitHubConnected={user.githubConnected}
@@ -2713,28 +2818,33 @@ function App() {
       <OrganizationUsersPage
         isInviting={busyLabel === "Inviting user"}
         isLoading={organizationUsersLoading}
-        manageableProjects={currentOrganizationProjects.filter(
-          (project) => project.role === "owner" || project.role === "admin"
-        )}
-        users={organizationUsers}
-        onInviteUser={(projectId, identifier, role) =>
-          void handleInviteProjectUser(projectId, identifier, role)
+        members={organizationUsers}
+        organizationRole={currentOrganization.role}
+        onCancelInvite={(membershipId) =>
+          void handleCancelOrganizationInvite(membershipId)
+        }
+        onChangeRole={(membershipId, role) =>
+          void handleChangeOrganizationUserRole(membershipId, role)
+        }
+        onInviteUser={(identifier, role) =>
+          void handleInviteOrganizationUser(identifier, role)
+        }
+        onRemoveUser={(membershipId) =>
+          void handleRemoveOrganizationUser(membershipId)
         }
       />
     );
   }
 
-  if (
-    !currentOrganization.isPersonal &&
-    currentOrganization.role === "owner" &&
-    organizationSection === "settings"
-  ) {
+  if (!currentOrganization.isPersonal && organizationSection === "settings") {
     organizationContent = (
       <OrganizationSettingsPage
         busyLabel={busyLabel}
         organization={currentOrganization}
+        role={currentOrganization.role}
         organizationSettingsForm={organizationSettingsForm}
         onDeleteOrganization={() => void handleDeleteOrganization()}
+        onLeaveOrganization={() => void handleLeaveCurrentOrganization()}
         onOrganizationSettingsChange={(field, value) =>
           setOrganizationSettingsForm((current) => ({
             ...current,

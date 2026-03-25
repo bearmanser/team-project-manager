@@ -16,6 +16,31 @@ urlpatterns = [
         views.organization_delete_view,
         name="organization-delete",
     ),
+    path(
+        "organizations/<int:organization_id>/members/",
+        views.organization_members_view,
+        name="organization-members",
+    ),
+    path(
+        "organizations/<int:organization_id>/members/<int:membership_id>/role/",
+        views.organization_member_role_view,
+        name="organization-member-role",
+    ),
+    path(
+        "organizations/<int:organization_id>/members/<int:membership_id>/remove/",
+        views.organization_member_remove_view,
+        name="organization-member-remove",
+    ),
+    path(
+        "organizations/<int:organization_id>/members/<int:membership_id>/cancel/",
+        views.organization_member_cancel_view,
+        name="organization-member-cancel",
+    ),
+    path(
+        "organizations/<int:organization_id>/leave/",
+        views.organization_leave_view,
+        name="organization-leave",
+    ),
     path("projects/", views.projects_view, name="projects"),
     path("projects/<int:project_id>/", views.project_detail_view, name="project-detail"),
     path("projects/<int:project_id>/events/", views.project_events_view, name="project-events"),
@@ -58,6 +83,11 @@ urlpatterns = [
     path("bug-comments/<int:comment_id>/reactions/", views.bug_comment_reaction_view, name="bug-comment-reaction"),
     path("bugs/<int:bug_id>/issues/", views.bug_issue_link_view, name="bug-issue-link"),
     path("bugs/<int:bug_id>/resolution/", views.bug_resolution_view, name="bug-resolution"),
+    path(
+        "notifications/<int:notification_id>/accept/",
+        views.notification_accept_view,
+        name="notification-accept",
+    ),
     path(
         "notifications/<int:notification_id>/read/",
         views.notification_read_view,

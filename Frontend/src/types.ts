@@ -4,7 +4,14 @@ export type PriorityLevel = "low" | "medium" | "high" | "critical";
 export type BacklogPlacement = "sprint" | "product";
 export type EndSprintUnfinishedAction = "done" | "carryover" | "product";
 export type ProjectRole = "owner" | "admin" | "member" | "viewer";
-export type OrganizationRole = "owner" | "member";
+export type OrganizationRole = "owner" | "admin" | "member" | "viewer";
+export type OrganizationMemberStatus = "active" | "invited";
+
+export type NotificationAction = {
+    type: "accept_organization_invite";
+    label: string;
+    organizationMembershipId: number | null;
+};
 
 export type User = {
     id: number;
@@ -35,9 +42,11 @@ export type Notification = {
     message: string;
     isRead: boolean;
     actor: User | null;
+    organizationId: number | null;
     projectId: number | null;
     taskId: number | null;
     bugReportId: number | null;
+    action: NotificationAction | null;
     createdAt: string;
 };
 
@@ -98,6 +107,15 @@ export type ProjectMember = {
     id: number;
     role: ProjectRole;
     user: User;
+    addedAt: string;
+};
+
+export type OrganizationMember = {
+    id: number;
+    role: OrganizationRole;
+    status: OrganizationMemberStatus;
+    user: User;
+    projectNames: string[];
     addedAt: string;
 };
 
@@ -322,9 +340,18 @@ export type NotificationResponse = {
     notification: Notification;
 };
 
+export type OrganizationMembersResponse = {
+    members: OrganizationMember[];
+};
+
 export type DeleteProjectResponse = {
     success: boolean;
     projectId: number;
+};
+
+export type SuccessResponse = {
+    success: boolean;
+    organizationId?: number;
 };
 
 

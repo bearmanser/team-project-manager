@@ -11,6 +11,7 @@ type OrganizationProjectsPageProps = {
     organization: OrganizationSummary;
     projects: ProjectSummary[];
     availableRepos: Repo[];
+    canCreateProject: boolean;
     createProjectForm: {
         name: string;
         description: string;
@@ -34,6 +35,7 @@ export function OrganizationProjectsPage({
     organization,
     projects,
     availableRepos,
+    canCreateProject,
     createProjectForm,
     githubRepoError,
     isGitHubConnected,
@@ -45,7 +47,7 @@ export function OrganizationProjectsPage({
     onOpenProject,
     onToggleCreateForm,
 }: OrganizationProjectsPageProps) {
-    const canCreateProject = Boolean(createProjectForm.name.trim()) && !isCreatingProject;
+    const canSubmitProject = canCreateProject && Boolean(createProjectForm.name.trim()) && !isCreatingProject;
 
     return (
         <Stack gap="6">
@@ -58,11 +60,13 @@ export function OrganizationProjectsPage({
                         {organization.displayName}
                     </Heading>
                 </Stack>
-                <Button minW="11" h="11" borderRadius="lg" bg="var(--color-accent)" color="var(--color-text-inverse)" _hover={{ bg: "var(--color-accent-hover)" }} onClick={onToggleCreateForm}>
-                    <ActionIcon>
-                        <PlusIcon />
-                    </ActionIcon>
-                </Button>
+                {canCreateProject ? (
+                    <Button minW="11" h="11" borderRadius="lg" bg="var(--color-accent)" color="var(--color-text-inverse)" _hover={{ bg: "var(--color-accent-hover)" }} onClick={onToggleCreateForm}>
+                        <ActionIcon>
+                            <PlusIcon />
+                        </ActionIcon>
+                    </Button>
+                ) : null}
             </Flex>
 
             {githubRepoError ? (
@@ -114,7 +118,9 @@ export function OrganizationProjectsPage({
                         <Text color="var(--color-text-primary)" fontWeight="600">
                             {organization.isPersonal ? "No projects in your account yet." : "No projects in this organization yet."}
                         </Text>
-                        <Text color="var(--color-text-muted)">Use the add button to create one.</Text>
+                        <Text color="var(--color-text-muted)">
+                            {canCreateProject ? "Use the add button to create one." : "An owner or admin can add the first project here."}
+                        </Text>
                     </Stack>
                 )}
             </SurfaceCard>
@@ -122,7 +128,7 @@ export function OrganizationProjectsPage({
             <ModalFrame
                 title="Add project"
                 description="Create the project first, then optionally connect a GitHub repository now or later."
-                isOpen={showCreateForm}
+                isOpen={canCreateProject && showCreateForm}
                 onClose={onToggleCreateForm}
             >
                 <Stack
@@ -199,7 +205,7 @@ export function OrganizationProjectsPage({
                         bg="var(--color-accent)"
                         color="var(--color-text-inverse)"
                         alignSelf="flex-start"
-                        disabled={!canCreateProject}
+                        disabled={!canSubmitProject}
                         _hover={{ bg: "var(--color-accent-hover)" }}
                     >
                         {isCreatingProject ? "Adding..." : "Add project"}

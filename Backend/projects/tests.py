@@ -10,7 +10,9 @@ from accounts.auth import create_access_token
 
 from .models import (
     LEGACY_PERSONAL_ORGANIZATION_DESCRIPTION,
+    Notification,
     Organization,
+    OrganizationMembership,
     Project,
     ProjectMembership,
 )
@@ -166,6 +168,224 @@ class OrganizationSettingsTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.json()["error"], "Personal workspaces cannot be deleted.")
         self.assertTrue(Organization.objects.filter(id=self.personal_organization.id).exists())
+
+
+class OrganizationMembershipInviteTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.owner = user_model.objects.create_user(
+            username="owner-user",
+            email="owner@example.com",
+            password="test-password-123",
+        )
+        self.admin = user_model.objects.create_user(
+            username="admin-user",
+            email="admin@example.com",
+            password="test-password-123",
+        )
+        self.second_admin = user_model.objects.create_user(
+            username="admin-two",
+            email="admin-two@example.com",
+            password="test-password-123",
+        )
+        self.member = user_model.objects.create_user(
+            username="member-user",
+            email="member@example.com",
+            password="test-password-123",
+        )
+        self.viewer = user_model.objects.create_user(
+            username="viewer-user",
+            email="viewer@example.com",
+            password="test-password-123",
+        )
+        self.invited = user_model.objects.create_user(
+            username="invited-user",
+            email="invited@example.com",
+            password="test-password-123",
+        )
+        self.organization = Organization.objects.create(
+            name="Shared Org",
+            description="",
+            owner=self.owner,
+        )
+        self.project = Project.objects.create(
+            name="Shared Project",
+            description="",
+            organization=self.organization,
+            owner=self.owner,
+        )
+
+        for user, role in [
+            (self.owner, OrganizationMembership.ROLE_OWNER),
+            (self.admin, OrganizationMembership.ROLE_ADMIN),
+            (self.second_admin, OrganizationMembership.ROLE_ADMIN),
+            (self.member, OrganizationMembership.ROLE_MEMBER),
+            (self.viewer, OrganizationMembership.ROLE_VIEWER),
+        ]:
+            OrganizationMembership.objects.create(
+                organization=self.organization,
+                user=user,
+                role=role,
+                status=OrganizationMembership.STATUS_ACTIVE,
+                invited_by=self.owner,
+            )
+
+        for user, role in [
+            (self.owner, ProjectMembership.ROLE_OWNER),
+            (self.admin, ProjectMembership.ROLE_ADMIN),
+            (self.second_admin, ProjectMembership.ROLE_ADMIN),
+            (self.member, ProjectMembership.ROLE_MEMBER),
+            (self.viewer, ProjectMembership.ROLE_VIEWER),
+        ]:
+            ProjectMembership.objects.create(
+                project=self.project,
+                user=user,
+                role=role,
+                status=ProjectMembership.STATUS_ACTIVE,
+                added_by=self.owner,
+            )
+
+        self.owner_token = create_access_token(self.owner.id)
+        self.admin_token = create_access_token(self.admin.id)
+        self.member_token = create_access_token(self.member.id)
+        self.viewer_token = create_access_token(self.viewer.id)
+        self.invited_token = create_access_token(self.invited.id)
+
+    def test_invited_user_stays_pending_until_acceptance(self):
+        invite_response = self.client.post(
+            f"/api/organizations/{self.organization.id}/members/",
+            data=json.dumps({"identifier": self.invited.username, "role": "member"}),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {self.owner_token}",
+        )
+
+        self.assertEqual(invite_response.status_code, 201)
+        organization_membership = OrganizationMembership.objects.get(
+            organization=self.organization,
+            user=self.invited,
+        )
+        project_membership = ProjectMembership.objects.get(
+            project=self.project,
+            user=self.invited,
+        )
+        notification = Notification.objects.get(
+            recipient=self.invited,
+            organization=self.organization,
+            kind=Notification.KIND_INVITE,
+        )
+
+        self.assertEqual(organization_membership.status, OrganizationMembership.STATUS_INVITED)
+        self.assertEqual(project_membership.status, ProjectMembership.STATUS_INVITED)
+        self.assertEqual(
+            notification.metadata["organizationMembershipId"],
+            organization_membership.id,
+        )
+
+        pending_workspace = self.client.get(
+            "/api/workspace/",
+            HTTP_AUTHORIZATION=f"Bearer {self.invited_token}",
+        )
+        pending_payload = pending_workspace.json()
+        self.assertNotIn(
+            self.organization.id,
+            [item["id"] for item in pending_payload["organizations"]],
+        )
+        self.assertNotIn(
+            self.project.id,
+            [item["id"] for item in pending_payload["projects"]],
+        )
+
+        accept_response = self.client.post(
+            f"/api/notifications/{notification.id}/accept/",
+            HTTP_AUTHORIZATION=f"Bearer {self.invited_token}",
+        )
+
+        self.assertEqual(accept_response.status_code, 200)
+        organization_membership.refresh_from_db()
+        project_membership.refresh_from_db()
+        notification.refresh_from_db()
+        self.assertEqual(organization_membership.status, OrganizationMembership.STATUS_ACTIVE)
+        self.assertEqual(project_membership.status, ProjectMembership.STATUS_ACTIVE)
+        self.assertTrue(notification.is_read)
+
+        accepted_workspace = self.client.get(
+            "/api/workspace/",
+            HTTP_AUTHORIZATION=f"Bearer {self.invited_token}",
+        )
+        accepted_payload = accepted_workspace.json()
+        self.assertIn(
+            self.organization.id,
+            [item["id"] for item in accepted_payload["organizations"]],
+        )
+        self.assertIn(
+            self.project.id,
+            [item["id"] for item in accepted_payload["projects"]],
+        )
+
+    def test_viewer_can_open_users_list(self):
+        response = self.client.get(
+            f"/api/organizations/{self.organization.id}/members/",
+            HTTP_AUTHORIZATION=f"Bearer {self.viewer_token}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(
+            {item["user"]["username"] for item in payload["members"]},
+            {
+                self.owner.username,
+                self.admin.username,
+                self.second_admin.username,
+                self.member.username,
+                self.viewer.username,
+            },
+        )
+
+    def test_admin_cannot_change_or_remove_owner_or_other_admin(self):
+        role_response = self.client.post(
+            f"/api/organizations/{self.organization.id}/members/{OrganizationMembership.objects.get(organization=self.organization, user=self.second_admin).id}/role/",
+            data=json.dumps({"role": "member"}),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {self.admin_token}",
+        )
+        remove_response = self.client.post(
+            f"/api/organizations/{self.organization.id}/members/{OrganizationMembership.objects.get(organization=self.organization, user=self.owner).id}/remove/",
+            HTTP_AUTHORIZATION=f"Bearer {self.admin_token}",
+        )
+
+        self.assertEqual(role_response.status_code, 403)
+        self.assertEqual(remove_response.status_code, 403)
+
+    def test_admin_can_edit_org_details_and_member_can_leave(self):
+        rename_response = self.client.post(
+            f"/api/organizations/{self.organization.id}/settings/",
+            data=json.dumps({"name": "Renamed Org"}),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {self.admin_token}",
+        )
+
+        self.assertEqual(rename_response.status_code, 200)
+        self.organization.refresh_from_db()
+        self.assertEqual(self.organization.name, "Renamed Org")
+
+        leave_response = self.client.post(
+            f"/api/organizations/{self.organization.id}/leave/",
+            HTTP_AUTHORIZATION=f"Bearer {self.member_token}",
+        )
+
+        self.assertEqual(leave_response.status_code, 200)
+        self.assertFalse(
+            OrganizationMembership.objects.filter(
+                organization=self.organization,
+                user=self.member,
+            ).exists()
+        )
+        self.assertFalse(
+            ProjectMembership.objects.filter(
+                project=self.project,
+                user=self.member,
+            ).exists()
+        )
 
 @override_settings(
     PROJECT_EVENTS_POLL_INTERVAL_SECONDS=0.01,

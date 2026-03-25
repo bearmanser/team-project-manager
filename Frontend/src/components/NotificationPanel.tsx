@@ -8,12 +8,14 @@ import { SurfaceCard } from "./SurfaceCard";
 
 type NotificationPanelProps = {
     notifications: Notification[];
+    onAcceptNotification: (notification: Notification) => void;
     onClose: () => void;
     onReadNotification: (notification: Notification) => void;
 };
 
 export function NotificationPanel({
     notifications,
+    onAcceptNotification,
     onClose,
     onReadNotification,
 }: NotificationPanelProps) {
@@ -64,20 +66,34 @@ export function NotificationPanel({
                                     <Text fontSize="sm" color="var(--color-text-muted)">
                                         {formatDateTime(notification.createdAt)}
                                     </Text>
-                                    {!notification.isRead ? (
-                                        <Button
-                                            size="xs"
-                                            variant="outline"
-                                            borderRadius="md"
-                                            borderColor="var(--color-accent-border)"
-                                            color="var(--color-text-primary)"
-                                            bg="transparent"
-                                            _hover={{ bg: "var(--color-accent-surface)", borderColor: "var(--color-accent-border)" }}
-                                            onClick={() => onReadNotification(notification)}
-                                        >
-                                            Mark read
-                                        </Button>
-                                    ) : null}
+                                    <Flex gap="2" wrap="wrap">
+                                        {notification.action ? (
+                                            <Button
+                                                size="xs"
+                                                borderRadius="md"
+                                                bg="var(--color-accent)"
+                                                color="var(--color-text-inverse)"
+                                                _hover={{ bg: "var(--color-accent-hover)" }}
+                                                onClick={() => onAcceptNotification(notification)}
+                                            >
+                                                {notification.action.label}
+                                            </Button>
+                                        ) : null}
+                                        {!notification.isRead ? (
+                                            <Button
+                                                size="xs"
+                                                variant="outline"
+                                                borderRadius="md"
+                                                borderColor="var(--color-accent-border)"
+                                                color="var(--color-text-primary)"
+                                                bg="transparent"
+                                                _hover={{ bg: "var(--color-accent-surface)", borderColor: "var(--color-accent-border)" }}
+                                                onClick={() => onReadNotification(notification)}
+                                            >
+                                                Mark read
+                                            </Button>
+                                        ) : null}
+                                    </Flex>
                                 </Flex>
                             </Stack>
                         </Box>

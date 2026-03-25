@@ -36,10 +36,74 @@ class Organization(models.Model):
         return f"Organization<{self.name}>"
 
 
+class OrganizationMembership(models.Model):
+    ROLE_OWNER = "owner"
+    ROLE_ADMIN = "admin"
+    ROLE_MEMBER = "member"
+    ROLE_VIEWER = "viewer"
+    STATUS_INVITED = "invited"
+    STATUS_ACTIVE = "active"
+
+    ROLE_CHOICES = [
+        (ROLE_OWNER, "Owner"),
+        (ROLE_ADMIN, "Admin"),
+        (ROLE_MEMBER, "Member"),
+        (ROLE_VIEWER, "Viewer"),
+    ]
+    STATUS_CHOICES = [
+        (STATUS_INVITED, "Invited"),
+        (STATUS_ACTIVE, "Active"),
+    ]
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="memberships",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="organization_memberships",
+    )
+    role = models.CharField(max_length=16, choices=ROLE_CHOICES, default=ROLE_MEMBER)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_ACTIVE)
+    invited_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="created_organization_memberships",
+        null=True,
+        blank=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("organization", "user")]
+        ordering = ["user__username", "id"]
+
+    def __str__(self) -> str:
+        return (
+            f"OrganizationMembership<{self.organization_id}:{self.user_id}:{self.role}:{self.status}>"
+        )
+
+
+def _ensure_owner_organization_membership(organization: Organization) -> Organization:
+    OrganizationMembership.objects.update_or_create(
+        organization=organization,
+        user=organization.owner,
+        defaults={
+            "role": OrganizationMembership.ROLE_OWNER,
+            "status": OrganizationMembership.STATUS_ACTIVE,
+            "invited_by": organization.owner,
+        },
+    )
+    return organization
+
+
 def ensure_personal_organization(user) -> Organization:
     organization = Organization.objects.filter(owner=user, is_personal=True).order_by("id").first()
     if organization is not None:
-        return organization
+        return _ensure_owner_organization_membership(organization)
 
     legacy_organization = (
         Organization.objects.filter(
@@ -55,13 +119,15 @@ def ensure_personal_organization(user) -> Organization:
         legacy_organization.description = PERSONAL_ORGANIZATION_DESCRIPTION
         legacy_organization.is_personal = True
         legacy_organization.save(update_fields=["name", "description", "is_personal", "updated_at"])
-        return legacy_organization
+        return _ensure_owner_organization_membership(legacy_organization)
 
-    return Organization.objects.create(
+    return _ensure_owner_organization_membership(
+        Organization.objects.create(
         name=build_personal_organization_name(user),
         description=PERSONAL_ORGANIZATION_DESCRIPTION,
         is_personal=True,
         owner=user,
+        )
     )
 
 
@@ -135,6 +201,13 @@ class ProjectMembership(models.Model):
         (ROLE_MEMBER, "Member"),
         (ROLE_VIEWER, "Viewer"),
     ]
+    STATUS_INVITED = "invited"
+    STATUS_ACTIVE = "active"
+
+    STATUS_CHOICES = [
+        (STATUS_INVITED, "Invited"),
+        (STATUS_ACTIVE, "Active"),
+    ]
 
     project = models.ForeignKey(
         Project,
@@ -147,6 +220,7 @@ class ProjectMembership(models.Model):
         related_name="project_memberships",
     )
     role = models.CharField(max_length=16, choices=ROLE_CHOICES, default=ROLE_MEMBER)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_ACTIVE)
     added_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -162,7 +236,7 @@ class ProjectMembership(models.Model):
         ordering = ["user__username", "id"]
 
     def __str__(self) -> str:
-        return f"Membership<{self.project_id}:{self.user_id}:{self.role}>"
+        return f"Membership<{self.project_id}:{self.user_id}:{self.role}:{self.status}>"
 
 
 class ProjectRepository(models.Model):
@@ -496,11 +570,13 @@ class Notification(models.Model):
     KIND_MENTION = "mention"
     KIND_ASSIGNMENT = "assignment"
     KIND_SYSTEM = "system"
+    KIND_INVITE = "invite"
 
     KIND_CHOICES = [
         (KIND_MENTION, "Mention"),
         (KIND_ASSIGNMENT, "Assignment"),
         (KIND_SYSTEM, "System"),
+        (KIND_INVITE, "Invite"),
     ]
 
     recipient = models.ForeignKey(
@@ -512,6 +588,13 @@ class Notification(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         related_name="sent_notifications",
+        null=True,
+        blank=True,
+    )
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="notifications",
         null=True,
         blank=True,
     )
@@ -538,6 +621,7 @@ class Notification(models.Model):
     )
     kind = models.CharField(max_length=24, choices=KIND_CHOICES, default=KIND_SYSTEM)
     message = models.CharField(max_length=255)
+    metadata = models.JSONField(default=dict, blank=True)
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 

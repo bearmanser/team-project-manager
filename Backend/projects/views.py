@@ -29,6 +29,7 @@ from .models import (
     GitHubIssueLink,
     Notification,
     Organization,
+    OrganizationMembership,
     Project,
     ensure_personal_organization,
     ProjectMembership,
@@ -303,12 +304,43 @@ def _organization_display_name(organization: Organization, user) -> str:
     return organization.name
 
 
+def _active_organization_membership(organization: Organization, user) -> OrganizationMembership | None:
+    if organization.owner_id == user.id:
+        OrganizationMembership.objects.update_or_create(
+            organization=organization,
+            user=user,
+            defaults={
+                "role": OrganizationMembership.ROLE_OWNER,
+                "status": OrganizationMembership.STATUS_ACTIVE,
+                "invited_by": user,
+            },
+        )
+
+    return (
+        OrganizationMembership.objects.filter(
+            organization=organization,
+            user=user,
+            status=OrganizationMembership.STATUS_ACTIVE,
+        )
+        .select_related("user")
+        .first()
+    )
+
+
+def _organization_role_for_user(organization: Organization, user) -> str | None:
+    membership = _active_organization_membership(organization, user)
+    return membership.role if membership else None
+
+
 def _accessible_organizations(user) -> list[Organization]:
     ensure_personal_organization(user)
     return list(
         (
             Organization.objects.filter(owner=user)
-            | Organization.objects.filter(projects__memberships__user=user)
+            | Organization.objects.filter(
+                memberships__user=user,
+                memberships__status=OrganizationMembership.STATUS_ACTIVE,
+            )
         )
         .distinct()
         .order_by("-updated_at", "-id")
@@ -316,23 +348,26 @@ def _accessible_organizations(user) -> list[Organization]:
 
 
 def _organization_member_count(organization: Organization) -> int:
-    user_ids = set(
-        ProjectMembership.objects.filter(project__organization=organization).values_list(
-            "user_id", flat=True
+    return (
+        OrganizationMembership.objects.filter(
+            organization=organization,
+            status=OrganizationMembership.STATUS_ACTIVE,
         )
+        .values("user_id")
+        .distinct()
+        .count()
     )
-    user_ids.add(organization.owner_id)
-    return len(user_ids)
 
 
 def _serialize_organization_summary(organization: Organization, user) -> dict:
+    role = _organization_role_for_user(organization, user)
     return {
         "id": organization.id,
         "name": organization.name,
         "displayName": _organization_display_name(organization, user),
         "description": organization.description,
         "isPersonal": organization.is_personal,
-        "role": "owner" if organization.owner_id == user.id else "member",
+        "role": role or OrganizationMembership.ROLE_VIEWER,
         "memberCount": _organization_member_count(organization),
         "projectCount": organization.projects.count(),
         "repoCount": ProjectRepository.objects.filter(project__organization=organization).count(),
@@ -354,6 +389,165 @@ def _touch_project(project: Project) -> None:
     now = timezone.now()
     Project.objects.filter(id=project.id).update(updated_at=now)
     _touch_organization(project.organization_id)
+
+
+def _can_manage_organization_members(role: str | None) -> bool:
+    return role in {OrganizationMembership.ROLE_OWNER, OrganizationMembership.ROLE_ADMIN}
+
+
+def _load_organization(organization_id: int, user):
+    ensure_personal_organization(user)
+    organization = Organization.objects.filter(id=organization_id).select_related("owner").first()
+    if organization is None:
+        return None, None, _json_error("Organization not found.", 404)
+
+    membership = _active_organization_membership(organization, user)
+    if membership is None:
+        return None, None, _json_error("Organization not found.", 404)
+
+    return organization, membership, None
+
+
+def _load_manageable_organization(organization_id: int, user):
+    organization, membership, error = _load_organization(organization_id, user)
+    if error:
+        return None, None, error
+    if not _can_manage_organization_members(membership.role):
+        return None, None, _json_error("Only admins and owners can manage this organization.", 403)
+    if organization.is_personal:
+        return None, None, _json_error("Personal workspaces do not support sharing projects.", 403)
+
+    return organization, membership, None
+
+
+def _can_manage_target_organization_membership(
+    actor_membership: OrganizationMembership,
+    target_membership: OrganizationMembership,
+) -> bool:
+    if actor_membership.role == OrganizationMembership.ROLE_OWNER:
+        return True
+    if actor_membership.role != OrganizationMembership.ROLE_ADMIN:
+        return False
+    return target_membership.user_id == actor_membership.user_id or target_membership.role not in {
+        OrganizationMembership.ROLE_OWNER,
+        OrganizationMembership.ROLE_ADMIN,
+    }
+
+
+def _sync_project_membership_for_org_member(
+    project: Project,
+    organization_membership: OrganizationMembership,
+) -> ProjectMembership:
+    desired_role = (
+        ProjectMembership.ROLE_OWNER
+        if organization_membership.user_id == project.owner_id
+        else organization_membership.role
+    )
+    membership, created = ProjectMembership.objects.get_or_create(
+        project=project,
+        user=organization_membership.user,
+        defaults={
+            "role": desired_role,
+            "status": organization_membership.status,
+            "added_by": organization_membership.invited_by,
+        },
+    )
+    if created:
+        return membership
+
+    changed = []
+    if membership.role != desired_role:
+        membership.role = desired_role
+        changed.append("role")
+    if membership.status != organization_membership.status:
+        membership.status = organization_membership.status
+        changed.append("status")
+    if membership.added_by_id is None and organization_membership.invited_by_id is not None:
+        membership.added_by = organization_membership.invited_by
+        changed.append("added_by")
+    if changed:
+        membership.save(update_fields=[*changed, "updated_at"])
+    return membership
+
+
+def _sync_organization_memberships_to_project(project: Project) -> None:
+    if project.organization_id is None:
+        return
+
+    memberships = OrganizationMembership.objects.filter(organization=project.organization)
+    for organization_membership in memberships.select_related("user", "invited_by"):
+        _sync_project_membership_for_org_member(project, organization_membership)
+
+
+def _sync_organization_membership_to_projects(organization_membership: OrganizationMembership) -> None:
+    projects = Project.objects.filter(organization=organization_membership.organization).select_related("owner")
+    for project in projects:
+        _sync_project_membership_for_org_member(project, organization_membership)
+
+
+def _remove_organization_membership_from_projects(
+    organization: Organization,
+    user_id: int,
+) -> None:
+    ProjectMembership.objects.filter(project__organization=organization, user_id=user_id).delete()
+
+
+def _serialize_organization_member(entry: OrganizationMembership) -> dict:
+    project_names = list(
+        Project.objects.filter(
+            organization=entry.organization,
+            memberships__user=entry.user,
+        )
+        .distinct()
+        .order_by("name", "id")
+        .values_list("name", flat=True)
+    )
+    return {
+        "id": entry.id,
+        "role": entry.role,
+        "status": entry.status,
+        "user": _serialize_user(entry.user),
+        "projectNames": project_names,
+        "addedAt": entry.created_at.isoformat(),
+    }
+
+
+def _invite_user_to_organization(
+    organization: Organization,
+    actor,
+    invited_user,
+    role: str,
+) -> OrganizationMembership:
+    membership = OrganizationMembership.objects.create(
+        organization=organization,
+        user=invited_user,
+        role=role,
+        status=OrganizationMembership.STATUS_INVITED,
+        invited_by=actor,
+    )
+    _sync_organization_membership_to_projects(membership)
+    Notification.objects.create(
+        recipient=invited_user,
+        actor=actor,
+        organization=organization,
+        kind=Notification.KIND_INVITE,
+        message=f'{actor.username} invited you to "{organization.name}" as {role.title()}.',
+        metadata={"organizationMembershipId": membership.id},
+    )
+    return membership
+
+
+def _activate_organization_invite(
+    organization_membership: OrganizationMembership,
+    notification: Notification | None = None,
+) -> None:
+    organization_membership.status = OrganizationMembership.STATUS_ACTIVE
+    organization_membership.save(update_fields=["status", "updated_at"])
+    _sync_organization_membership_to_projects(organization_membership)
+
+    if notification is not None and not notification.is_read:
+        notification.is_read = True
+        notification.save(update_fields=["is_read"])
 
 
 
@@ -393,7 +587,11 @@ def _load_project(project_id: int, user):
         return None, None, _json_error("Project not found.", 404)
 
     membership = (
-        ProjectMembership.objects.filter(project=project, user=user)
+        ProjectMembership.objects.filter(
+            project=project,
+            user=user,
+            status=ProjectMembership.STATUS_ACTIVE,
+        )
         .select_related("user")
         .first()
     )
@@ -436,7 +634,10 @@ def _serialize_permissions(membership: ProjectMembership) -> dict:
 def _project_member_lookup(project: Project) -> dict[str, User]:
     return {
         membership.user.username.lower(): membership.user
-        for membership in ProjectMembership.objects.filter(project=project).select_related("user")
+        for membership in ProjectMembership.objects.filter(
+            project=project,
+            status=ProjectMembership.STATUS_ACTIVE,
+        ).select_related("user")
     }
 
 
@@ -490,7 +691,11 @@ def _project_members_by_ids(project: Project, user_ids: list[int]) -> list[User]
         return []
 
     return list(
-        User.objects.filter(project_memberships__project=project, id__in=user_ids)
+        User.objects.filter(
+            project_memberships__project=project,
+            project_memberships__status=ProjectMembership.STATUS_ACTIVE,
+            id__in=user_ids,
+        )
         .distinct()
         .order_by("username")
     )
@@ -674,15 +879,38 @@ def _serialize_activity(activity: Activity) -> dict:
 
 
 def _serialize_notification(notification: Notification) -> dict:
+    action = None
+    membership_id = notification.metadata.get("organizationMembershipId")
+    if (
+        notification.kind == Notification.KIND_INVITE
+        and notification.organization_id
+        and membership_id
+        and not notification.is_read
+    ):
+        invite = OrganizationMembership.objects.filter(
+            id=membership_id,
+            organization_id=notification.organization_id,
+            user_id=notification.recipient_id,
+            status=OrganizationMembership.STATUS_INVITED,
+        ).first()
+        if invite is not None:
+            action = {
+                "type": "accept_organization_invite",
+                "label": "Accept",
+                "organizationMembershipId": invite.id,
+            }
+
     return {
         "id": notification.id,
         "kind": notification.kind,
         "message": notification.message,
         "isRead": notification.is_read,
         "actor": _serialize_user(notification.actor) if notification.actor else None,
+        "organizationId": notification.organization_id,
         "projectId": notification.project_id,
         "taskId": notification.task_id,
         "bugReportId": notification.bug_report_id,
+        "action": action,
         "createdAt": notification.created_at.isoformat(),
     }
 
@@ -798,7 +1026,7 @@ def _serialize_project_summary(project: Project, membership: ProjectMembership) 
         "name": project.name,
         "description": project.description,
         "role": membership.role,
-        "memberCount": project.memberships.count(),
+        "memberCount": project.memberships.filter(status=ProjectMembership.STATUS_ACTIVE).count(),
         "repoCount": project.repositories.count(),
         "openBugCount": project.bug_reports.exclude(status=BugReport.STATUS_CLOSED).count(),
         "taskCounts": {
@@ -817,7 +1045,11 @@ def _build_project_snapshot(
     membership: ProjectMembership | None = None,
 ) -> dict:
     membership = membership or (
-        ProjectMembership.objects.filter(project=project, user=user)
+        ProjectMembership.objects.filter(
+            project=project,
+            user=user,
+            status=ProjectMembership.STATUS_ACTIVE,
+        )
         .select_related("user")
         .first()
     )
@@ -829,7 +1061,10 @@ def _build_project_snapshot(
         Sprint.objects.filter(project=project, status=Sprint.STATUS_COMPLETED).order_by("-number", "-id")
     )
     members = list(
-        ProjectMembership.objects.filter(project=project).select_related("user")
+        ProjectMembership.objects.filter(
+            project=project,
+            status=ProjectMembership.STATUS_ACTIVE,
+        ).select_related("user")
     )
     repositories = list(ProjectRepository.objects.filter(project=project))
     tasks = list(
@@ -965,7 +1200,7 @@ def _build_project_snapshot(
 @jwt_required
 def workspace_view(request):
     memberships = list(
-        ProjectMembership.objects.filter(user=request.user)
+        ProjectMembership.objects.filter(user=request.user, status=ProjectMembership.STATUS_ACTIVE)
         .select_related("project", "project__owner", "project__organization")
         .order_by("-project__updated_at")
     )
@@ -977,7 +1212,7 @@ def workspace_view(request):
     notifications = [
         _serialize_notification(notification)
         for notification in Notification.objects.filter(recipient=request.user)
-        .select_related("actor")[:20]
+        .select_related("actor", "organization")[:20]
     ]
 
     available_repos: list[dict] = []
@@ -1033,6 +1268,15 @@ def organizations_view(request):
         description=description,
         owner=request.user,
     )
+    OrganizationMembership.objects.update_or_create(
+        organization=organization,
+        user=request.user,
+        defaults={
+            "role": OrganizationMembership.ROLE_OWNER,
+            "status": OrganizationMembership.STATUS_ACTIVE,
+            "invited_by": request.user,
+        },
+    )
     return JsonResponse(
         {"organization": _serialize_organization_summary(organization, request.user)},
         status=201,
@@ -1045,11 +1289,13 @@ def organizations_view(request):
 @require_http_methods(["POST"])
 @jwt_required
 def organization_settings_view(request, organization_id: int):
-    organization, error = _load_owned_organization(organization_id, request.user)
+    organization, membership, error = _load_organization(organization_id, request.user)
     if error:
         return error
     if organization.is_personal:
         return _json_error("Personal workspaces cannot be edited here.", 403)
+    if membership.role not in {OrganizationMembership.ROLE_OWNER, OrganizationMembership.ROLE_ADMIN}:
+        return _json_error("Only admins and owners can edit organization details.", 403)
 
     try:
         payload = _parse_json_body(request)
@@ -1080,13 +1326,186 @@ def organization_delete_view(request, organization_id: int):
     deleted_organization_id = organization.id
     organization.delete()
     return JsonResponse({"success": True, "organizationId": deleted_organization_id})
+
+
+@csrf_exempt
+@require_http_methods(["GET", "POST"])
+@jwt_required
+def organization_members_view(request, organization_id: int):
+    if request.method == "GET":
+        organization, _, error = _load_organization(organization_id, request.user)
+        if error:
+            return error
+        members = OrganizationMembership.objects.filter(organization=organization).select_related("user")
+        return JsonResponse({"members": [_serialize_organization_member(item) for item in members]})
+
+    organization, membership, error = _load_manageable_organization(organization_id, request.user)
+    if error:
+        return error
+
+    try:
+        payload = _parse_json_body(request)
+    except ValueError as exc:
+        return _json_error(str(exc))
+
+    identifier = (payload.get("identifier") or "").strip()
+    role = (payload.get("role") or OrganizationMembership.ROLE_MEMBER).strip()
+    if not identifier:
+        return _json_error("Provide a username or email address.")
+    if role not in {
+        OrganizationMembership.ROLE_ADMIN,
+        OrganizationMembership.ROLE_MEMBER,
+        OrganizationMembership.ROLE_VIEWER,
+    }:
+        return _json_error("Choose a valid organization role.")
+    if membership.role == OrganizationMembership.ROLE_ADMIN and role == OrganizationMembership.ROLE_ADMIN:
+        return _json_error("Only the organization owner can invite another admin.", 403)
+
+    if "@" in identifier:
+        user = User.objects.filter(email__iexact=identifier).first()
+    else:
+        user = User.objects.filter(username__iexact=identifier).first()
+    if user is None:
+        return _json_error("That user does not exist yet.", 404)
+
+    existing_membership = OrganizationMembership.objects.filter(organization=organization, user=user).first()
+    if existing_membership is not None:
+        if existing_membership.status == OrganizationMembership.STATUS_INVITED:
+            return _json_error("That user already has a pending invite.", 409)
+        return _json_error("That user is already part of this organization.", 409)
+
+    _invite_user_to_organization(organization, request.user, user, role)
+    return JsonResponse(
+        {
+            "members": [
+                _serialize_organization_member(item)
+                for item in OrganizationMembership.objects.filter(organization=organization).select_related("user")
+            ]
+        },
+        status=201,
+    )
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@jwt_required
+def organization_member_role_view(request, organization_id: int, membership_id: int):
+    organization, actor_membership, error = _load_manageable_organization(organization_id, request.user)
+    if error:
+        return error
+
+    target_membership = (
+        OrganizationMembership.objects.filter(organization=organization, id=membership_id)
+        .select_related("user", "invited_by")
+        .first()
+    )
+    if target_membership is None:
+        return _json_error("Organization member not found.", 404)
+    if target_membership.role == OrganizationMembership.ROLE_OWNER:
+        return _json_error("The organization owner role cannot be reassigned here.", 403)
+    if not _can_manage_target_organization_membership(actor_membership, target_membership):
+        return _json_error("You do not have permission to change that role.", 403)
+
+    try:
+        payload = _parse_json_body(request)
+    except ValueError as exc:
+        return _json_error(str(exc))
+
+    next_role = (payload.get("role") or "").strip()
+    if next_role not in {
+        OrganizationMembership.ROLE_ADMIN,
+        OrganizationMembership.ROLE_MEMBER,
+        OrganizationMembership.ROLE_VIEWER,
+    }:
+        return _json_error("Choose a valid organization role.")
+    if actor_membership.role == OrganizationMembership.ROLE_ADMIN and next_role == OrganizationMembership.ROLE_ADMIN:
+        return _json_error("Only the organization owner can assign the admin role.", 403)
+
+    target_membership.role = next_role
+    target_membership.save(update_fields=["role", "updated_at"])
+    _sync_organization_membership_to_projects(target_membership)
+
+    return JsonResponse(
+        {
+            "members": [
+                _serialize_organization_member(item)
+                for item in OrganizationMembership.objects.filter(organization=organization).select_related("user")
+            ]
+        }
+    )
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@jwt_required
+def organization_member_remove_view(request, organization_id: int, membership_id: int):
+    organization, actor_membership, error = _load_manageable_organization(organization_id, request.user)
+    if error:
+        return error
+
+    target_membership = OrganizationMembership.objects.filter(organization=organization, id=membership_id).first()
+    if target_membership is None:
+        return _json_error("Organization member not found.", 404)
+    if target_membership.role == OrganizationMembership.ROLE_OWNER:
+        return _json_error("The organization owner cannot be removed.", 403)
+    if target_membership.user_id == request.user.id:
+        return _json_error("Use leave organization instead of removing yourself.", 400)
+    if not _can_manage_target_organization_membership(actor_membership, target_membership):
+        return _json_error("You do not have permission to remove that user.", 403)
+
+    _remove_organization_membership_from_projects(organization, target_membership.user_id)
+    target_membership.delete()
+    return JsonResponse({"success": True})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@jwt_required
+def organization_member_cancel_view(request, organization_id: int, membership_id: int):
+    organization, actor_membership, error = _load_manageable_organization(organization_id, request.user)
+    if error:
+        return error
+
+    target_membership = OrganizationMembership.objects.filter(organization=organization, id=membership_id).first()
+    if target_membership is None:
+        return _json_error("Organization member not found.", 404)
+    if target_membership.status != OrganizationMembership.STATUS_INVITED:
+        return _json_error("That invite has already been accepted.", 409)
+    if not _can_manage_target_organization_membership(actor_membership, target_membership):
+        return _json_error("You do not have permission to cancel that invite.", 403)
+
+    Notification.objects.filter(
+        recipient=target_membership.user,
+        organization=organization,
+        kind=Notification.KIND_INVITE,
+        metadata__organizationMembershipId=target_membership.id,
+    ).update(is_read=True)
+    _remove_organization_membership_from_projects(organization, target_membership.user_id)
+    target_membership.delete()
+    return JsonResponse({"success": True})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@jwt_required
+def organization_leave_view(request, organization_id: int):
+    organization, membership, error = _load_organization(organization_id, request.user)
+    if error:
+        return error
+    if membership.role == OrganizationMembership.ROLE_OWNER:
+        return _json_error("The organization owner cannot leave the organization.", 403)
+
+    _remove_organization_membership_from_projects(organization, request.user.id)
+    membership.delete()
+    return JsonResponse({"success": True, "organizationId": organization.id})
+
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
 @jwt_required
 def projects_view(request):
     if request.method == "GET":
         memberships = list(
-            ProjectMembership.objects.filter(user=request.user)
+            ProjectMembership.objects.filter(user=request.user, status=ProjectMembership.STATUS_ACTIVE)
             .select_related("project", "project__organization")
             .order_by("-project__updated_at")
         )
@@ -1112,9 +1531,11 @@ def projects_view(request):
     except (TypeError, ValueError):
         return _json_error("Choose an organization for the new project.")
 
-    organization = Organization.objects.filter(id=organization_id, owner=request.user).first()
-    if organization is None:
-        return _json_error("You can only create projects inside organizations you own.", 403)
+    organization, organization_membership, error = _load_organization(organization_id, request.user)
+    if error:
+        return error
+    if organization_membership.role not in {OrganizationMembership.ROLE_OWNER, OrganizationMembership.ROLE_ADMIN}:
+        return _json_error("Only admins and owners can create projects in this organization.", 403)
 
     if not name:
         return _json_error("Project name is required.")
@@ -1139,14 +1560,26 @@ def projects_view(request):
         name=name,
         description=description,
         organization=organization,
-        owner=request.user,
+        owner=organization.owner,
     )
-    membership = ProjectMembership.objects.create(
-        project=project,
-        user=request.user,
-        role=ProjectMembership.ROLE_OWNER,
-        added_by=request.user,
+    _sync_organization_memberships_to_project(project)
+    membership = (
+        ProjectMembership.objects.filter(
+            project=project,
+            user=request.user,
+            status=ProjectMembership.STATUS_ACTIVE,
+        )
+        .select_related("user")
+        .first()
     )
+    if membership is None:
+        membership = ProjectMembership.objects.create(
+            project=project,
+            user=request.user,
+            role=ProjectMembership.ROLE_OWNER if request.user.id == project.owner_id else organization_membership.role,
+            status=ProjectMembership.STATUS_ACTIVE,
+            added_by=request.user,
+        )
     if selected_repo is not None:
         _create_project_repository(project, selected_repo)
 
@@ -1567,28 +2000,21 @@ def project_members_view(request, project_id: int):
     if user is None:
         return _json_error("That user does not exist yet.", 404)
 
-    existing_membership = ProjectMembership.objects.filter(project=project, user=user).first()
-    if existing_membership is not None:
-        return _json_error("That user is already part of this project.", 409)
-
-    ProjectMembership.objects.create(
-        project=project,
+    existing_membership = OrganizationMembership.objects.filter(
+        organization=project.organization,
         user=user,
-        role=role,
-        added_by=request.user,
-    )
+    ).first()
+    if existing_membership is not None:
+        if existing_membership.status == OrganizationMembership.STATUS_INVITED:
+            return _json_error("That user already has a pending invite.", 409)
+        return _json_error("That user is already part of this organization.", 409)
+
+    _invite_user_to_organization(project.organization, request.user, user, role)
     _record_activity(
         project,
         request.user,
-        "project.member_added",
-        f"Added {user.username} to the project as {role.title()}.",
-    )
-    Notification.objects.create(
-        recipient=user,
-        actor=request.user,
-        project=project,
-        kind=Notification.KIND_SYSTEM,
-        message=f"{request.user.username} added you to project \"{project.name}\" as {role.title()}.",
+        "project.member_invited",
+        f"Invited {user.username} to the organization as {role.title()}.",
     )
     return JsonResponse({"project": _build_project_snapshot(project, request.user, membership)})
 
@@ -1622,8 +2048,27 @@ def project_member_role_view(request, project_id: int, membership_id: int):
     }:
         return _json_error("Choose a valid project role.")
 
-    target_membership.role = next_role
-    target_membership.save(update_fields=["role", "updated_at"])
+    if project.organization_id:
+        actor_org_membership = _active_organization_membership(project.organization, request.user)
+        target_org_membership = OrganizationMembership.objects.filter(
+            organization=project.organization,
+            user=target_membership.user,
+        ).first()
+        if actor_org_membership is None or target_org_membership is None:
+            return _json_error("Organization member not found.", 404)
+        if not _can_manage_target_organization_membership(actor_org_membership, target_org_membership):
+            return _json_error("You do not have permission to change that role.", 403)
+        if (
+            actor_org_membership.role == OrganizationMembership.ROLE_ADMIN
+            and next_role == OrganizationMembership.ROLE_ADMIN
+        ):
+            return _json_error("Only the organization owner can assign the admin role.", 403)
+        target_org_membership.role = next_role
+        target_org_membership.save(update_fields=["role", "updated_at"])
+        _sync_organization_membership_to_projects(target_org_membership)
+    else:
+        target_membership.role = next_role
+        target_membership.save(update_fields=["role", "updated_at"])
     _record_activity(
         project,
         request.user,
@@ -1656,9 +2101,24 @@ def project_member_remove_view(request, project_id: int, membership_id: int):
         return _json_error("Project member not found.", 404)
     if target_membership.role == ProjectMembership.ROLE_OWNER:
         return _json_error("The project owner cannot be removed.")
+    if target_membership.user_id == request.user.id:
+        return _json_error("Use leave organization instead of removing yourself.", 400)
 
     username = target_membership.user.username
-    target_membership.delete()
+    if project.organization_id:
+        actor_org_membership = _active_organization_membership(project.organization, request.user)
+        target_org_membership = OrganizationMembership.objects.filter(
+            organization=project.organization,
+            user=target_membership.user,
+        ).first()
+        if actor_org_membership is None or target_org_membership is None:
+            return _json_error("Organization member not found.", 404)
+        if not _can_manage_target_organization_membership(actor_org_membership, target_org_membership):
+            return _json_error("You do not have permission to remove that user.", 403)
+        _remove_organization_membership_from_projects(project.organization, target_membership.user_id)
+        target_org_membership.delete()
+    else:
+        target_membership.delete()
     _record_activity(
         project,
         request.user,
@@ -2588,6 +3048,34 @@ def bug_resolution_view(request, bug_id: int):
     )
     _close_bugs_from_resolution_task(task, request.user)
     return JsonResponse({"project": _build_project_snapshot(project, request.user, membership)})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@jwt_required
+def notification_accept_view(request, notification_id: int):
+    notification = (
+        Notification.objects.filter(id=notification_id, recipient=request.user)
+        .select_related("organization")
+        .first()
+    )
+    if notification is None:
+        return _json_error("Notification not found.", 404)
+    if notification.kind != Notification.KIND_INVITE or notification.organization_id is None:
+        return _json_error("This notification cannot be accepted.", 409)
+
+    membership_id = notification.metadata.get("organizationMembershipId")
+    invite = OrganizationMembership.objects.filter(
+        id=membership_id,
+        organization_id=notification.organization_id,
+        user=request.user,
+        status=OrganizationMembership.STATUS_INVITED,
+    ).first()
+    if invite is None:
+        return _json_error("This invite is no longer available.", 404)
+
+    _activate_organization_invite(invite, notification)
+    return JsonResponse({"notification": _serialize_notification(notification)})
 
 
 @csrf_exempt
