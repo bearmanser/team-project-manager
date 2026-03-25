@@ -1,6 +1,14 @@
 import { useRef } from "react";
 
-import { Box, Button, Grid, Heading, HStack, Stack, Text } from "@chakra-ui/react";
+import {
+  Box,
+  Button,
+  Grid,
+  Heading,
+  HStack,
+  Stack,
+  Text,
+} from "@chakra-ui/react";
 
 import { PublicFooter } from "../components/PublicFooter";
 import { PublicPageHeader } from "../components/PublicPageHeader";
@@ -80,25 +88,37 @@ export function MarketingPage({
   }
 
   return (
-    <Box minH="100vh" bg="var(--color-bg-app)" position="relative" overflow="hidden">
-      <Box position="absolute" inset="0" pointerEvents="none" aria-hidden="true">
+    <Box
+      minH="100vh"
+      bg="var(--color-bg-app)"
+      position="relative"
+      overflow="hidden"
+    >
+      <Box
+        position="absolute"
+        inset="0"
+        pointerEvents="none"
+        aria-hidden="true"
+      >
         <Box
           position="absolute"
-          top="-180px"
-          left="-120px"
-          w="420px"
-          h="420px"
+          top="-200px"
+          left="-140px"
+          w="1000px"
+          h="1000px"
           borderRadius="full"
-          bg="radial-gradient(circle, rgba(45,108,223,0.22) 0%, rgba(45,108,223,0) 72%)"
+          filter="blur(160px)"
+          bg="radial-gradient(circle, rgba(45,108,223,0.45) 0%, rgba(45,108,223,0) 85%)"
         />
         <Box
           position="absolute"
-          top="120px"
-          right="-120px"
-          w="380px"
-          h="380px"
+          top="-200px"
+          right="-140px"
+          w="1000px"
+          h="1000px"
           borderRadius="full"
-          bg="radial-gradient(circle, rgba(89,155,255,0.12) 0%, rgba(89,155,255,0) 72%)"
+          filter="blur(160px)"
+          bg="radial-gradient(circle, rgba(45,108,223,0.45) 0%, rgba(45,108,223,0) 85%)"
         />
       </Box>
 
@@ -127,7 +147,11 @@ export function MarketingPage({
         }
       />
 
-      <Box px={{ base: "4", lg: "8" }} py={{ base: "8", lg: "10" }} position="relative">
+      <Box
+        px={{ base: "4", lg: "8" }}
+        py={{ base: "8", lg: "10" }}
+        position="relative"
+      >
         <Stack gap={{ base: "6", lg: "8" }}>
           <SurfaceCard
             p={{ base: "6", lg: "10" }}
@@ -148,12 +172,17 @@ export function MarketingPage({
                   color="var(--color-text-primary)"
                   lineHeight={{ base: "1.02", lg: "0.96" }}
                 >
-                  Plan, ship, and track work without splitting your team across five tools.
+                  Plan, ship, and track work without splitting your team across
+                  five tools.
                 </Heading>
-                <Text color="var(--color-text-secondary)" fontSize="lg" maxW="2xl">
-                  Team Project Manager keeps organizations, projects, boards, bugs,
-                  sprint history, and GitHub-aware delivery in one calm workspace so
-                  teams can move faster with less overhead.
+                <Text
+                  color="var(--color-text-secondary)"
+                  fontSize="lg"
+                  maxW="2xl"
+                >
+                  Team Project Manager keeps organizations, projects, boards,
+                  bugs, sprint history, and GitHub-aware delivery in one calm
+                  workspace so teams can move faster with less overhead.
                 </Text>
                 <HStack gap="3" wrap="wrap">
                   <Button
@@ -196,7 +225,9 @@ export function MarketingPage({
                       <Text color="var(--color-text-primary)" fontWeight="700">
                         {feature.title}
                       </Text>
-                      <Text color="var(--color-text-muted)">{feature.body}</Text>
+                      <Text color="var(--color-text-muted)">
+                        {feature.body}
+                      </Text>
                     </Stack>
                   </SurfaceCard>
                 ))}

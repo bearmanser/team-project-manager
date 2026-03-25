@@ -19,11 +19,16 @@ export function PublicFooter() {
           </Text>
         </Stack>
         <Stack gap="0" textAlign={{ base: "left", md: "right" }}>
-          <Text color="var(--color-text-primary)" fontSize="sm" fontWeight="600">
+          <Text
+            color="var(--color-text-primary)"
+            fontSize="sm"
+            fontWeight="600"
+          >
             Grinder Studio
           </Text>
           <Text color="var(--color-text-subtle)" fontSize="sm">
-            Copyright {new Date().getFullYear()} Team Project Manager. All rights reserved.
+            Copyright {new Date().getFullYear()} Team Project Manager. All
+            rights reserved.
           </Text>
         </Stack>
       </Flex>
