@@ -6,6 +6,7 @@ import {
   Grid,
   Heading,
   HStack,
+  Image,
   Stack,
   Text,
 } from "@chakra-ui/react";
@@ -32,39 +33,47 @@ type MarketingPageProps = {
 
 const featureHighlights = [
   {
-    title: "One place for delivery work",
-    body: "Run planning, active delivery, bug tracking, sprint history, and project settings from one shared workspace.",
+    title: "Save time",
+    body: "Stop bouncing between chat, docs, boards, bug trackers, and admin pages just to move one project forward.",
   },
   {
-    title: "Organizations stay in control",
-    body: "Users belong to organizations, which makes access cleaner across multiple products and teams.",
+    title: "Reduce cost",
+    body: "Every feature is free, so you can organize real delivery work without adding another monthly software bill.",
   },
   {
-    title: "GitHub stays connected",
-    body: "Projects map to repositories so your team can tie backlog items to real engineering work without extra glue.",
+    title: "Increase speed",
+    body: "Keep planning, bugs, sprint history, and project context together so decisions happen faster and work keeps moving.",
+  },
+  {
+    title: "Avoid headaches",
+    body: "Give your team one clear place to see what is happening, who owns it, and what needs attention next.",
   },
 ];
 
-const spotlights = [
+const painPoints = [
+  "Work is spread across too many tabs, so simple updates turn into scavenger hunts.",
+  "Bugs, tasks, and sprint planning live in different places, which makes priorities fuzzy.",
+  "Teams end up paying for overlapping tools and still feel disorganized.",
+];
+
+const solutionPoints = [
+  "Put projects, tasks, bugs, sprint history, and settings into one shared workspace.",
+  "Keep organizations and repositories connected so ownership stays obvious.",
+  "Start using every feature for free, with no hidden limits waiting later.",
+];
+
+const gettingStartedSteps = [
   {
-    eyebrow: "Best feature",
-    title: "Project views that match how teams actually work",
-    body: "Switch between board, task, bug, sprint history, and settings views without losing the thread of the project. The app keeps organization context and project detail close together, so planning and execution happen in the same rhythm.",
-    points: [
-      "Kanban-style board for active work",
-      "Dedicated bugs workspace alongside tasks",
-      "Sprint history and project settings in the same flow",
-    ],
+    title: "1. Create your workspace",
+    body: "Sign up, add your organization, and set up a project in a few seconds.",
   },
   {
-    eyebrow: "Why teams use it",
-    title: "Clear ownership from org to repo",
-    body: "Every project belongs to one organization and can be tied to one GitHub repository. That structure makes responsibility obvious, reduces setup noise, and gives teams a cleaner path from idea to shipped work.",
-    points: [
-      "Organization-first user management",
-      "Single-repository project ownership",
-      "Notifications visible across the workspace",
-    ],
+    title: "2. Organize the work",
+    body: "Track tasks, bugs, and sprint progress in one place your whole team can understand.",
+  },
+  {
+    title: "3. Keep shipping",
+    body: "Move faster with one source of truth instead of stitching together multiple tools.",
   },
 ];
 
@@ -80,8 +89,8 @@ export function MarketingPage({
   onSubmitLogin,
   onToggleThemeMode,
 }: MarketingPageProps) {
-  const featureSectionRef = useRef<HTMLDivElement | null>(null);
-  const proofSectionRef = useRef<HTMLDivElement | null>(null);
+  const benefitsSectionRef = useRef<HTMLDivElement | null>(null);
+  const howItWorksSectionRef = useRef<HTMLDivElement | null>(null);
 
   function scrollToSection(ref: React.RefObject<HTMLDivElement | null>) {
     ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -157,42 +166,69 @@ export function MarketingPage({
             p={{ base: "6", lg: "10" }}
             bg="linear-gradient(180deg, color-mix(in srgb, var(--color-bg-card) 94%, var(--color-accent) 6%), var(--color-bg-card))"
           >
-            <Stack gap="8">
-              <Stack gap="5" maxW="3xl">
-                <Text
-                  fontSize="xs"
-                  textTransform="uppercase"
-                  letterSpacing="0.18em"
-                  color="var(--color-text-muted)"
+            <Grid
+              templateColumns={{
+                base: "1fr",
+                xl: "minmax(0, 1.1fr) minmax(0, 0.9fr)",
+              }}
+              gap={{ base: "8", xl: "10" }}
+              alignItems="center"
+            >
+              <Stack gap="6" maxW="3xl">
+                <Stack gap="4">
+                  <Text
+                    fontSize="xs"
+                    textTransform="uppercase"
+                    letterSpacing="0.18em"
+                    color="var(--color-text-muted)"
+                  >
+                    Free project management for product teams
+                  </Text>
+                  <Heading
+                    size="4xl"
+                    color="var(--color-text-primary)"
+                    lineHeight={{ base: "1.02", lg: "0.96" }}
+                  >
+                    Run projects, bugs, and sprint work in one place.
+                  </Heading>
+                  <Text
+                    color="var(--color-text-secondary)"
+                    fontSize="lg"
+                    maxW="2xl"
+                  >
+                    Team Project Manager gives small product and engineering
+                    teams one free workspace to stay organized, move faster, and
+                    ship without the usual tool chaos.
+                  </Text>
+                </Stack>
+
+                <SurfaceCard
+                  p="4"
+                  bg="color-mix(in srgb, var(--color-accent-surface) 76%, var(--color-bg-card))"
+                  maxW="xl"
                 >
-                  Delivery workspace for product teams
-                </Text>
-                <Heading
-                  size="4xl"
-                  color="var(--color-text-primary)"
-                  lineHeight={{ base: "1.02", lg: "0.96" }}
-                >
-                  Plan, ship, and track work without splitting your team across
-                  five tools.
-                </Heading>
-                <Text
-                  color="var(--color-text-secondary)"
-                  fontSize="lg"
-                  maxW="2xl"
-                >
-                  Team Project Manager keeps organizations, projects, boards,
-                  bugs, sprint history, and GitHub-aware delivery in one calm
-                  workspace so teams can move faster with less overhead.
-                </Text>
+                  <Text
+                    color="var(--color-text-primary)"
+                    fontWeight="700"
+                    mb="1"
+                  >
+                    Completely free
+                  </Text>
+                  <Text color="var(--color-text-secondary)">
+                    Every feature is available from day one, and there are no
+                    hidden costs, upgrade traps, or surprise limits.
+                  </Text>
+                </SurfaceCard>
+
                 <HStack gap="3" wrap="wrap">
                   <Button
                     borderRadius="12px"
                     bg="var(--color-accent)"
                     color="var(--color-text-inverse)"
                     _hover={{ bg: "var(--color-accent-hover)" }}
-                    onClick={() => scrollToSection(featureSectionRef)}
+                    onClick={onNavigateToSignup}
                   >
-                    Explore features
+                    Create your free workspace
                   </Button>
                   <Button
                     borderRadius="12px"
@@ -203,16 +239,135 @@ export function MarketingPage({
                       bg: "var(--color-bg-hover)",
                       borderColor: "var(--color-accent-border)",
                     }}
-                    onClick={() => scrollToSection(proofSectionRef)}
+                    onClick={() => scrollToSection(howItWorksSectionRef)}
                   >
-                    Why teams use it
+                    See how it works
                   </Button>
                 </HStack>
               </Stack>
 
+              <SurfaceCard
+                p={{ base: "4", lg: "5" }}
+                bg="color-mix(in srgb, var(--color-bg-muted) 92%, transparent)"
+              >
+                <Stack gap="4">
+                  <Text
+                    fontSize="xs"
+                    textTransform="uppercase"
+                    letterSpacing="0.18em"
+                    color="var(--color-text-muted)"
+                  >
+                    Example project view
+                  </Text>
+                  <Image
+                    src="/example-image.png"
+                    alt="Example project workspace in Team Project Manager"
+                    w="full"
+                    borderRadius="10px"
+                    borderWidth="1px"
+                    borderColor="var(--color-border-default)"
+                    bg="var(--color-bg-panel)"
+                  />
+                  <Text color="var(--color-text-secondary)">
+                    This is the kind of clean, shared project view your team
+                    gets right away, with no paid tier required.
+                  </Text>
+                </Stack>
+              </SurfaceCard>
+            </Grid>
+          </SurfaceCard>
+
+          <Grid templateColumns={{ base: "1fr", xl: "repeat(2, 1fr)" }} gap="6">
+            <SurfaceCard p={{ base: "6", lg: "8" }}>
+              <Stack gap="5">
+                <Text
+                  fontSize="xs"
+                  textTransform="uppercase"
+                  letterSpacing="0.18em"
+                  color="var(--color-text-muted)"
+                >
+                  What sucks right now
+                </Text>
+                <Heading size="xl" color="var(--color-text-primary)">
+                  Managing projects should not feel like babysitting five tools.
+                </Heading>
+                <Stack gap="3">
+                  {painPoints.map((point) => (
+                    <HStack key={point} align="flex-start" gap="3">
+                      <Box
+                        mt="1.5"
+                        w="2"
+                        h="2"
+                        borderRadius="full"
+                        bg="var(--color-accent)"
+                        flexShrink={0}
+                      />
+                      <Text color="var(--color-text-secondary)">{point}</Text>
+                    </HStack>
+                  ))}
+                </Stack>
+              </Stack>
+            </SurfaceCard>
+
+            <SurfaceCard p={{ base: "6", lg: "8" }}>
+              <Stack gap="5">
+                <Text
+                  fontSize="xs"
+                  textTransform="uppercase"
+                  letterSpacing="0.18em"
+                  color="var(--color-text-muted)"
+                >
+                  Here&apos;s how we fix it
+                </Text>
+                <Heading size="xl" color="var(--color-text-primary)">
+                  One free workspace that keeps the whole delivery picture
+                  together.
+                </Heading>
+                <Stack gap="3">
+                  {solutionPoints.map((point) => (
+                    <HStack key={point} align="flex-start" gap="3">
+                      <Box
+                        mt="1.5"
+                        w="2"
+                        h="2"
+                        borderRadius="full"
+                        bg="var(--color-accent)"
+                        flexShrink={0}
+                      />
+                      <Text color="var(--color-text-secondary)">{point}</Text>
+                    </HStack>
+                  ))}
+                </Stack>
+              </Stack>
+            </SurfaceCard>
+          </Grid>
+
+          <SurfaceCard
+            ref={benefitsSectionRef}
+            p={{ base: "6", lg: "8" }}
+            bg="color-mix(in srgb, var(--color-bg-card) 96%, var(--color-accent) 4%)"
+          >
+            <Stack gap="6">
+              <Stack gap="3" maxW="2xl">
+                <Text
+                  fontSize="xs"
+                  textTransform="uppercase"
+                  letterSpacing="0.18em"
+                  color="var(--color-text-muted)"
+                >
+                  Why teams choose it
+                </Text>
+                <Heading size="xl" color="var(--color-text-primary)">
+                  The payoff is simple.
+                </Heading>
+                <Text color="var(--color-text-secondary)">
+                  Teams care about fewer delays, fewer subscriptions, and fewer
+                  messy handoffs. That is the point.
+                </Text>
+              </Stack>
+
               <Grid
-                ref={featureSectionRef}
-                templateColumns={{ base: "1fr", md: "repeat(3, 1fr)" }}
+                templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }}
                 gap="4"
               >
                 {featureHighlights.map((feature) => (
@@ -235,47 +390,93 @@ export function MarketingPage({
             </Stack>
           </SurfaceCard>
 
-          <Grid
-            ref={proofSectionRef}
-            templateColumns={{ base: "1fr", xl: "repeat(2, 1fr)" }}
-            gap="6"
-          >
-            {spotlights.map((spotlight) => (
-              <SurfaceCard key={spotlight.title} p={{ base: "6", lg: "8" }}>
-                <Stack gap="5">
-                  <Text
-                    fontSize="xs"
-                    textTransform="uppercase"
-                    letterSpacing="0.18em"
-                    color="var(--color-text-muted)"
+          <SurfaceCard ref={howItWorksSectionRef} p={{ base: "6", lg: "8" }}>
+            <Stack gap="6">
+              <Stack gap="3" maxW="2xl">
+                <Text
+                  fontSize="xs"
+                  textTransform="uppercase"
+                  letterSpacing="0.18em"
+                  color="var(--color-text-muted)"
+                >
+                  How it works
+                </Text>
+                <Heading size="xl" color="var(--color-text-primary)">
+                  Get started without overthinking it.
+                </Heading>
+                <Text color="var(--color-text-secondary)">
+                  Set up the workspace, add the work, and keep shipping. That is
+                  the mental model.
+                </Text>
+              </Stack>
+
+              <Grid
+                templateColumns={{ base: "1fr", md: "repeat(3, 1fr)" }}
+                gap="4"
+              >
+                {gettingStartedSteps.map((step) => (
+                  <SurfaceCard
+                    key={step.title}
+                    p="5"
+                    bg="color-mix(in srgb, var(--color-bg-muted) 92%, transparent)"
                   >
-                    {spotlight.eyebrow}
-                  </Text>
-                  <Heading size="xl" color="var(--color-text-primary)">
-                    {spotlight.title}
-                  </Heading>
-                  <Text color="var(--color-text-secondary)">
-                    {spotlight.body}
-                  </Text>
-                  <Stack gap="3">
-                    {spotlight.points.map((point) => (
-                      <HStack key={point} align="flex-start" gap="3">
-                        <Box
-                          mt="1.5"
-                          w="2"
-                          h="2"
-                          borderRadius="full"
-                          bg="var(--color-accent)"
-                          flexShrink={0}
-                        />
-                        <Text color="var(--color-text-primary)">{point}</Text>
-                      </HStack>
-                    ))}
-                  </Stack>
-                </Stack>
-              </SurfaceCard>
-            ))}
-          </Grid>
+                    <Stack gap="3">
+                      <Text color="var(--color-text-primary)" fontWeight="700">
+                        {step.title}
+                      </Text>
+                      <Text color="var(--color-text-secondary)">
+                        {step.body}
+                      </Text>
+                    </Stack>
+                  </SurfaceCard>
+                ))}
+              </Grid>
+            </Stack>
+          </SurfaceCard>
+
+          <SurfaceCard p={{ base: "6", lg: "8" }}>
+            <Stack gap="5" align={{ base: "stretch", md: "flex-start" }}>
+              <Text
+                fontSize="xs"
+                textTransform="uppercase"
+                letterSpacing="0.18em"
+                color="var(--color-text-muted)"
+              >
+                Start free
+              </Text>
+              <Heading size="2xl" color="var(--color-text-primary)" maxW="2xl">
+                Create your free workspace and keep every feature from day one.
+              </Heading>
+              <Text color="var(--color-text-secondary)" maxW="2xl">
+                No hidden costs, no surprise upgrade wall, and no reason to wait
+                until your process gets messier.
+              </Text>
+              <HStack gap="3" wrap="wrap">
+                <Button
+                  borderRadius="12px"
+                  bg="var(--color-accent)"
+                  color="var(--color-text-inverse)"
+                  _hover={{ bg: "var(--color-accent-hover)" }}
+                  onClick={onNavigateToSignup}
+                >
+                  Create your free workspace
+                </Button>
+                <Button
+                  borderRadius="12px"
+                  variant="outline"
+                  borderColor="var(--color-border-strong)"
+                  color="var(--color-text-primary)"
+                  _hover={{
+                    bg: "var(--color-bg-hover)",
+                    borderColor: "var(--color-accent-border)",
+                  }}
+                  onClick={() => scrollToSection(benefitsSectionRef)}
+                >
+                  Review the benefits
+                </Button>
+              </HStack>
+            </Stack>
+          </SurfaceCard>
         </Stack>
       </Box>
 

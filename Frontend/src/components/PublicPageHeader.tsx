@@ -20,7 +20,12 @@ const faqs = [
   {
     question: "What kind of teams is this built for?",
     answer:
-      "It fits product and engineering teams that need one shared place for planning, delivery, bug management, and project administration.",
+      "It fits small product and engineering teams that need one shared place for planning, delivery, bug management, and project administration.",
+  },
+  {
+    question: "Is it really free?",
+    answer:
+      "Yes. Every feature is free to use, with no hidden costs, upgrade wall, or locked section waiting later.",
   },
   {
     question: "How does GitHub fit into the workflow?",
