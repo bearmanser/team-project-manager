@@ -82,7 +82,7 @@ export function BrandWordmark({
           <Box
             as="span"
             fontSize={
-              isSmall ? { base: "xs", md: "sm" } : { base: "sm", md: "2xl" }
+              isSmall ? { base: "sm", md: "sm" } : { base: "2xl", md: "2xl" }
             }
             fontWeight="500"
           >
