@@ -388,6 +388,47 @@ class OrganizationMembershipInviteTests(TestCase):
             ).exists()
         )
 
+    def test_admin_can_edit_project_details(self):
+        response = self.client.post(
+            f"/api/projects/{self.project.id}/settings/",
+            data=json.dumps(
+                {
+                    "name": "Renamed Project",
+                    "description": "Updated by admin.",
+                    "useSprints": True,
+                }
+            ),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {self.admin_token}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.name, "Renamed Project")
+        self.assertEqual(self.project.description, "Updated by admin.")
+        self.assertTrue(self.project.use_sprints)
+        self.assertTrue(response.json()["project"]["permissions"]["canManageProject"])
+
+    def test_member_cannot_edit_project_details(self):
+        response = self.client.post(
+            f"/api/projects/{self.project.id}/settings/",
+            data=json.dumps(
+                {
+                    "name": "Member Rename",
+                    "description": "Should fail.",
+                    "useSprints": False,
+                }
+            ),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {self.member_token}",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(
+            response.json()["error"],
+            "Only project admins can update project settings.",
+        )
+
 @override_settings(
     PROJECT_EVENTS_POLL_INTERVAL_SECONDS=0.01,
 )

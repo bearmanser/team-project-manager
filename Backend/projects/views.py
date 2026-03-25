@@ -624,7 +624,7 @@ def _serialize_permissions(membership: ProjectMembership) -> dict:
         "canEditTasks": _role_at_least(membership, ProjectMembership.ROLE_MEMBER),
         "canEditBugs": _role_at_least(membership, ProjectMembership.ROLE_ADMIN),
         "canManageUsers": _role_at_least(membership, ProjectMembership.ROLE_ADMIN),
-        "canManageProject": membership.role == ProjectMembership.ROLE_OWNER,
+        "canManageProject": _role_at_least(membership, ProjectMembership.ROLE_ADMIN),
         "canManageRepos": membership.role == ProjectMembership.ROLE_OWNER,
         "canDeleteProject": membership.role == ProjectMembership.ROLE_OWNER,
         "isReadOnly": membership.role == ProjectMembership.ROLE_VIEWER,
@@ -1726,8 +1726,8 @@ def project_settings_view(request, project_id: int):
     project, membership, error = _load_project(project_id, request.user)
     if error:
         return error
-    if membership.role != ProjectMembership.ROLE_OWNER:
-        return _json_error("Only the project owner can update project settings.", 403)
+    if not _role_at_least(membership, ProjectMembership.ROLE_ADMIN):
+        return _json_error("Only project admins can update project settings.", 403)
 
     try:
         payload = _parse_json_body(request)

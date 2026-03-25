@@ -43,6 +43,7 @@ export function ProjectSettingsPage({
     const [selectedRepositoryId, setSelectedRepositoryId] = useState("");
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const isOwner = project.role === "owner";
+    const canManageProject = project.permissions.canManageProject;
 
     const connectedRepoIds = useMemo(
         () => new Set(project.repositories.map((repository) => repository.githubRepoId)),
@@ -91,6 +92,7 @@ export function ProjectSettingsPage({
                                 borderColor="var(--color-border-strong)"
                                 borderRadius="lg"
                                 color="var(--color-text-primary)"
+                                disabled={!canManageProject}
                             />
                             <Textarea
                                 value={projectSettingsForm.description}
@@ -100,6 +102,7 @@ export function ProjectSettingsPage({
                                 borderRadius="lg"
                                 color="var(--color-text-primary)"
                                 minH="140px"
+                                disabled={!canManageProject}
                             />
                             <SurfaceCard p="4" bg="var(--color-bg-card)">
                                 <Stack gap="3">
@@ -118,15 +121,21 @@ export function ProjectSettingsPage({
                                             type="checkbox"
                                             checked={projectSettingsForm.useSprints}
                                             onChange={(event) => onProjectSettingsChange("useSprints", event.target.checked)}
+                                            disabled={!canManageProject}
                                         />
                                         <Text>Use sprints for scrumban planning</Text>
                                     </Box>
                                     <Text color="var(--color-text-muted)" fontSize="sm">
                                         When enabled, the board focuses on the active sprint and the tasks page splits sprint backlog from product backlog.
                                     </Text>
+                                    {!canManageProject ? (
+                                        <Text color="var(--color-text-muted)" fontSize="sm">
+                                            Project admins and owners can update these settings.
+                                        </Text>
+                                    ) : null}
                                 </Stack>
                             </SurfaceCard>
-                            <Button type="submit" borderRadius="lg" bg="var(--color-accent)" color="var(--color-text-inverse)" alignSelf="flex-start" _hover={{ bg: "var(--color-accent-hover)" }}>
+                            <Button type="submit" borderRadius="lg" bg="var(--color-accent)" color="var(--color-text-inverse)" alignSelf="flex-start" _hover={{ bg: "var(--color-accent-hover)" }} disabled={!canManageProject}>
                                 {busyLabel === "Saving project settings" ? busyLabel : "Save changes"}
                             </Button>
                         </Stack>
