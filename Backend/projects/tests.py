@@ -15,6 +15,7 @@ from .models import (
     OrganizationMembership,
     Project,
     ProjectMembership,
+    Task,
 )
 
 
@@ -450,6 +451,102 @@ class ProjectEventsViewTests(TestCase):
 
         payload = async_to_sync(self._collect_chunks)(stream, 6)
         self.assertIn("event: project.updated", payload)
+
+
+class TaskNotificationTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.owner = user_model.objects.create_user(
+            username="task-owner",
+            email="task-owner@example.com",
+            password="test-password-123",
+        )
+        self.assignee = user_model.objects.create_user(
+            username="task-assignee",
+            email="task-assignee@example.com",
+            password="test-password-123",
+        )
+        self.commenter = user_model.objects.create_user(
+            username="task-commenter",
+            email="task-commenter@example.com",
+            password="test-password-123",
+        )
+        self.organization = Organization.objects.create(
+            name="Delivery Org",
+            description="",
+            owner=self.owner,
+        )
+        self.project = Project.objects.create(
+            name="Delivery Project",
+            description="",
+            organization=self.organization,
+            owner=self.owner,
+        )
+        for user, role in [
+            (self.owner, ProjectMembership.ROLE_OWNER),
+            (self.assignee, ProjectMembership.ROLE_MEMBER),
+            (self.commenter, ProjectMembership.ROLE_MEMBER),
+        ]:
+            ProjectMembership.objects.create(
+                project=self.project,
+                user=user,
+                role=role,
+                status=ProjectMembership.STATUS_ACTIVE,
+                added_by=self.owner,
+            )
+
+        self.owner_token = create_access_token(self.owner.id)
+        self.commenter_token = create_access_token(self.commenter.id)
+        self.task = Task.objects.create(
+            project=self.project,
+            title="Ship assignee updates",
+            description="",
+            status=Task.STATUS_TODO,
+            priority=Task.PRIORITY_MEDIUM,
+            creator=self.owner,
+        )
+
+    def test_assigning_a_task_notifies_the_new_assignee(self):
+        response = self.client.post(
+            f"/api/tasks/{self.task.id}/update/",
+            data=json.dumps({"assigneeIds": [self.assignee.id]}),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {self.owner_token}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        notification = Notification.objects.get(
+            recipient=self.assignee,
+            task=self.task,
+            kind=Notification.KIND_ASSIGNMENT,
+        )
+        self.assertEqual(notification.actor, self.owner)
+        self.assertEqual(
+            notification.message,
+            f'{self.owner.username} assigned you to task "{self.task.title}".',
+        )
+
+    def test_commenting_on_assigned_task_notifies_the_assignee(self):
+        self.task.assignees.set([self.assignee])
+
+        response = self.client.post(
+            f"/api/tasks/{self.task.id}/comments/",
+            data=json.dumps({"body": "Please review the latest update."}),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {self.commenter_token}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        notification = Notification.objects.get(
+            recipient=self.assignee,
+            task=self.task,
+            kind=Notification.KIND_SYSTEM,
+        )
+        self.assertEqual(notification.actor, self.commenter)
+        self.assertEqual(
+            notification.message,
+            f'{self.commenter.username} commented on task "{self.task.title}" that you are assigned to.',
+        )
 
 
 

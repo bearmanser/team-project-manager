@@ -641,6 +641,20 @@ def _project_member_lookup(project: Project) -> dict[str, User]:
     }
 
 
+def _mentioned_project_users(project: Project, text: str) -> list[User]:
+    mentioned_usernames = {match.group(1).lower() for match in MENTION_PATTERN.finditer(text or "")}
+    if not mentioned_usernames:
+        return []
+
+    member_lookup = _project_member_lookup(project)
+    mentioned_users: list[User] = []
+    for username in sorted(mentioned_usernames):
+        user = member_lookup.get(username)
+        if user is not None:
+            mentioned_users.append(user)
+    return mentioned_users
+
+
 def _notify_mentions(
     project: Project,
     actor,
@@ -649,15 +663,11 @@ def _notify_mentions(
     task: Task | None = None,
     bug_report: BugReport | None = None,
     context_label: str,
-) -> None:
-    mentioned_usernames = {match.group(1).lower() for match in MENTION_PATTERN.finditer(text or "")}
-    if not mentioned_usernames:
-        return
+) -> set[int]:
+    notified_user_ids: set[int] = set()
 
-    member_lookup = _project_member_lookup(project)
-    for username in sorted(mentioned_usernames):
-        user = member_lookup.get(username)
-        if user is None or user.id == actor.id:
+    for user in _mentioned_project_users(project, text):
+        if user.id == actor.id:
             continue
 
         Notification.objects.create(
@@ -669,6 +679,9 @@ def _notify_mentions(
             kind=Notification.KIND_MENTION,
             message=f"{actor.username} mentioned you in {context_label}.",
         )
+        notified_user_ids.add(user.id)
+
+    return notified_user_ids
 
 
 def _notify_new_assignees(task: Task, actor, assignees: list[User]) -> None:
@@ -683,6 +696,27 @@ def _notify_new_assignees(task: Task, actor, assignees: list[User]) -> None:
             task=task,
             kind=Notification.KIND_ASSIGNMENT,
             message=f"{actor.username} assigned you to task \"{task.title}\".",
+        )
+
+
+def _notify_task_comment_assignees(
+    task: Task,
+    actor,
+    *,
+    excluded_user_ids: set[int] | None = None,
+) -> None:
+    skipped_user_ids = set(excluded_user_ids or set())
+    skipped_user_ids.add(actor.id)
+
+    for user in task.assignees.exclude(id__in=skipped_user_ids).order_by("username"):
+        Notification.objects.create(
+            recipient=user,
+            actor=actor,
+            project=task.project,
+            task=task,
+            bug_report=task.bug_report,
+            kind=Notification.KIND_SYSTEM,
+            message=f"{actor.username} commented on task \"{task.title}\" that you are assigned to.",
         )
 
 
@@ -2608,13 +2642,18 @@ def task_comment_view(request, task_id: int):
         task=task,
         bug_report=task.bug_report,
     )
-    _notify_mentions(
+    mentioned_user_ids = _notify_mentions(
         project,
         request.user,
         body,
         task=task,
         bug_report=task.bug_report,
         context_label=f'task "{task.title}"',
+    )
+    _notify_task_comment_assignees(
+        task,
+        request.user,
+        excluded_user_ids=mentioned_user_ids,
     )
     return JsonResponse({"project": _build_project_snapshot(project, request.user, membership)})
 

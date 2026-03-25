@@ -1886,6 +1886,7 @@ function App() {
       description: string;
       status: string;
       priority: string;
+      assigneeIds: number[];
       resolvedBugIds: number[];
     }>
   ): Promise<void> {

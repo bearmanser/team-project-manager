@@ -16,9 +16,11 @@ import type {
   CommentEntry,
   CommentReactionSummary,
   PriorityLevel,
+  ProjectMember,
   ProjectDetail,
   Task,
   TaskStatus,
+  User,
 } from "../types";
 import {
   formatDateTime,
@@ -51,6 +53,7 @@ type WorkItemDetailModalProps = {
       description: string;
       status: string;
       priority: string;
+      assigneeIds: number[];
       resolvedBugIds: number[];
     }>
   ) => void;
@@ -139,6 +142,7 @@ export function WorkItemDetailModal({
   const [generalComment, setGeneralComment] = useState("");
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
+  const [assigneeIds, setAssigneeIds] = useState<number[]>([]);
   const [resolvedBugIds, setResolvedBugIds] = useState<number[]>([]);
 
   useEffect(() => {
@@ -153,6 +157,7 @@ export function WorkItemDetailModal({
     setGeneralComment("");
     setReplyDrafts({});
     setActiveReplyId(null);
+    setAssigneeIds(task?.assignees.map((assignee) => assignee.id) ?? []);
     setResolvedBugIds(task?.resolvedBugs.map((resolvedBug) => resolvedBug.id) ?? []);
   }, [item, task]);
 
@@ -209,6 +214,40 @@ export function WorkItemDetailModal({
     () => new Set(resolvedBugIds),
     [resolvedBugIds]
   );
+  const selectedAssigneeIdSet = useMemo(
+    () => new Set(assigneeIds),
+    [assigneeIds]
+  );
+  const selectedAssignees = useMemo(() => {
+    if (kind !== "task") {
+      return [] as User[];
+    }
+
+    const assigneeLookup = new Map<number, User>();
+
+    project.members.forEach((member) => {
+      assigneeLookup.set(member.user.id, member.user);
+    });
+
+    (task?.assignees ?? []).forEach((assignee) => {
+      if (!assigneeLookup.has(assignee.id)) {
+        assigneeLookup.set(assignee.id, assignee);
+      }
+    });
+
+    return assigneeIds
+      .map((assigneeId) => assigneeLookup.get(assigneeId) ?? null)
+      .filter((assignee): assignee is User => assignee !== null);
+  }, [assigneeIds, kind, project.members, task]);
+  const sortedProjectMembers = useMemo(() => {
+    if (kind !== "task") {
+      return [] as ProjectMember[];
+    }
+
+    return [...project.members].sort((left, right) =>
+      left.user.username.localeCompare(right.user.username)
+    );
+  }, [kind, project.members]);
   const sortedProjectBugs = useMemo(() => {
     if (kind !== "task") {
       return [] as BugReport[];
@@ -234,6 +273,7 @@ export function WorkItemDetailModal({
         description: description.trim(),
         status,
         priority,
+        assigneeIds,
         resolvedBugIds,
       });
       return;
@@ -312,6 +352,14 @@ export function WorkItemDetailModal({
       current.includes(bugId)
         ? current.filter((currentBugId) => currentBugId !== bugId)
         : [...current, bugId]
+    );
+  }
+
+  function handleToggleAssignee(assigneeId: number): void {
+    setAssigneeIds((current) =>
+      current.includes(assigneeId)
+        ? current.filter((currentAssigneeId) => currentAssigneeId !== assigneeId)
+        : [...current, assigneeId]
     );
   }
 
@@ -630,6 +678,111 @@ export function WorkItemDetailModal({
                 />
               </Box>
             </Stack>
+
+            {kind === "task" ? (
+              <Stack gap="3">
+                <Stack gap="1">
+                  <Flex align="center" justify="space-between" gap="3">
+                    <Heading size="sm" color="var(--color-text-primary)">
+                      Assigned users
+                    </Heading>
+                    <DropdownMenu
+                      width="320px"
+                      items={
+                        sortedProjectMembers.length
+                          ? sortedProjectMembers.map((member) => {
+                              const isSelected = selectedAssigneeIdSet.has(member.user.id);
+
+                              return {
+                                key: String(member.id),
+                                label: member.user.username,
+                                onClick: () => handleToggleAssignee(member.user.id),
+                                closeOnClick: false,
+                                trailingContent: isSelected ? (
+                                  <Box
+                                    as="span"
+                                    color="var(--color-accent)"
+                                    fontWeight="700"
+                                    fontSize="sm"
+                                  >
+                                    {"\u2713"}
+                                  </Box>
+                                ) : (
+                                  <Box as="span" w="3.5" />
+                                ),
+                              };
+                            })
+                          : [
+                              {
+                                key: "no-members",
+                                label: "No project members available",
+                                onClick: () => undefined,
+                                disabled: true,
+                              },
+                            ]
+                      }
+                      renderTrigger={({ toggle }) => (
+                        <Button
+                          minW="8"
+                          h="8"
+                          px="0"
+                          variant="ghost"
+                          borderRadius="10px"
+                          color="var(--color-text-muted)"
+                          _hover={{ bg: "var(--color-bg-hover)", color: "var(--color-text-primary)" }}
+                          aria-label="Edit assigned users"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            toggle();
+                          }}
+                          disabled={
+                            !sortedProjectMembers.length ||
+                            !project.permissions.canAssignTasks
+                          }
+                        >
+                          <ActionIcon>
+                            <EditTextIcon size={15} />
+                          </ActionIcon>
+                        </Button>
+                      )}
+                    />
+                  </Flex>
+                  <Text color="var(--color-text-muted)" fontSize="sm">
+                    Assign teammates so they stay in the loop when this task changes.
+                  </Text>
+                </Stack>
+
+                {selectedAssignees.length ? (
+                  <Flex gap="2" wrap="wrap">
+                    {selectedAssignees.map((assignee) => (
+                      <Box
+                        key={assignee.id}
+                        borderWidth="1px"
+                        borderColor="var(--color-border-default)"
+                        borderRadius="full"
+                        bg="var(--color-bg-muted)"
+                        px="3"
+                        py="1.5"
+                        maxW="100%"
+                      >
+                        <Text
+                          color="var(--color-text-primary)"
+                          fontWeight="600"
+                          fontSize="sm"
+                          lineClamp="1"
+                        >
+                          {assignee.username}
+                        </Text>
+                      </Box>
+                    ))}
+                  </Flex>
+                ) : (
+                  <Text color="var(--color-text-muted)" fontSize="sm">
+                    No one is assigned to this task yet.
+                  </Text>
+                )}
+              </Stack>
+            ) : null}
 
             {kind === "task" ? (
               <Stack gap="3">
