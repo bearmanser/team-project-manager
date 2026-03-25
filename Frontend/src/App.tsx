@@ -510,6 +510,7 @@ function App() {
   const isRefreshingProjectFromEventsRef = useRef(false);
   const githubRepoRetryCountRef = useRef(0);
   const lastAutoClosedWorkItemKeyRef = useRef<string | null>(null);
+  const routeSyncRequestIdRef = useRef(0);
 
   const user = workspace?.user ?? null;
   const githubRepoErrorMessage =
@@ -844,11 +845,22 @@ function App() {
     navigateToPath(MARKETING_PATH, true);
   }
 
+  function isActiveRouteSyncRequest(routeSyncRequestId?: number): boolean {
+    return (
+      routeSyncRequestId === undefined ||
+      routeSyncRequestId === routeSyncRequestIdRef.current
+    );
+  }
+
   async function loadProjectDetail(
     sessionToken: string,
-    projectId: number
+    projectId: number,
+    routeSyncRequestId?: number
   ): Promise<ProjectDetail> {
     const response = await getProject(sessionToken, projectId);
+    if (!isActiveRouteSyncRequest(routeSyncRequestId)) {
+      return response.project;
+    }
     startTransition(() => {
       setSelectedProject(response.project);
       applyProjectSettingsFromProject(response.project);
@@ -868,19 +880,22 @@ function App() {
       preferredProjectId?: number | null;
       projectOverride?: ProjectDetail | null;
       quiet?: boolean;
-    } = {}
+    } = {},
+    routeSyncRequestId?: number
   ): Promise<{
     resolvedOrganizationId: number | null;
     resolvedProjectId: number | null;
   }> {
-    if (!options.quiet) {
+    if (!options.quiet && isActiveRouteSyncRequest(routeSyncRequestId)) {
       setBusyLabel("Loading workspace");
     }
 
     const workspaceData = await getWorkspace(sessionToken);
-    startTransition(() => {
-      setWorkspace(workspaceData);
-    });
+    if (isActiveRouteSyncRequest(routeSyncRequestId)) {
+      startTransition(() => {
+        setWorkspace(workspaceData);
+      });
+    }
 
     const requestedProjectId = Object.prototype.hasOwnProperty.call(
       options,
@@ -897,17 +912,23 @@ function App() {
     if (resolvedProjectId !== null) {
       const projectOverride = options.projectOverride;
       if (projectOverride && projectOverride.id === resolvedProjectId) {
-        rememberProjectSelection(resolvedProjectId);
-        rememberOrganizationSelection(projectOverride.organizationId);
-        startTransition(() => {
-          setSelectedProject(projectOverride);
-          applyProjectSettingsFromProject(projectOverride);
-        });
+        if (isActiveRouteSyncRequest(routeSyncRequestId)) {
+          rememberProjectSelection(resolvedProjectId);
+          rememberOrganizationSelection(projectOverride.organizationId);
+          startTransition(() => {
+            setSelectedProject(projectOverride);
+            applyProjectSettingsFromProject(projectOverride);
+          });
+        }
       } else {
-        await loadProjectDetail(sessionToken, resolvedProjectId);
+        await loadProjectDetail(
+          sessionToken,
+          resolvedProjectId,
+          routeSyncRequestId
+        );
       }
 
-      if (!options.quiet) {
+      if (!options.quiet && isActiveRouteSyncRequest(routeSyncRequestId)) {
         setBusyLabel(null);
       }
 
@@ -922,10 +943,12 @@ function App() {
       };
     }
 
-    rememberProjectSelection(null);
-    startTransition(() => {
-      setSelectedProject(null);
-    });
+    if (isActiveRouteSyncRequest(routeSyncRequestId)) {
+      rememberProjectSelection(null);
+      startTransition(() => {
+        setSelectedProject(null);
+      });
+    }
 
     const requestedOrganizationId = Object.prototype.hasOwnProperty.call(
       options,
@@ -938,9 +961,11 @@ function App() {
       requestedOrganizationId
     );
 
-    rememberOrganizationSelection(resolvedOrganizationId);
+    if (isActiveRouteSyncRequest(routeSyncRequestId)) {
+      rememberOrganizationSelection(resolvedOrganizationId);
+    }
 
-    if (!options.quiet) {
+    if (!options.quiet && isActiveRouteSyncRequest(routeSyncRequestId)) {
       setBusyLabel(null);
     }
 
@@ -954,6 +979,7 @@ function App() {
     sessionToken: string,
     options: { quiet?: boolean } = {}
   ): Promise<void> {
+    const routeSyncRequestId = ++routeSyncRequestIdRef.current;
     const route = parseRoute(window.location.pathname);
     setNotificationOpen(false);
 
@@ -969,7 +995,10 @@ function App() {
       const result = await hydrateWorkspace(sessionToken, {
         preferredProjectId: null,
         quiet: options.quiet,
-      });
+      }, routeSyncRequestId);
+      if (!isActiveRouteSyncRequest(routeSyncRequestId)) {
+        return;
+      }
       if (result.resolvedOrganizationId !== null) {
         navigateToPath(
           getOrganizationPath(result.resolvedOrganizationId),
@@ -986,7 +1015,10 @@ function App() {
         preferredOrganizationId: route.organizationId,
         preferredProjectId: null,
         quiet: options.quiet,
-      });
+      }, routeSyncRequestId);
+      if (!isActiveRouteSyncRequest(routeSyncRequestId)) {
+        return;
+      }
       if (result.resolvedOrganizationId !== route.organizationId) {
         navigateToPath(
           result.resolvedOrganizationId
@@ -1012,7 +1044,14 @@ function App() {
         false;
       if (knownProject) {
         try {
-          await loadProjectDetail(sessionToken, route.projectId);
+          await loadProjectDetail(
+            sessionToken,
+            route.projectId,
+            routeSyncRequestId
+          );
+          if (!isActiveRouteSyncRequest(routeSyncRequestId)) {
+            return;
+          }
           return;
         } catch (reason) {
           if (!(reason instanceof ApiError) || reason.status !== 404) {
@@ -1025,7 +1064,10 @@ function App() {
         preferredOrganizationId: null,
         preferredProjectId: route.projectId,
         quiet: options.quiet,
-      });
+      }, routeSyncRequestId);
+      if (!isActiveRouteSyncRequest(routeSyncRequestId)) {
+        return;
+      }
       if (result.resolvedProjectId !== route.projectId) {
         navigateToPath(
           result.resolvedOrganizationId

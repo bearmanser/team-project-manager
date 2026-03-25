@@ -73,6 +73,16 @@ function notifyAuthTokenInvalid(detail: AuthTokenInvalidEventDetail): void {
     );
 }
 
+function getApiErrorMessage(payload: unknown): string | null {
+    if (typeof payload !== "object" || payload === null) {
+        return null;
+    }
+
+    return typeof (payload as { error?: unknown }).error === "string"
+        ? (payload as { error: string }).error
+        : null;
+}
+
 async function request<T>(
     path: string,
     options: RequestInit = {},
@@ -95,14 +105,27 @@ async function request<T>(
     });
 
     const rawBody = await response.text();
-    const payload = rawBody ? JSON.parse(rawBody) : {};
+    let payload: unknown = {};
+
+    if (rawBody) {
+        try {
+            payload = JSON.parse(rawBody);
+        } catch {
+            const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+            const looksLikeHtml = contentType.includes("text/html") || /^\s*</.test(rawBody);
+            const message = looksLikeHtml
+                ? "The server returned HTML instead of JSON. Check the API base URL and deployment rewrites."
+                : "The server returned an invalid JSON response.";
+            throw new ApiError(message, response.status);
+        }
+    }
 
     if (!response.ok) {
         if (isAuthTokenInvalidError(response.status, payload)) {
             notifyAuthTokenInvalid({ message: payload.error });
         }
 
-        throw new ApiError(payload.error ?? "Request failed.", response.status);
+        throw new ApiError(getApiErrorMessage(payload) ?? "Request failed.", response.status);
     }
 
     return payload as T;
