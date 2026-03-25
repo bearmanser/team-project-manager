@@ -46,7 +46,7 @@ import { SurfaceCard } from "./components/SurfaceCard";
 import { TaskBranchModal } from "./components/TaskBranchModal";
 import { TopNav } from "./components/TopNav";
 import { WorkItemDetailModal } from "./components/WorkItemDetailModal";
-import { LoginPage } from "./pages/LoginPage";
+import { MarketingPage } from "./pages/MarketingPage";
 import { OrganizationProjectsPage } from "./pages/OrganizationProjectsPage";
 import { OrganizationSettingsPage } from "./pages/OrganizationSettingsPage";
 import { OrganizationUsersPage } from "./pages/OrganizationUsersPage";
@@ -55,6 +55,7 @@ import { ProjectBugsPage } from "./pages/ProjectBugsPage";
 import { ProjectSettingsPage } from "./pages/ProjectSettingsPage";
 import { ProjectSprintHistoryPage } from "./pages/ProjectSprintHistoryPage";
 import { ProjectTasksPage } from "./pages/ProjectTasksPage";
+import { SignupPage } from "./pages/SignupPage";
 import type {
   BacklogPlacement,
   BugReport,
@@ -335,10 +336,13 @@ function resolveOrganizationSelection(
 }
 
 const ORGANIZATIONS_PATH = "/organizations";
+const MARKETING_PATH = "/";
+const SIGNUP_PATH = "/signup";
 const LOGIN_PATH = "/login";
 
 type AppRoute =
-  | { kind: "login" }
+  | { kind: "marketing" }
+  | { kind: "signup" }
   | { kind: "organizations" }
   | {
       kind: "organization";
@@ -398,10 +402,13 @@ function parseRoute(pathname: string): AppRoute {
   if (normalizedPath === "/oauth/github/callback") {
     return { kind: "githubCallback" };
   }
-  if (normalizedPath === LOGIN_PATH) {
-    return { kind: "login" };
+  if (normalizedPath === MARKETING_PATH || normalizedPath === LOGIN_PATH) {
+    return { kind: "marketing" };
   }
-  if (normalizedPath === "/" || normalizedPath === ORGANIZATIONS_PATH) {
+  if (normalizedPath === SIGNUP_PATH) {
+    return { kind: "signup" };
+  }
+  if (normalizedPath === ORGANIZATIONS_PATH) {
     return { kind: "organizations" };
   }
 
@@ -456,7 +463,6 @@ function getStoredThemeMode(): "light" | "dark" {
 }
 
 function App() {
-  const [authMode, setAuthMode] = useState<"signup" | "login">("login");
   const [signupForm, setSignupForm] = useState(initialSignupForm);
   const [loginForm, setLoginForm] = useState(initialLoginForm);
   const [token, setToken] = useState<string | null>(() =>
@@ -802,7 +808,7 @@ function App() {
     setBusyLabel(null);
     setNotificationOpen(false);
     clearProjectSettingsDraft();
-    navigateToPath(LOGIN_PATH, true);
+    navigateToPath(MARKETING_PATH, true);
   }
 
   async function loadProjectDetail(
@@ -918,7 +924,7 @@ function App() {
     const route = parseRoute(window.location.pathname);
     setNotificationOpen(false);
 
-    if (route.kind === "login") {
+    if (route.kind === "marketing" || route.kind === "signup") {
       navigateToPath(ORGANIZATIONS_PATH, true);
       await syncFromPath(sessionToken, options);
       return;
@@ -1061,7 +1067,7 @@ function App() {
       if (!sessionToken || !code || !state) {
         clearSession();
         setError("Finish signing in before connecting GitHub.");
-        navigateToPath(LOGIN_PATH, true);
+        navigateToPath(MARKETING_PATH, true);
         setIsBooting(false);
         return;
       }
@@ -1103,15 +1109,15 @@ function App() {
     }
 
     if (!sessionToken) {
-      if (route.kind !== "login") {
-        navigateToPath(LOGIN_PATH, true);
+      if (route.kind !== "marketing" && route.kind !== "signup") {
+        navigateToPath(MARKETING_PATH, true);
       }
       setIsBooting(false);
       return;
     }
 
     try {
-      if (route.kind === "login") {
+      if (route.kind === "marketing" || route.kind === "signup") {
         navigateToPath(ORGANIZATIONS_PATH, true);
       }
       await syncFromPath(sessionToken, { quiet: true });
@@ -2298,24 +2304,56 @@ function App() {
   }
 
   if (!workspace || !user) {
+    const publicRoute = parseRoute(window.location.pathname);
+
+    if (publicRoute.kind === "signup") {
+      return (
+        <SignupPage
+          busyLabel={busyLabel}
+          error={error}
+          notice={notice}
+          loginForm={loginForm}
+          signupForm={signupForm}
+          themeMode={themeMode}
+          onLoginFormChange={(field, value) =>
+            setLoginForm((current) => ({ ...current, [field]: value }))
+          }
+          onSignupFormChange={(field, value) =>
+            setSignupForm((current) => ({ ...current, [field]: value }))
+          }
+          onNavigateHome={() =>
+            window.location.assign(toBrowserPath(MARKETING_PATH))
+          }
+          onSubmitLogin={() => void handleSubmitLogin()}
+          onSubmitSignup={(connectGitHub) =>
+            void handleSubmitSignup(connectGitHub)
+          }
+          onToggleThemeMode={() =>
+            setThemeMode((current) => (current === "dark" ? "light" : "dark"))
+          }
+        />
+      );
+    }
+
     return (
-      <LoginPage
-        authMode={authMode}
+      <MarketingPage
         busyLabel={busyLabel}
         error={error}
         notice={notice}
         loginForm={loginForm}
-        signupForm={signupForm}
-        onAuthModeChange={setAuthMode}
+        themeMode={themeMode}
         onLoginFormChange={(field, value) =>
           setLoginForm((current) => ({ ...current, [field]: value }))
         }
-        onSignupFormChange={(field, value) =>
-          setSignupForm((current) => ({ ...current, [field]: value }))
+        onNavigateHome={() =>
+          window.location.assign(toBrowserPath(MARKETING_PATH))
+        }
+        onNavigateToSignup={() =>
+          window.location.assign(toBrowserPath(SIGNUP_PATH))
         }
         onSubmitLogin={() => void handleSubmitLogin()}
-        onSubmitSignup={(connectGitHub) =>
-          void handleSubmitSignup(connectGitHub)
+        onToggleThemeMode={() =>
+          setThemeMode((current) => (current === "dark" ? "light" : "dark"))
         }
       />
     );
