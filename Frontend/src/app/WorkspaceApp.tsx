@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   addBugComment,
@@ -286,7 +286,7 @@ function WorkspaceApp() {
     return items;
   }, [selectedProject?.useSprints]);
 
-  function clearProjectSettingsDraft(projectId: number | null = null): void {
+  const clearProjectSettingsDraft = useCallback((projectId: number | null = null): void => {
     projectSettingsDirtyFieldsRef.current.clear();
     projectSettingsProjectIdRef.current = projectId;
     if (projectId === null) {
@@ -296,12 +296,12 @@ function WorkspaceApp() {
         useSprints: false,
       });
     }
-  }
+  }, []);
 
-  function applyProjectSettingsFromProject(
+  const applyProjectSettingsFromProject = useCallback((
     project: ProjectDetail,
     options: { resetDirty?: boolean } = {}
-  ): void {
+  ): void => {
     const nextForm = getProjectSettingsForm(project);
     const shouldResetDirty =
       options.resetDirty === true ||
@@ -329,9 +329,9 @@ function WorkspaceApp() {
           : nextForm.useSprints,
       };
     });
-  }
+  }, []);
 
-  function clearProjectSelection(): void {
+  const clearProjectSelection = useCallback((): void => {
     setSelectedProjectId(null);
     setSelectedProject(null);
     setProjectSection("board");
@@ -348,7 +348,7 @@ function WorkspaceApp() {
     setShowEndSprintActionModal(false);
     setEndSprintReview("");
     setEndSprintUnfinishedAction("carryover");
-  }
+  }, [setSelectedProjectId]);
 
   const {
     clearSession,
@@ -447,6 +447,13 @@ function WorkspaceApp() {
     navigateToProject: (projectId) => navigateToPath(getProjectPath(projectId)),
     syncFromPath,
   });
+  const navigateToPathRef = useRef(navigateToPath);
+  const syncFromPathRef = useRef(syncFromPath);
+
+  useEffect(() => {
+    navigateToPathRef.current = navigateToPath;
+    syncFromPathRef.current = syncFromPath;
+  }, [navigateToPath, syncFromPath]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = themeMode;
@@ -463,7 +470,7 @@ function WorkspaceApp() {
     }
 
     setProjectSection("board");
-    navigateToPath(getProjectPath(selectedProject.id, "board"), true);
+    navigateToPathRef.current(getProjectPath(selectedProject.id, "board"), true);
   }, [projectSection, selectedProject]);
 
   useEffect(() => {
@@ -500,7 +507,7 @@ function WorkspaceApp() {
     githubRepoRetryCountRef.current += 1;
     const retryDelayMs = 1200 * githubRepoRetryCountRef.current;
     const timeoutId = window.setTimeout(() => {
-      void syncFromPath(token, { quiet: true });
+      void syncFromPathRef.current(token, { quiet: true });
     }, retryDelayMs);
 
     return () => window.clearTimeout(timeoutId);
@@ -566,13 +573,13 @@ function WorkspaceApp() {
     };
 
     const handleDeleted = () => {
-      navigateToPath(
+      navigateToPathRef.current(
         selectedOrganizationId
           ? getOrganizationPath(selectedOrganizationId)
           : ORGANIZATIONS_PATH,
         true
       );
-      void syncFromPath(token, { quiet: true });
+      void syncFromPathRef.current(token, { quiet: true });
     };
 
     stream.addEventListener("project.updated", handleUpdated);
@@ -584,7 +591,7 @@ function WorkspaceApp() {
       stream.close();
       isRefreshingProjectFromEventsRef.current = false;
     };
-  }, [selectedOrganizationId, selectedProjectId, token]);
+  }, [applyProjectSettingsFromProject, selectedOrganizationId, selectedProjectId, token]);
 
   function openCreateTaskForm(
     status: TaskStatus,

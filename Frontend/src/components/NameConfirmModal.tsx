@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { Button, Input, Stack, Text } from "@chakra-ui/react";
 
@@ -24,18 +24,17 @@ export function NameConfirmModal({
     const [confirmationValue, setConfirmationValue] = useState("");
     const isConfirmed = confirmationValue.trim() === name;
 
-    useEffect(() => {
-        if (!isOpen) {
-            setConfirmationValue("");
-        }
-    }, [isOpen]);
+    function handleClose(): void {
+        setConfirmationValue("");
+        onClose();
+    }
 
     return (
         <ModalFrame
             title={`Delete ${entityLabel}`}
             description="Type the exact name below to confirm. This action cannot be undone."
             isOpen={isOpen}
-            onClose={onClose}
+            onClose={handleClose}
             maxW="560px"
         >
             <Stack gap="4">
@@ -60,7 +59,7 @@ export function NameConfirmModal({
                         variant="outline"
                         borderColor="var(--color-border-strong)"
                         color="var(--color-text-primary)"
-                        onClick={onClose}
+                        onClick={handleClose}
                     >
                         Cancel
                     </Button>

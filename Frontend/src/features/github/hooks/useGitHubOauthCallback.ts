@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useCallback, useRef } from "react";
 
 import { completeGitHubOauth } from "../api";
 
@@ -8,7 +8,7 @@ export function useGitHubOauthCallback() {
         null,
     );
 
-    return (sessionToken: string, code: string, state: string) => {
+    return useCallback((sessionToken: string, code: string, state: string) => {
         const requestKey = `${sessionToken}:${code}:${state}`;
         if (
             requestKeyRef.current !== requestKey ||
@@ -22,5 +22,5 @@ export function useGitHubOauthCallback() {
         }
 
         return requestPromiseRef.current;
-    };
+    }, []);
 }

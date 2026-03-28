@@ -110,16 +110,16 @@ export function useWorkspaceSession({
 }: UseWorkspaceSessionParams) {
   const routeSyncRequestIdRef = useRef(0);
 
-  function storeToken(nextToken: string | null): void {
+  const storeToken = useCallback((nextToken: string | null): void => {
     if (nextToken) {
       window.localStorage.setItem(TOKEN_STORAGE_KEY, nextToken);
     } else {
       window.localStorage.removeItem(TOKEN_STORAGE_KEY);
     }
     setToken(nextToken);
-  }
+  }, [setToken]);
 
-  function rememberOrganizationSelection(organizationId: number | null): void {
+  const rememberOrganizationSelection = useCallback((organizationId: number | null): void => {
     if (organizationId === null) {
       window.localStorage.removeItem("team-project-manager.selected-organization");
     } else {
@@ -129,9 +129,9 @@ export function useWorkspaceSession({
       );
     }
     setSelectedOrganizationId(organizationId);
-  }
+  }, [setSelectedOrganizationId]);
 
-  function rememberProjectSelection(projectId: number | null): void {
+  const rememberProjectSelection = useCallback((projectId: number | null): void => {
     if (projectId === null) {
       window.localStorage.removeItem("team-project-manager.selected-project");
     } else {
@@ -141,7 +141,7 @@ export function useWorkspaceSession({
       );
     }
     setSelectedProjectId(projectId);
-  }
+  }, [setSelectedProjectId]);
 
   const navigateToPath = useCallback((path: string, replace = false): void => {
     const normalizedPath = normalizePath(path);
@@ -160,7 +160,7 @@ export function useWorkspaceSession({
     setCurrentPath(window.location.pathname);
   }, [setCurrentPath]);
 
-  function clearSession(): void {
+  const clearSession = useCallback((): void => {
     storeToken(null);
     rememberOrganizationSelection(null);
     rememberProjectSelection(null);
@@ -174,7 +174,21 @@ export function useWorkspaceSession({
     setNotificationOpen(false);
     clearProjectSettingsDraft();
     navigateToPath(MARKETING_PATH, true);
-  }
+  }, [
+    clearProjectSettingsDraft,
+    navigateToPath,
+    rememberOrganizationSelection,
+    rememberProjectSelection,
+    setBusyLabel,
+    setError,
+    setNotificationOpen,
+    setNotice,
+    setOrganizationSection,
+    setProjectSection,
+    setSelectedProject,
+    setWorkspace,
+    storeToken,
+  ]);
 
   function isActiveRouteSyncRequest(routeSyncRequestId?: number): boolean {
     return (
@@ -411,6 +425,12 @@ export function useWorkspaceSession({
     }
   }
 
+  const syncFromPathRef = useRef(syncFromPath);
+
+  useEffect(() => {
+    syncFromPathRef.current = syncFromPath;
+  });
+
   async function runProjectMutation(
     label: string,
     action: () => Promise<{ project: ProjectDetail }>,
@@ -451,83 +471,6 @@ export function useWorkspaceSession({
     window.location.assign(response.authorizationUrl);
   }
 
-  async function bootstrapWorkspace(): Promise<void> {
-    const sessionToken = window.localStorage.getItem(TOKEN_STORAGE_KEY);
-    const route = parseRoute(window.location.pathname);
-    const params = new URLSearchParams(window.location.search);
-
-    if (route.kind === "githubCallback") {
-      const providerError =
-        params.get("error_description") ?? params.get("error");
-      if (providerError) {
-        setError(providerError);
-        navigateToPath(ORGANIZATIONS_PATH, true);
-        setIsBooting(false);
-        return;
-      }
-
-      const code = params.get("code");
-      const state = params.get("state");
-
-      if (!sessionToken || !code || !state) {
-        clearSession();
-        setError("Finish signing in before connecting GitHub.");
-        navigateToPath(MARKETING_PATH, true);
-        setIsBooting(false);
-        return;
-      }
-
-      setBusyLabel("Connecting GitHub");
-      try {
-        const response = await completeGitHubOauthOnce(sessionToken, code, state);
-        setWorkspace((current) =>
-          current
-            ? {
-                ...current,
-                user: response.user,
-                availableRepos: response.repos,
-                githubRepoError: response.githubRepoError,
-              }
-            : current,
-        );
-        navigateToPath(ORGANIZATIONS_PATH, true);
-        try {
-          await syncFromPath(sessionToken, { quiet: true });
-        } catch (reason) {
-          setError(getFriendlyError(reason));
-        }
-        setNotice("GitHub connected.");
-      } catch (reason) {
-        navigateToPath(ORGANIZATIONS_PATH, true);
-        setError(getFriendlyError(reason));
-      } finally {
-        setBusyLabel(null);
-        setIsBooting(false);
-      }
-      return;
-    }
-
-    if (!sessionToken) {
-      if (route.kind !== "marketing" && route.kind !== "signup") {
-        navigateToPath(MARKETING_PATH, true);
-      }
-      setIsBooting(false);
-      return;
-    }
-
-    try {
-      if (route.kind === "marketing" || route.kind === "signup") {
-        navigateToPath(ORGANIZATIONS_PATH, true);
-      }
-      await syncFromPath(sessionToken, { quiet: true });
-    } catch (reason) {
-      clearSession();
-      setError(getFriendlyError(reason));
-    } finally {
-      setIsBooting(false);
-    }
-  }
-
   useEffect(() => {
     function handleAuthTokenInvalid(event: Event): void {
       const message =
@@ -546,11 +489,97 @@ export function useWorkspaceSession({
         AUTH_TOKEN_INVALID_EVENT,
         handleAuthTokenInvalid,
       );
-  }, []);
+  }, [clearSession, setError]);
 
   useEffect(() => {
+    async function bootstrapWorkspace(): Promise<void> {
+      const sessionToken = window.localStorage.getItem(TOKEN_STORAGE_KEY);
+      const route = parseRoute(window.location.pathname);
+      const params = new URLSearchParams(window.location.search);
+
+      if (route.kind === "githubCallback") {
+        const providerError =
+          params.get("error_description") ?? params.get("error");
+        if (providerError) {
+          setError(providerError);
+          navigateToPath(ORGANIZATIONS_PATH, true);
+          setIsBooting(false);
+          return;
+        }
+
+        const code = params.get("code");
+        const state = params.get("state");
+
+        if (!sessionToken || !code || !state) {
+          clearSession();
+          setError("Finish signing in before connecting GitHub.");
+          navigateToPath(MARKETING_PATH, true);
+          setIsBooting(false);
+          return;
+        }
+
+        setBusyLabel("Connecting GitHub");
+        try {
+          const response = await completeGitHubOauthOnce(sessionToken, code, state);
+          setWorkspace((current) =>
+            current
+              ? {
+                  ...current,
+                  user: response.user,
+                  availableRepos: response.repos,
+                  githubRepoError: response.githubRepoError,
+                }
+              : current,
+          );
+          navigateToPath(ORGANIZATIONS_PATH, true);
+          try {
+            await syncFromPathRef.current(sessionToken, { quiet: true });
+          } catch (reason) {
+            setError(getFriendlyError(reason));
+          }
+          setNotice("GitHub connected.");
+        } catch (reason) {
+          navigateToPath(ORGANIZATIONS_PATH, true);
+          setError(getFriendlyError(reason));
+        } finally {
+          setBusyLabel(null);
+          setIsBooting(false);
+        }
+        return;
+      }
+
+      if (!sessionToken) {
+        if (route.kind !== "marketing" && route.kind !== "signup") {
+          navigateToPath(MARKETING_PATH, true);
+        }
+        setIsBooting(false);
+        return;
+      }
+
+      try {
+        if (route.kind === "marketing" || route.kind === "signup") {
+          navigateToPath(ORGANIZATIONS_PATH, true);
+        }
+        await syncFromPathRef.current(sessionToken, { quiet: true });
+      } catch (reason) {
+        clearSession();
+        setError(getFriendlyError(reason));
+      } finally {
+        setIsBooting(false);
+      }
+    }
+
     void bootstrapWorkspace();
-  }, []);
+  }, [
+    clearSession,
+    completeGitHubOauthOnce,
+    navigateToPath,
+    setBusyLabel,
+    setError,
+    setIsBooting,
+    setNotice,
+    setWorkspace,
+  ]);
 
   useEffect(() => {
     if (!token) {
@@ -561,12 +590,12 @@ export function useWorkspaceSession({
 
     function handlePopState(): void {
       setCurrentPath(window.location.pathname);
-      void syncFromPath(sessionToken, { quiet: true });
+      void syncFromPathRef.current(sessionToken, { quiet: true });
     }
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [token]);
+  }, [setCurrentPath, token]);
 
   async function submitSignup(
     signupForm: {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Box, Button, Flex, Grid, Heading, Input, Stack, Text } from "@chakra-ui/react";
 
@@ -9,7 +9,7 @@ import { ModalFrame } from "../../../components/ModalFrame";
 import { PriorityPill } from "../../../components/PriorityPill";
 import { SurfaceCard } from "../../../components/SurfaceCard";
 import { CreateTaskModal } from "../modals/CreateTaskModal";
-import type { BacklogPlacement, BoardColumn, PriorityLevel, ProjectDetail, Task, TaskStatus } from "../../../types";
+import type { BacklogPlacement, BoardColumn, PriorityLevel, ProjectDetail, Sprint, Task, TaskStatus } from "../../../types";
 import {
     getPriorityLabel,
     getPriorityOptionStyle,
@@ -53,6 +53,114 @@ type ProjectBoardPageProps = {
     onCreateTaskBranch: (task: Task) => void;
 };
 
+function SprintBoardHeading({
+    activeSprint,
+    canRenameSprint,
+    onRenameSprint,
+}: {
+    activeSprint: Sprint;
+    canRenameSprint: boolean;
+    onRenameSprint: (name: string) => void;
+}) {
+    const [isRenamingSprint, setIsRenamingSprint] = useState(false);
+    const [sprintNameDraft, setSprintNameDraft] = useState(activeSprint.name);
+
+    function cancelSprintRename(): void {
+        setSprintNameDraft(activeSprint.name);
+        setIsRenamingSprint(false);
+    }
+
+    function submitSprintRename(): void {
+        const nextName = sprintNameDraft.trim();
+        if (!nextName || nextName === activeSprint.name) {
+            cancelSprintRename();
+            return;
+        }
+
+        onRenameSprint(nextName);
+        setIsRenamingSprint(false);
+    }
+
+    if (isRenamingSprint) {
+        return (
+            <Stack gap="3" maxW="420px">
+                <Input
+                    value={sprintNameDraft}
+                    onChange={(event) => setSprintNameDraft(event.target.value)}
+                    bg="var(--color-bg-muted)"
+                    borderColor="var(--color-border-strong)"
+                    borderRadius="lg"
+                    color="var(--color-text-primary)"
+                    fontSize="var(--chakra-fontSizes-3xl)"
+                    fontWeight="700"
+                    h="auto"
+                    py="3"
+                    px="4"
+                    onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                            event.preventDefault();
+                            submitSprintRename();
+                        }
+                        if (event.key === "Escape") {
+                            cancelSprintRename();
+                        }
+                    }}
+                />
+                <Flex gap="2" wrap="wrap">
+                    <Button
+                        borderRadius="lg"
+                        bg="var(--color-accent)"
+                        color="var(--color-text-inverse)"
+                        _hover={{ bg: "var(--color-accent-hover)" }}
+                        onClick={submitSprintRename}
+                        disabled={!sprintNameDraft.trim()}
+                    >
+                        Save name
+                    </Button>
+                    <Button
+                        borderRadius="lg"
+                        variant="outline"
+                        borderColor="var(--color-border-strong)"
+                        color="var(--color-text-primary)"
+                        _hover={{ bg: "var(--color-bg-hover)" }}
+                        onClick={cancelSprintRename}
+                    >
+                        Cancel
+                    </Button>
+                </Flex>
+            </Stack>
+        );
+    }
+
+    return (
+        <Flex align="center" gap="2">
+            <Heading size="2xl" color="var(--color-text-primary)">
+                {activeSprint.name}
+            </Heading>
+            {canRenameSprint ? (
+                <Button
+                    minW="9"
+                    h="9"
+                    px="0"
+                    variant="ghost"
+                    borderRadius="lg"
+                    color="var(--color-text-muted)"
+                    _hover={{ bg: "var(--color-bg-hover)", color: "var(--color-text-primary)" }}
+                    onClick={() => {
+                        setSprintNameDraft(activeSprint.name);
+                        setIsRenamingSprint(true);
+                    }}
+                    aria-label="Rename sprint"
+                >
+                    <ActionIcon>
+                        <EditTextIcon size={16} />
+                    </ActionIcon>
+                </Button>
+            ) : null}
+        </Flex>
+    );
+}
+
 export function ProjectBoardPage({
     createTaskForm,
     isCreateTaskOpen,
@@ -72,8 +180,6 @@ export function ProjectBoardPage({
 }: ProjectBoardPageProps) {
     const [draggedTaskId, setDraggedTaskId] = useState<number | null>(null);
     const [hoveredColumn, setHoveredColumn] = useState<TaskStatus | null>(null);
-    const [isRenamingSprint, setIsRenamingSprint] = useState(false);
-    const [sprintNameDraft, setSprintNameDraft] = useState(project.activeSprint?.name ?? "");
     const [movePromptTask, setMovePromptTask] = useState<Task | null>(null);
     const [moveTargetStatus, setMoveTargetStatus] = useState<TaskStatus>(project.boardColumns[0]?.id ?? "todo");
     const [priorityPromptTask, setPriorityPromptTask] = useState<Task | null>(null);
@@ -81,26 +187,6 @@ export function ProjectBoardPage({
 
     const activeSprint = project.activeSprint;
     const canRenameSprint = project.role === "owner" || project.role === "admin";
-    const sprintDraftRef = useRef({
-        sprintId: activeSprint?.id ?? null,
-        isDirty: false,
-    });
-
-    useEffect(() => {
-        const nextSprintId = activeSprint?.id ?? null;
-        const isSameSprint = sprintDraftRef.current.sprintId === nextSprintId;
-        const shouldPreserveDraft = isSameSprint && sprintDraftRef.current.isDirty;
-
-        sprintDraftRef.current.sprintId = nextSprintId;
-
-        if (shouldPreserveDraft) {
-            return;
-        }
-
-        sprintDraftRef.current.isDirty = false;
-        setSprintNameDraft(activeSprint?.name ?? "");
-        setIsRenamingSprint(false);
-    }, [activeSprint?.id, activeSprint?.name]);
 
     const boardTasks = useMemo(() => {
         if (!project.useSprints) {
@@ -188,38 +274,6 @@ export function ProjectBoardPage({
         closePriorityPrompt();
     }
 
-    function updateSprintNameDraft(value: string): void {
-        sprintDraftRef.current.isDirty = value !== (activeSprint?.name ?? "");
-        setSprintNameDraft(value);
-    }
-
-    function cancelSprintRename(): void {
-        sprintDraftRef.current.isDirty = false;
-        setSprintNameDraft(activeSprint?.name ?? "");
-        setIsRenamingSprint(false);
-    }
-
-    function openSprintRename(): void {
-        sprintDraftRef.current.isDirty = false;
-        setSprintNameDraft(activeSprint?.name ?? "");
-        setIsRenamingSprint(true);
-    }
-
-    function submitSprintRename(): void {
-        const nextName = sprintNameDraft.trim();
-        if (!activeSprint) {
-            return;
-        }
-        if (!nextName || nextName === activeSprint.name) {
-            cancelSprintRename();
-            return;
-        }
-
-        sprintDraftRef.current.isDirty = false;
-        onRenameSprint(nextName);
-        setIsRenamingSprint(false);
-    }
-
     return (
         <>
             <Flex direction="column" gap="4" flex="1" minH="0">
@@ -235,77 +289,12 @@ export function ProjectBoardPage({
                             {project.useSprints ? "Sprint board" : "Board"}
                         </Text>
                         {project.useSprints && activeSprint ? (
-                            isRenamingSprint ? (
-                                <Stack gap="3" maxW="420px">
-                                    <Input
-                                        value={sprintNameDraft}
-                                        onChange={(event) => updateSprintNameDraft(event.target.value)}
-                                        bg="var(--color-bg-muted)"
-                                        borderColor="var(--color-border-strong)"
-                                        borderRadius="lg"
-                                        color="var(--color-text-primary)"
-                                        fontSize="var(--chakra-fontSizes-3xl)"
-                                        fontWeight="700"
-                                        h="auto"
-                                        py="3"
-                                        px="4"
-                                        onKeyDown={(event) => {
-                                            if (event.key === "Enter") {
-                                                event.preventDefault();
-                                                submitSprintRename();
-                                            }
-                                            if (event.key === "Escape") {
-                                                cancelSprintRename();
-                                            }
-                                        }}
-                                    />
-                                    <Flex gap="2" wrap="wrap">
-                                        <Button
-                                            borderRadius="lg"
-                                            bg="var(--color-accent)"
-                                            color="var(--color-text-inverse)"
-                                            _hover={{ bg: "var(--color-accent-hover)" }}
-                                            onClick={submitSprintRename}
-                                            disabled={!sprintNameDraft.trim()}
-                                        >
-                                            Save name
-                                        </Button>
-                                        <Button
-                                            borderRadius="lg"
-                                            variant="outline"
-                                            borderColor="var(--color-border-strong)"
-                                            color="var(--color-text-primary)"
-                                            _hover={{ bg: "var(--color-bg-hover)" }}
-                                            onClick={cancelSprintRename}
-                                        >
-                                            Cancel
-                                        </Button>
-                                    </Flex>
-                                </Stack>
-                            ) : (
-                                <Flex align="center" gap="2">
-                                    <Heading size="2xl" color="var(--color-text-primary)">
-                                        {activeSprint.name}
-                                    </Heading>
-                                    {canRenameSprint ? (
-                                        <Button
-                                            minW="9"
-                                            h="9"
-                                            px="0"
-                                            variant="ghost"
-                                            borderRadius="lg"
-                                            color="var(--color-text-muted)"
-                                            _hover={{ bg: "var(--color-bg-hover)", color: "var(--color-text-primary)" }}
-                                            onClick={openSprintRename}
-                                            aria-label="Rename sprint"
-                                        >
-                                            <ActionIcon>
-                                                <EditTextIcon size={16} />
-                                            </ActionIcon>
-                                        </Button>
-                                    ) : null}
-                                </Flex>
-                            )
+                            <SprintBoardHeading
+                                key={activeSprint.id}
+                                activeSprint={activeSprint}
+                                canRenameSprint={canRenameSprint}
+                                onRenameSprint={onRenameSprint}
+                            />
                         ) : (
                             <Heading size="2xl" color="var(--color-text-primary)">
                                 {project.name}

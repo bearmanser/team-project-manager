@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
 import {
@@ -160,9 +160,34 @@ function renderCommentBody(body: string): ReactNode[] {
 
 export function WorkItemDetailModal({
   isOpen,
-  project,
   task,
   bug,
+  ...props
+}: WorkItemDetailModalProps) {
+  const item = task ?? bug ?? null;
+  const kind = task ? "task" : bug ? "bug" : null;
+
+  if (!isOpen || !item || !kind) {
+    return null;
+  }
+
+  return (
+    <WorkItemDetailModalContent
+      {...props}
+      key={`${kind}-${item.id}`}
+      isOpen={isOpen}
+      task={task}
+      bug={bug}
+      item={item}
+      kind={kind}
+    />
+  );
+}
+
+function WorkItemDetailModalContent({
+  isOpen,
+  project,
+  task,
   onClose,
   onSaveTask,
   onCreateTaskBranch,
@@ -171,36 +196,27 @@ export function WorkItemDetailModal({
   onAddBugComment,
   onToggleTaskCommentReaction,
   onToggleBugCommentReaction,
-}: WorkItemDetailModalProps) {
-  const item = task ?? bug ?? null;
-  const kind = task ? "task" : bug ? "bug" : null;
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [status, setStatus] = useState<string>("");
-  const [priority, setPriority] = useState<PriorityLevel>("medium");
+  item,
+  kind,
+}: WorkItemDetailModalProps & {
+  item: Task | BugReport;
+  kind: "task" | "bug";
+}) {
+  const [title, setTitle] = useState(item.title);
+  const [description, setDescription] = useState(item.description);
+  const [status, setStatus] = useState<string>(item.status);
+  const [priority, setPriority] = useState<PriorityLevel>(item.priority);
   const [generalComment, setGeneralComment] = useState("");
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
-  const [assigneeIds, setAssigneeIds] = useState<number[]>([]);
-  const [resolvedBugIds, setResolvedBugIds] = useState<number[]>([]);
+  const [assigneeIds, setAssigneeIds] = useState<number[]>(
+    task?.assignees.map((assignee) => assignee.id) ?? []
+  );
+  const [resolvedBugIds, setResolvedBugIds] = useState<number[]>(
+    task?.resolvedBugs.map((resolvedBug) => resolvedBug.id) ?? []
+  );
 
-  useEffect(() => {
-    if (!item) {
-      return;
-    }
-
-    setTitle(item.title);
-    setDescription(item.description);
-    setStatus(item.status);
-    setPriority(item.priority);
-    setGeneralComment("");
-    setReplyDrafts({});
-    setActiveReplyId(null);
-    setAssigneeIds(task?.assignees.map((assignee) => assignee.id) ?? []);
-    setResolvedBugIds(task?.resolvedBugs.map((resolvedBug) => resolvedBug.id) ?? []);
-  }, [item, task]);
-
-  const comments = item?.comments ?? [];
+  const comments = item.comments;
   const canSave = title.trim().length > 0;
   const canCreateTaskBranch =
     kind === "task" &&
@@ -294,10 +310,6 @@ export function WorkItemDetailModal({
 
     return sortBugsByPriority(project.bugReports);
   }, [kind, project.bugReports]);
-
-  if (!item || !kind) {
-    return null;
-  }
 
   const currentItem = item;
 

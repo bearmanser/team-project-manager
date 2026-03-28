@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useMemo, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
 import { getFriendlyError } from "../../../app/errors";
@@ -95,39 +95,42 @@ export function useNotificationController({
     }
   }
 
-  async function handleCloseRelatedNotifications(payload: {
-    taskId?: number;
-    bugReportId?: number;
-  }): Promise<boolean> {
-    if (!token) {
-      return false;
-    }
-
-    try {
-      const response = await closeRelatedNotifications(token, payload);
-      if (!response.closedNotificationIds.length) {
-        return true;
+  const handleCloseRelatedNotifications = useCallback(
+    async (payload: {
+      taskId?: number;
+      bugReportId?: number;
+    }): Promise<boolean> => {
+      if (!token) {
+        return false;
       }
 
-      const closedIds = new Set(response.closedNotificationIds);
-      startTransition(() => {
-        setWorkspace((current) =>
-          current
-            ? {
-                ...current,
-                notifications: current.notifications.filter(
-                  (item) => !closedIds.has(item.id),
-                ),
-              }
-            : current,
-        );
-      });
-      return true;
-    } catch (reason) {
-      setError(getFriendlyError(reason));
-      return false;
-    }
-  }
+      try {
+        const response = await closeRelatedNotifications(token, payload);
+        if (!response.closedNotificationIds.length) {
+          return true;
+        }
+
+        const closedIds = new Set(response.closedNotificationIds);
+        startTransition(() => {
+          setWorkspace((current) =>
+            current
+              ? {
+                  ...current,
+                  notifications: current.notifications.filter(
+                    (item) => !closedIds.has(item.id),
+                  ),
+                }
+              : current,
+          );
+        });
+        return true;
+      } catch (reason) {
+        setError(getFriendlyError(reason));
+        return false;
+      }
+    },
+    [setError, setWorkspace, token],
+  );
 
   async function handleOpenNotification(
     notification: Notification,
@@ -272,7 +275,7 @@ export function useNotificationController({
         );
       }
     });
-  }, [lastAutoClosedWorkItemKey, selectedBug, selectedTask]);
+  }, [handleCloseRelatedNotifications, lastAutoClosedWorkItemKey, selectedBug, selectedTask]);
 
   return {
     notifications,

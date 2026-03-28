@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Box, Button, Heading, Input, Link, Stack, Text, Textarea } from "@chakra-ui/react";
 
@@ -40,7 +40,7 @@ export function ProjectSettingsPage({
     onRemoveRepository,
     onSaveProjectSettings,
 }: ProjectSettingsPageProps) {
-    const [selectedRepositoryId, setSelectedRepositoryId] = useState("");
+    const [selectedRepositoryId, setSelectedRepositoryId] = useState<string | null>(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const isOwner = project.role === "owner";
     const canManageProject = project.permissions.canManageProject;
@@ -54,10 +54,12 @@ export function ProjectSettingsPage({
         [availableRepos, connectedRepoIds],
     );
     const isManagingRepos = busyLabel === "Connecting repository" || busyLabel === "Disconnecting repository";
-
-    useEffect(() => {
-        setSelectedRepositoryId(connectableRepos[0] ? String(connectableRepos[0].id) : "");
-    }, [connectableRepos]);
+    const resolvedSelectedRepositoryId =
+        selectedRepositoryId && connectableRepos.some((repo) => String(repo.id) === selectedRepositoryId)
+            ? selectedRepositoryId
+            : connectableRepos[0]
+              ? String(connectableRepos[0].id)
+              : "";
 
     return (
         <>
@@ -217,7 +219,7 @@ export function ProjectSettingsPage({
                                             ) : connectableRepos.length ? (
                                                 <>
                                                     <select
-                                                        value={selectedRepositoryId}
+                                                        value={resolvedSelectedRepositoryId}
                                                         style={nativeSelectStyle}
                                                         onChange={(event) => setSelectedRepositoryId(event.target.value)}
                                                     >
@@ -232,9 +234,9 @@ export function ProjectSettingsPage({
                                                         bg="var(--color-accent)"
                                                         color="var(--color-text-inverse)"
                                                         alignSelf="flex-start"
-                                                        disabled={isManagingRepos || !selectedRepositoryId}
+                                                        disabled={isManagingRepos || !resolvedSelectedRepositoryId}
                                                         _hover={{ bg: "var(--color-accent-hover)" }}
-                                                        onClick={() => onAddRepository(selectedRepositoryId)}
+                                                        onClick={() => onAddRepository(resolvedSelectedRepositoryId)}
                                                     >
                                                         {busyLabel === "Connecting repository" ? busyLabel : "Connect repository"}
                                                     </Button>
