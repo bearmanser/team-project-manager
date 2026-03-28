@@ -1,89 +1,50 @@
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 
-import { Box, Button, Heading, Stack, Text } from "@chakra-ui/react";
-
 import {
-  AUTH_TOKEN_INVALID_EVENT,
-  ApiError,
-  acceptNotification,
   addBugComment,
   addProjectRepos,
   addTaskComment,
   buildApiUrl,
-  cancelOrganizationInvite,
-  closeRelatedNotifications,
   createBugReport,
-  createOrganization,
-  createProject,
   createTask,
   createTaskBranch,
-  deleteOrganization,
   deleteProject,
-  disconnectGitHub,
   endProjectSprint,
-  getOrganizationMembers,
   getProject,
   getProjectGitHubIssues,
-  getWorkspace,
   importBugFromGitHubIssue,
-  inviteOrganizationMember,
-  leaveOrganization,
-  login,
-  markNotificationRead,
-  removeOrganizationMember,
   removeProjectRepo,
-  signup,
-  startGitHubOauth,
   toggleBugCommentReaction,
   toggleTaskCommentReaction,
   updateBugReport,
-  updateOrganizationMemberRole,
-  updateOrganizationSettings,
   updateProjectSettings,
   updateProjectSprint,
   updateTask,
 } from "../api";
-import { AppShell } from "../components/AppShell";
-import { SideNav } from "../components/SideNav";
-import { SurfaceCard } from "../components/SurfaceCard";
 import { TopNav } from "../components/TopNav";
+import { PublicRouteView } from "../features/auth/components/PublicRouteView";
 import { useThemeMode } from "../features/auth/hooks/useThemeMode";
-import { MarketingPage } from "../features/auth/pages/MarketingPage";
-import { SignupPage } from "../features/auth/pages/SignupPage";
 import { useGitHubOauthCallback } from "../features/github/hooks/useGitHubOauthCallback";
 import { useNotificationPanel } from "../features/notifications/hooks/useNotificationPanel";
-import { OrganizationSelector } from "../features/organizations/components/OrganizationSelector";
+import { useNotificationController } from "../features/notifications/hooks/useNotificationController";
+import { OrganizationWorkspaceView } from "../features/organizations/components/OrganizationWorkspaceView";
+import { useOrganizationController } from "../features/organizations/hooks/useOrganizationController";
 import { useOrganizationSelection } from "../features/organizations/hooks/useOrganizationSelection";
-import { OrganizationProjectsPage } from "../features/organizations/pages/OrganizationProjectsPage";
-import { OrganizationSettingsPage } from "../features/organizations/pages/OrganizationSettingsPage";
-import { OrganizationUsersPage } from "../features/organizations/pages/OrganizationUsersPage";
+import { ProjectWorkspaceView } from "../features/projects/components/ProjectWorkspaceView";
 import { useProjectSelection } from "../features/projects/hooks/useProjectSelection";
-import { EndSprintIncompleteTasksModal } from "../features/projects/modals/EndSprintIncompleteTasksModal";
-import { EndSprintModal } from "../features/projects/modals/EndSprintModal";
-import { TaskBranchModal } from "../features/projects/modals/TaskBranchModal";
-import { WorkItemDetailModal } from "../features/projects/modals/WorkItemDetailModal";
-import { ProjectBoardPage } from "../features/projects/pages/ProjectBoardPage";
-import { ProjectBugsPage } from "../features/projects/pages/ProjectBugsPage";
-import { ProjectSettingsPage } from "../features/projects/pages/ProjectSettingsPage";
-import { ProjectSprintHistoryPage } from "../features/projects/pages/ProjectSprintHistoryPage";
-import { ProjectTasksPage } from "../features/projects/pages/ProjectTasksPage";
 import type {
   BacklogPlacement,
   BugReport,
   BugStatus,
   EndSprintUnfinishedAction,
   GitHubIssueCandidate,
-  Notification,
-  OrganizationMember,
   OrganizationSummary,
   PriorityLevel,
   ProjectDetail,
-  ProjectRole,
   Task,
   TaskStatus,
   WorkspaceResponse,
 } from "../types";
-import { sidebarSelectStyle } from "../utils";
 import type { NavItem, OrganizationSection, ProjectSection } from "../view-models";
 import {
   MARKETING_PATH,
@@ -96,30 +57,23 @@ import {
 } from "./constants";
 import { getFriendlyError } from "./errors";
 import {
-  getOrganizationSettingsForm,
   getProjectSettingsForm,
   initialBugForm,
   initialLoginForm,
-  initialOrganizationForm,
-  initialProjectForm,
   initialSignupForm,
   initialTaskForm,
-  type OrganizationSettingsForm,
   type ProjectSettingsForm,
 } from "./forms";
 import {
   getOrganizationPath,
   getProjectPath,
-  normalizePath,
   parseRoute,
-  stripAppBasePath,
   toBrowserPath,
 } from "./routing";
 import { parseStoredNumber } from "./storage";
-import {
-  mergeProjectIntoWorkspace,
-  resolveOrganizationSelection,
-} from "./workspace";
+import { mergeProjectIntoWorkspace } from "./workspace";
+import { BootingView } from "./components/BootingView";
+import { useWorkspaceSession } from "./hooks/useWorkspaceSession";
 
 function WorkspaceApp() {
   const completeGitHubOauthOnce = useGitHubOauthCallback();
@@ -135,16 +89,12 @@ function WorkspaceApp() {
     SELECTED_PROJECT_STORAGE_KEY,
     parseStoredNumber(SELECTED_PROJECT_STORAGE_KEY)
   );
-  const [pendingNotificationTarget, setPendingNotificationTarget] = useState<{
-    projectId: number;
-    taskId: number | null;
-    bugReportId: number | null;
-  } | null>(null);
   const [signupForm, setSignupForm] = useState(initialSignupForm);
   const [loginForm, setLoginForm] = useState(initialLoginForm);
   const [token, setToken] = useState<string | null>(() =>
     window.localStorage.getItem(TOKEN_STORAGE_KEY)
   );
+  const [currentPath, setCurrentPath] = useState(() => window.location.pathname);
   const [workspace, setWorkspace] = useState<WorkspaceResponse | null>(null);
   const [selectedProject, setSelectedProject] = useState<ProjectDetail | null>(
     null
@@ -152,18 +102,10 @@ function WorkspaceApp() {
   const [organizationSection, setOrganizationSection] =
     useState<OrganizationSection>("projects");
   const [projectSection, setProjectSection] = useState<ProjectSection>("board");
-  const [organizationUsers, setOrganizationUsers] = useState<
-    OrganizationMember[]
-  >([]);
-  const [organizationUsersLoading, setOrganizationUsersLoading] =
-    useState(false);
   const [busyLabel, setBusyLabel] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isBooting, setIsBooting] = useState(true);
-  const [showCreateOrganizationForm, setShowCreateOrganizationForm] =
-    useState(false);
-  const [showCreateProjectForm, setShowCreateProjectForm] = useState(false);
   const [showCreateTaskForm, setShowCreateTaskForm] = useState(false);
   const [showCreateBugForm, setShowCreateBugForm] = useState(false);
   const [showImportBugForm, setShowImportBugForm] = useState(false);
@@ -178,15 +120,6 @@ function WorkspaceApp() {
   const [branchTaskId, setBranchTaskId] = useState<number | null>(null);
   const [branchNameDraft, setBranchNameDraft] = useState("");
   const [baseBranchDraft, setBaseBranchDraft] = useState("");
-  const [createOrganizationForm, setCreateOrganizationForm] = useState(
-    initialOrganizationForm
-  );
-  const [organizationSettingsForm, setOrganizationSettingsForm] =
-    useState<OrganizationSettingsForm>({
-      name: "",
-    });
-  const [createProjectForm, setCreateProjectForm] =
-    useState(initialProjectForm);
   const [createTaskForm, setCreateTaskForm] = useState(initialTaskForm);
   const [createBugForm, setCreateBugForm] = useState(initialBugForm);
   const [importableGitHubIssues, setImportableGitHubIssues] = useState<
@@ -211,19 +144,13 @@ function WorkspaceApp() {
   const selectedProjectUpdatedAtRef = useRef<string | null>(null);
   const isRefreshingProjectFromEventsRef = useRef(false);
   const githubRepoRetryCountRef = useRef(0);
-  const lastAutoClosedWorkItemKeyRef = useRef<string | null>(null);
-  const routeSyncRequestIdRef = useRef(0);
-
   const user = workspace?.user ?? null;
   const githubRepoErrorMessage =
     workspace?.githubRepoError === "Bad credentials" &&
     workspace?.user.githubConnected
       ? "GitHub connected, but repositories are still syncing. Please wait a moment and try again."
       : workspace?.githubRepoError ?? null;
-  const notifications = (workspace?.notifications ?? []).filter(
-    (item) => !item.isClosed
-  );
-  const unreadNotifications = notifications.filter((item) => !item.isRead);
+  const currentRoute = useMemo(() => parseRoute(currentPath), [currentPath]);
   const currentOrganization = useMemo<OrganizationSummary | null>(() => {
     if (!workspace || selectedOrganizationId === null) {
       return null;
@@ -280,66 +207,6 @@ function WorkspaceApp() {
       selectedProject.tasks.find((task) => task.id === branchTaskId) ?? null
     );
   }, [branchTaskId, selectedProject]);
-
-  useEffect(() => {
-    if (!pendingNotificationTarget || !selectedProject) {
-      return;
-    }
-
-    if (selectedProject.id !== pendingNotificationTarget.projectId) {
-      return;
-    }
-
-    if (pendingNotificationTarget.taskId !== null) {
-      const taskExists = selectedProject.tasks.some(
-        (task) => task.id === pendingNotificationTarget.taskId
-      );
-      if (taskExists) {
-        openTaskDetail(pendingNotificationTarget.taskId);
-      } else {
-        setError("The task for this notification is no longer available.");
-      }
-    } else if (pendingNotificationTarget.bugReportId !== null) {
-      const bugExists = selectedProject.bugReports.some(
-        (bug) => bug.id === pendingNotificationTarget.bugReportId
-      );
-      if (bugExists) {
-        openBugDetail(pendingNotificationTarget.bugReportId);
-      } else {
-        setError("The bug for this notification is no longer available.");
-      }
-    }
-
-    setPendingNotificationTarget(null);
-  }, [pendingNotificationTarget, selectedProject]);
-
-  useEffect(() => {
-    const workItemKey = selectedTask
-      ? `task:${selectedTask.id}`
-      : selectedBug
-      ? `bug:${selectedBug.id}`
-      : null;
-
-    if (!workItemKey) {
-      lastAutoClosedWorkItemKeyRef.current = null;
-      return;
-    }
-
-    if (lastAutoClosedWorkItemKeyRef.current === workItemKey) {
-      return;
-    }
-
-    lastAutoClosedWorkItemKeyRef.current = workItemKey;
-    const payload = selectedTask
-      ? { taskId: selectedTask.id }
-      : { bugReportId: selectedBug!.id };
-
-    void handleCloseRelatedNotifications(payload).then((didClose) => {
-      if (!didClose && lastAutoClosedWorkItemKeyRef.current === workItemKey) {
-        lastAutoClosedWorkItemKeyRef.current = null;
-      }
-    });
-  }, [selectedBug, selectedTask, token]);
 
   const organizationNavItems: NavItem<OrganizationSection>[] = useMemo(() => {
     const items: NavItem<OrganizationSection>[] = [
@@ -464,56 +331,8 @@ function WorkspaceApp() {
     });
   }
 
-  function storeToken(nextToken: string | null): void {
-    if (nextToken) {
-      window.localStorage.setItem(TOKEN_STORAGE_KEY, nextToken);
-    } else {
-      window.localStorage.removeItem(TOKEN_STORAGE_KEY);
-    }
-    setToken(nextToken);
-  }
-
-  function rememberOrganizationSelection(organizationId: number | null): void {
-    if (organizationId === null) {
-      window.localStorage.removeItem(SELECTED_ORGANIZATION_STORAGE_KEY);
-    } else {
-      window.localStorage.setItem(
-        SELECTED_ORGANIZATION_STORAGE_KEY,
-        String(organizationId)
-      );
-    }
-    setSelectedOrganizationId(organizationId);
-  }
-
-  function rememberProjectSelection(projectId: number | null): void {
-    if (projectId === null) {
-      window.localStorage.removeItem(SELECTED_PROJECT_STORAGE_KEY);
-    } else {
-      window.localStorage.setItem(
-        SELECTED_PROJECT_STORAGE_KEY,
-        String(projectId)
-      );
-    }
-    setSelectedProjectId(projectId);
-  }
-
-  function navigateToPath(path: string, replace = false): void {
-    const normalizedPath = normalizePath(path);
-    const currentPath = stripAppBasePath(window.location.pathname);
-    const browserPath = toBrowserPath(normalizedPath);
-    if (normalizedPath === currentPath && !replace) {
-      return;
-    }
-
-    if (replace) {
-      window.history.replaceState({}, document.title, browserPath);
-    } else {
-      window.history.pushState({}, document.title, browserPath);
-    }
-  }
-
   function clearProjectSelection(): void {
-    rememberProjectSelection(null);
+    setSelectedProjectId(null);
     setSelectedProject(null);
     setProjectSection("board");
     setSelectedTaskId(null);
@@ -531,424 +350,108 @@ function WorkspaceApp() {
     setEndSprintUnfinishedAction("carryover");
   }
 
-  function clearSession(): void {
-    storeToken(null);
-    rememberOrganizationSelection(null);
-    rememberProjectSelection(null);
-    setWorkspace(null);
-    setSelectedProject(null);
-    setOrganizationSection("projects");
-    setProjectSection("board");
-    setNotice(null);
-    setError(null);
-    setBusyLabel(null);
-    setNotificationOpen(false);
-    clearProjectSettingsDraft();
-    navigateToPath(MARKETING_PATH, true);
-  }
-
-  function isActiveRouteSyncRequest(routeSyncRequestId?: number): boolean {
-    return (
-      routeSyncRequestId === undefined ||
-      routeSyncRequestId === routeSyncRequestIdRef.current
-    );
-  }
-
-  async function loadProjectDetail(
-    sessionToken: string,
-    projectId: number,
-    routeSyncRequestId?: number
-  ): Promise<ProjectDetail> {
-    const response = await getProject(sessionToken, projectId);
-    if (!isActiveRouteSyncRequest(routeSyncRequestId)) {
-      return response.project;
-    }
-    startTransition(() => {
-      setSelectedProject(response.project);
-      applyProjectSettingsFromProject(response.project);
-      setWorkspace((current) =>
-        mergeProjectIntoWorkspace(current, response.project)
-      );
-    });
-    rememberProjectSelection(projectId);
-    rememberOrganizationSelection(response.project.organizationId);
-    return response.project;
-  }
-
-  async function hydrateWorkspace(
-    sessionToken: string,
-    options: {
-      preferredOrganizationId?: number | null;
-      preferredProjectId?: number | null;
-      projectOverride?: ProjectDetail | null;
-      quiet?: boolean;
-    } = {},
-    routeSyncRequestId?: number
-  ): Promise<{
-    resolvedOrganizationId: number | null;
-    resolvedProjectId: number | null;
-  }> {
-    if (!options.quiet && isActiveRouteSyncRequest(routeSyncRequestId)) {
-      setBusyLabel("Loading workspace");
-    }
-
-    const workspaceData = await getWorkspace(sessionToken);
-    if (isActiveRouteSyncRequest(routeSyncRequestId)) {
-      startTransition(() => {
-        setWorkspace(workspaceData);
-      });
-    }
-
-    const requestedProjectId = Object.prototype.hasOwnProperty.call(
-      options,
-      "preferredProjectId"
-    )
-      ? options.preferredProjectId ?? null
-      : selectedProjectId;
-    const resolvedProjectId = workspaceData.projects.some(
-      (project) => project.id === requestedProjectId
-    )
-      ? requestedProjectId
-      : null;
-
-    if (resolvedProjectId !== null) {
-      const projectOverride = options.projectOverride;
-      if (projectOverride && projectOverride.id === resolvedProjectId) {
-        if (isActiveRouteSyncRequest(routeSyncRequestId)) {
-          rememberProjectSelection(resolvedProjectId);
-          rememberOrganizationSelection(projectOverride.organizationId);
-          startTransition(() => {
-            setSelectedProject(projectOverride);
-            applyProjectSettingsFromProject(projectOverride);
-          });
-        }
-      } else {
-        await loadProjectDetail(
-          sessionToken,
-          resolvedProjectId,
-          routeSyncRequestId
-        );
-      }
-
-      if (!options.quiet && isActiveRouteSyncRequest(routeSyncRequestId)) {
-        setBusyLabel(null);
-      }
-
-      return {
-        resolvedOrganizationId:
-          options.projectOverride?.id === resolvedProjectId
-            ? options.projectOverride.organizationId
-            : workspaceData.projects.find(
-                (project) => project.id === resolvedProjectId
-              )?.organizationId ?? null,
-        resolvedProjectId,
-      };
-    }
-
-    if (isActiveRouteSyncRequest(routeSyncRequestId)) {
-      rememberProjectSelection(null);
-      startTransition(() => {
-        setSelectedProject(null);
-      });
-    }
-
-    const requestedOrganizationId = Object.prototype.hasOwnProperty.call(
-      options,
-      "preferredOrganizationId"
-    )
-      ? options.preferredOrganizationId ?? null
-      : selectedOrganizationId;
-    const resolvedOrganizationId = resolveOrganizationSelection(
-      workspaceData.organizations,
-      requestedOrganizationId
-    );
-
-    if (isActiveRouteSyncRequest(routeSyncRequestId)) {
-      rememberOrganizationSelection(resolvedOrganizationId);
-    }
-
-    if (!options.quiet && isActiveRouteSyncRequest(routeSyncRequestId)) {
-      setBusyLabel(null);
-    }
-
-    return {
-      resolvedOrganizationId,
-      resolvedProjectId: null,
-    };
-  }
-
-  async function syncFromPath(
-    sessionToken: string,
-    options: { quiet?: boolean } = {}
-  ): Promise<void> {
-    const routeSyncRequestId = ++routeSyncRequestIdRef.current;
-    const route = parseRoute(window.location.pathname);
-    setNotificationOpen(false);
-
-    if (route.kind === "marketing" || route.kind === "signup") {
-      navigateToPath(ORGANIZATIONS_PATH, true);
-      await syncFromPath(sessionToken, options);
-      return;
-    }
-
-    if (route.kind === "organizations") {
-      setOrganizationSection("projects");
-      clearProjectSelection();
-      const result = await hydrateWorkspace(sessionToken, {
-        preferredProjectId: null,
-        quiet: options.quiet,
-      }, routeSyncRequestId);
-      if (!isActiveRouteSyncRequest(routeSyncRequestId)) {
-        return;
-      }
-      if (result.resolvedOrganizationId !== null) {
-        navigateToPath(
-          getOrganizationPath(result.resolvedOrganizationId),
-          true
-        );
-      }
-      return;
-    }
-
-    if (route.kind === "organization") {
-      setOrganizationSection(route.section);
-      clearProjectSelection();
-      const result = await hydrateWorkspace(sessionToken, {
-        preferredOrganizationId: route.organizationId,
-        preferredProjectId: null,
-        quiet: options.quiet,
-      }, routeSyncRequestId);
-      if (!isActiveRouteSyncRequest(routeSyncRequestId)) {
-        return;
-      }
-      if (result.resolvedOrganizationId !== route.organizationId) {
-        navigateToPath(
-          result.resolvedOrganizationId
-            ? getOrganizationPath(result.resolvedOrganizationId)
-            : ORGANIZATIONS_PATH,
-          true
-        );
-      }
-      return;
-    }
-
-    if (route.kind === "project") {
-      setProjectSection(route.section);
-
-      if (selectedProject?.id === route.projectId) {
-        rememberProjectSelection(route.projectId);
-        rememberOrganizationSelection(selectedProject.organizationId);
-        return;
-      }
-
-      const knownProject =
-        workspace?.projects.some((project) => project.id === route.projectId) ??
-        false;
-      if (knownProject) {
-        try {
-          await loadProjectDetail(
-            sessionToken,
-            route.projectId,
-            routeSyncRequestId
-          );
-          if (!isActiveRouteSyncRequest(routeSyncRequestId)) {
-            return;
-          }
-          return;
-        } catch (reason) {
-          if (!(reason instanceof ApiError) || reason.status !== 404) {
-            throw reason;
-          }
-        }
-      }
-
-      const result = await hydrateWorkspace(sessionToken, {
-        preferredOrganizationId: null,
-        preferredProjectId: route.projectId,
-        quiet: options.quiet,
-      }, routeSyncRequestId);
-      if (!isActiveRouteSyncRequest(routeSyncRequestId)) {
-        return;
-      }
-      if (result.resolvedProjectId !== route.projectId) {
-        navigateToPath(
-          result.resolvedOrganizationId
-            ? getOrganizationPath(result.resolvedOrganizationId)
-            : ORGANIZATIONS_PATH,
-          true
-        );
-      }
-    }
-  }
-
-  async function runProjectMutation(
-    label: string,
-    action: () => Promise<{ project: ProjectDetail }>,
-    successNotice: string
-  ): Promise<boolean> {
-    if (!token) {
-      return false;
-    }
-
-    setBusyLabel(label);
-    setError(null);
-    setNotice(null);
-
-    try {
-      const response = await action();
-      startTransition(() => {
-        setSelectedProject(response.project);
-        applyProjectSettingsFromProject(response.project, { resetDirty: true });
-      });
-      rememberProjectSelection(response.project.id);
-      rememberOrganizationSelection(response.project.organizationId);
-      await hydrateWorkspace(token, {
-        preferredOrganizationId: response.project.organizationId,
-        preferredProjectId: response.project.id,
-        projectOverride: response.project,
-        quiet: true,
-      });
-      setNotice(successNotice);
-      return true;
-    } catch (reason) {
-      setError(getFriendlyError(reason));
-      return false;
-    } finally {
-      setBusyLabel(null);
-    }
-  }
-
-  async function beginGitHubConnection(sessionToken: string): Promise<void> {
-    const response = await startGitHubOauth(sessionToken);
-    window.location.assign(response.authorizationUrl);
-  }
-
-  async function bootstrapWorkspace(): Promise<void> {
-    const sessionToken = window.localStorage.getItem(TOKEN_STORAGE_KEY);
-    const route = parseRoute(window.location.pathname);
-    const params = new URLSearchParams(window.location.search);
-
-    if (route.kind === "githubCallback") {
-      const providerError =
-        params.get("error_description") ?? params.get("error");
-      if (providerError) {
-        setError(providerError);
-        navigateToPath(ORGANIZATIONS_PATH, true);
-        setIsBooting(false);
-        return;
-      }
-
-      const code = params.get("code");
-      const state = params.get("state");
-
-      if (!sessionToken || !code || !state) {
-        clearSession();
-        setError("Finish signing in before connecting GitHub.");
-        navigateToPath(MARKETING_PATH, true);
-        setIsBooting(false);
-        return;
-      }
-
-      setBusyLabel("Connecting GitHub");
-      try {
-        const response = await completeGitHubOauthOnce(
-          sessionToken,
-          code,
-          state
-        );
-        startTransition(() => {
-          setWorkspace((current) =>
-            current
-              ? {
-                  ...current,
-                  user: response.user,
-                  availableRepos: response.repos,
-                  githubRepoError: response.githubRepoError,
-                }
-              : current
-          );
-        });
-        navigateToPath(ORGANIZATIONS_PATH, true);
-        try {
-          await syncFromPath(sessionToken, { quiet: true });
-        } catch (reason) {
-          setError(getFriendlyError(reason));
-        }
-        setNotice("GitHub connected.");
-      } catch (reason) {
-        navigateToPath(ORGANIZATIONS_PATH, true);
-        setError(getFriendlyError(reason));
-      } finally {
-        setBusyLabel(null);
-        setIsBooting(false);
-      }
-      return;
-    }
-
-    if (!sessionToken) {
-      if (route.kind !== "marketing" && route.kind !== "signup") {
-        navigateToPath(MARKETING_PATH, true);
-      }
-      setIsBooting(false);
-      return;
-    }
-
-    try {
-      if (route.kind === "marketing" || route.kind === "signup") {
-        navigateToPath(ORGANIZATIONS_PATH, true);
-      }
-      await syncFromPath(sessionToken, { quiet: true });
-    } catch (reason) {
-      clearSession();
-      setError(getFriendlyError(reason));
-    } finally {
-      setIsBooting(false);
-    }
-  }
+  const {
+    clearSession,
+    handleConnectGitHub,
+    handleDisconnectGitHub,
+    navigateToPath,
+    openOrganization,
+    openProject,
+    rememberOrganizationSelection,
+    runProjectMutation,
+    submitLogin,
+    submitSignup,
+    syncFromPath,
+  } = useWorkspaceSession({
+    completeGitHubOauthOnce,
+    token,
+    user,
+    setCurrentPath,
+    selectedOrganizationId,
+    selectedProjectId,
+    selectedProject,
+    workspace,
+    setToken,
+    setWorkspace,
+    setSelectedOrganizationId,
+    setSelectedProjectId,
+    setSelectedProject,
+    setOrganizationSection,
+    setProjectSection,
+    setBusyLabel,
+    setError,
+    setNotice,
+    setIsBooting,
+    setNotificationOpen,
+    setSignupForm,
+    setLoginForm,
+    applyProjectSettingsFromProject,
+    clearProjectSettingsDraft,
+    clearProjectSelection,
+  });
+  const {
+    createOrganizationForm,
+    createProjectForm,
+    handleCancelOrganizationInvite,
+    handleChangeOrganizationUserRole,
+    handleCreateOrganization,
+    handleCreateProject,
+    handleDeleteOrganization,
+    handleInviteOrganizationUser,
+    handleLeaveCurrentOrganization,
+    handleRemoveOrganizationUser,
+    handleSaveOrganizationSettings,
+    organizationSettingsForm,
+    organizationUsers,
+    organizationUsersLoading,
+    setCreateOrganizationForm,
+    setCreateProjectForm,
+    setOrganizationSettingsForm,
+    setShowCreateOrganizationForm,
+    setShowCreateProjectForm,
+    showCreateOrganizationForm,
+    showCreateProjectForm,
+  } = useOrganizationController({
+    token,
+    currentOrganization,
+    organizationSection,
+    selectedProject,
+    setOrganizationSection,
+    setBusyLabel,
+    setError,
+    setNotice,
+    syncFromPath,
+    clearProjectSelection,
+    rememberOrganizationSelection,
+    navigateToPath,
+  });
+  const {
+    notifications,
+    unreadNotifications,
+    handleAcceptNotification,
+    handleOpenNotification,
+    handleReadNotification,
+  } = useNotificationController({
+    token,
+    workspace,
+    setWorkspace,
+    selectedProject,
+    selectedTask,
+    selectedBug,
+    setBusyLabel,
+    setError,
+    setNotice,
+    setNotificationOpen,
+    openTaskDetail,
+    openBugDetail,
+    navigateToProject: (projectId) => navigateToPath(getProjectPath(projectId)),
+    syncFromPath,
+  });
 
   useEffect(() => {
     document.documentElement.dataset.theme = themeMode;
     window.localStorage.setItem(THEME_MODE_STORAGE_KEY, themeMode);
   }, [themeMode]);
-
-  useEffect(() => {
-    function handleAuthTokenInvalid(event: Event): void {
-      const message =
-        event instanceof CustomEvent &&
-        typeof event.detail?.message === "string"
-          ? event.detail.message
-          : "Your session has expired. Please sign in again.";
-
-      clearSession();
-      setError(message);
-    }
-
-    window.addEventListener(AUTH_TOKEN_INVALID_EVENT, handleAuthTokenInvalid);
-    return () =>
-      window.removeEventListener(
-        AUTH_TOKEN_INVALID_EVENT,
-        handleAuthTokenInvalid
-      );
-  }, []);
-
-  useEffect(() => {
-    void bootstrapWorkspace();
-  }, []);
-
-  useEffect(() => {
-    if (!token) {
-      return;
-    }
-
-    const sessionToken = token;
-
-    function handlePopState(): void {
-      void syncFromPath(sessionToken, { quiet: true });
-    }
-
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, [token]);
 
   useEffect(() => {
     if (
@@ -962,49 +465,6 @@ function WorkspaceApp() {
     setProjectSection("board");
     navigateToPath(getProjectPath(selectedProject.id, "board"), true);
   }, [projectSection, selectedProject]);
-
-  useEffect(() => {
-    if (!currentOrganization) {
-      setOrganizationSettingsForm({
-        name: "",
-      });
-      return;
-    }
-
-    if (currentOrganization.isPersonal) {
-      setOrganizationSettingsForm({
-        name: "",
-      });
-      if (organizationSection === "users" || organizationSection === "settings") {
-        setOrganizationSection("projects");
-        navigateToPath(
-          getOrganizationPath(currentOrganization.id, "projects"),
-          true
-        );
-      }
-      return;
-    }
-
-    if (
-      currentOrganization.role === "owner" ||
-      currentOrganization.role === "admin"
-    ) {
-      setOrganizationSettingsForm(
-        getOrganizationSettingsForm(currentOrganization)
-      );
-      return;
-    }
-
-    setOrganizationSettingsForm({
-      name: "",
-    });
-  }, [
-    currentOrganization?.id,
-    currentOrganization?.isPersonal,
-    currentOrganization?.name,
-    currentOrganization?.role,
-    organizationSection,
-  ]);
 
   useEffect(() => {
     if (!error && !notice) {
@@ -1125,495 +585,6 @@ function WorkspaceApp() {
       isRefreshingProjectFromEventsRef.current = false;
     };
   }, [selectedOrganizationId, selectedProjectId, token]);
-
-  useEffect(() => {
-    if (
-      !token ||
-      !currentOrganization ||
-      selectedProject ||
-      organizationSection !== "users"
-    ) {
-      return;
-    }
-    if (currentOrganization.isPersonal) {
-      setOrganizationSection("projects");
-      navigateToPath(
-        getOrganizationPath(currentOrganization.id, "projects"),
-        true
-      );
-      return;
-    }
-
-    let cancelled = false;
-
-    void (async () => {
-      try {
-        setOrganizationUsersLoading(true);
-        const response = await getOrganizationMembers(token, currentOrganization.id);
-        if (cancelled) {
-          return;
-        }
-        setOrganizationUsers(response.members);
-      } catch (reason) {
-        if (!cancelled) {
-          setError(getFriendlyError(reason));
-        }
-      } finally {
-        if (!cancelled) {
-          setOrganizationUsersLoading(false);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    currentOrganization,
-    organizationSection,
-    selectedProject,
-    token,
-  ]);
-
-  async function handleSubmitSignup(connectGitHub: boolean): Promise<void> {
-    if (signupForm.password !== signupForm.confirmPassword) {
-      setError("Passwords must match before creating the account.");
-      return;
-    }
-
-    setError(null);
-    setNotice(null);
-    setBusyLabel(
-      connectGitHub
-        ? "Creating account and preparing GitHub"
-        : "Creating account"
-    );
-
-    try {
-      const response = await signup({
-        username: signupForm.username.trim(),
-        email: signupForm.email.trim(),
-        password: signupForm.password,
-      });
-      storeToken(response.accessToken);
-      setSignupForm(initialSignupForm);
-      setLoginForm({ identifier: response.user.email, password: "" });
-      navigateToPath(ORGANIZATIONS_PATH, true);
-
-      if (connectGitHub) {
-        await beginGitHubConnection(response.accessToken);
-        return;
-      }
-
-      await syncFromPath(response.accessToken, { quiet: true });
-      setNotice("Account created. Your account workspace is ready.");
-    } catch (reason) {
-      clearSession();
-      setError(getFriendlyError(reason));
-    } finally {
-      setBusyLabel(null);
-    }
-  }
-
-  async function handleSubmitLogin(): Promise<void> {
-    setError(null);
-    setNotice(null);
-    setBusyLabel("Signing in");
-
-    try {
-      const response = await login({
-        identifier: loginForm.identifier.trim(),
-        password: loginForm.password,
-      });
-      storeToken(response.accessToken);
-      setLoginForm(initialLoginForm);
-      navigateToPath(ORGANIZATIONS_PATH, true);
-      await syncFromPath(response.accessToken, { quiet: true });
-      setNotice("Welcome back.");
-    } catch (reason) {
-      clearSession();
-      setError(getFriendlyError(reason));
-    } finally {
-      setBusyLabel(null);
-    }
-  }
-
-  async function handleConnectGitHub(): Promise<void> {
-    if (!token) {
-      return;
-    }
-
-    setError(null);
-    setNotice(null);
-    setBusyLabel(
-      user?.githubConnected
-        ? "Refreshing GitHub repositories"
-        : "Opening GitHub"
-    );
-
-    try {
-      await beginGitHubConnection(token);
-    } catch (reason) {
-      setError(getFriendlyError(reason));
-      setBusyLabel(null);
-    }
-  }
-
-  async function handleDisconnectGitHub(): Promise<void> {
-    if (!token) {
-      return;
-    }
-
-    setError(null);
-    setNotice(null);
-    setBusyLabel("Disconnecting GitHub");
-
-    try {
-      const response = await disconnectGitHub(token);
-      startTransition(() => {
-        setWorkspace((current) =>
-          current
-            ? {
-                ...current,
-                user: response.user,
-                availableRepos: [],
-                githubRepoError: null,
-              }
-            : current
-        );
-      });
-      setNotice("GitHub disconnected.");
-    } catch (reason) {
-      setError(getFriendlyError(reason));
-    } finally {
-      setBusyLabel(null);
-    }
-  }
-
-  async function handleCreateOrganization(): Promise<void> {
-    if (!token) {
-      return;
-    }
-
-    setError(null);
-    setNotice(null);
-    setBusyLabel("Adding organization");
-
-    try {
-      const response = await createOrganization(token, {
-        name: createOrganizationForm.name.trim(),
-        description: createOrganizationForm.description.trim(),
-      });
-      setCreateOrganizationForm(initialOrganizationForm);
-      setShowCreateOrganizationForm(false);
-      navigateToPath(getOrganizationPath(response.organization.id), true);
-      await syncFromPath(token, { quiet: true });
-      setNotice("Organization added.");
-    } catch (reason) {
-      setError(getFriendlyError(reason));
-      return;
-    } finally {
-      setBusyLabel(null);
-    }
-  }
-
-  async function handleSaveOrganizationSettings(): Promise<void> {
-    if (
-      !token ||
-      !currentOrganization ||
-      currentOrganization.isPersonal ||
-      (currentOrganization.role !== "owner" &&
-        currentOrganization.role !== "admin")
-    ) {
-      return;
-    }
-
-    setError(null);
-    setNotice(null);
-    setBusyLabel("Saving organization settings");
-
-    try {
-      await updateOrganizationSettings(token, currentOrganization.id, {
-        name: organizationSettingsForm.name.trim(),
-      });
-      await syncFromPath(token, { quiet: true });
-      setNotice("Organization settings saved.");
-    } catch (reason) {
-      setError(getFriendlyError(reason));
-      return;
-    } finally {
-      setBusyLabel(null);
-    }
-  }
-
-  async function handleDeleteOrganization(): Promise<void> {
-    if (
-      !token ||
-      !currentOrganization ||
-      currentOrganization.isPersonal ||
-      currentOrganization.role !== "owner"
-    ) {
-      return;
-    }
-
-    const organizationId = currentOrganization.id;
-    setBusyLabel("Deleting organization");
-    setError(null);
-    setNotice(null);
-
-    try {
-      clearProjectSelection();
-      rememberOrganizationSelection(null);
-      await deleteOrganization(token, organizationId);
-      navigateToPath(ORGANIZATIONS_PATH, true);
-      await syncFromPath(token, { quiet: true });
-      setNotice("Organization deleted.");
-    } catch (reason) {
-      setError(getFriendlyError(reason));
-      return;
-    } finally {
-      setBusyLabel(null);
-    }
-  }
-
-  async function handleLeaveCurrentOrganization(): Promise<void> {
-    if (
-      !token ||
-      !currentOrganization ||
-      currentOrganization.isPersonal ||
-      currentOrganization.role === "owner"
-    ) {
-      return;
-    }
-
-    const organizationId = currentOrganization.id;
-    setBusyLabel("Leaving organization");
-    setError(null);
-    setNotice(null);
-
-    try {
-      clearProjectSelection();
-      rememberOrganizationSelection(null);
-      await leaveOrganization(token, organizationId);
-      navigateToPath(ORGANIZATIONS_PATH, true);
-      await syncFromPath(token, { quiet: true });
-      setNotice("You left the organization.");
-    } catch (reason) {
-      setError(getFriendlyError(reason));
-      return;
-    } finally {
-      setBusyLabel(null);
-    }
-  }
-
-  async function handleCreateProject(): Promise<void> {
-    if (
-      !token ||
-      !currentOrganization ||
-      (currentOrganization.role !== "owner" &&
-        currentOrganization.role !== "admin")
-    ) {
-      return;
-    }
-
-    setError(null);
-    setNotice(null);
-    setBusyLabel("Adding project");
-
-    try {
-      const response = await createProject(token, {
-        organizationId: currentOrganization.id,
-        name: createProjectForm.name.trim(),
-        description: createProjectForm.description.trim(),
-        repositoryId: createProjectForm.repositoryId || undefined,
-      });
-      setCreateProjectForm(initialProjectForm);
-      setShowCreateProjectForm(false);
-      navigateToPath(getProjectPath(response.project.id), true);
-      await syncFromPath(token, { quiet: true });
-      setNotice("Project added.");
-    } catch (reason) {
-      setError(getFriendlyError(reason));
-      return;
-    } finally {
-      setBusyLabel(null);
-    }
-  }
-
-  async function handleReadNotification(
-    notification: Notification
-  ): Promise<void> {
-    if (!token || notification.isRead) {
-      return;
-    }
-
-    try {
-      const response = await markNotificationRead(token, notification.id);
-      startTransition(() => {
-        setWorkspace((current) =>
-          current
-            ? {
-                ...current,
-                notifications: current.notifications.map((item) =>
-                  item.id === notification.id ? response.notification : item
-                ),
-              }
-            : current
-        );
-      });
-    } catch (reason) {
-      setError(getFriendlyError(reason));
-    }
-  }
-
-  async function handleCloseRelatedNotifications(payload: {
-    taskId?: number;
-    bugReportId?: number;
-  }): Promise<boolean> {
-    if (!token) {
-      return false;
-    }
-
-    try {
-      const response = await closeRelatedNotifications(token, payload);
-      if (!response.closedNotificationIds.length) {
-        return true;
-      }
-
-      const closedIds = new Set(response.closedNotificationIds);
-      startTransition(() => {
-        setWorkspace((current) =>
-          current
-            ? {
-                ...current,
-                notifications: current.notifications.filter(
-                  (item) => !closedIds.has(item.id)
-                ),
-              }
-            : current
-        );
-      });
-      return true;
-    } catch (reason) {
-      setError(getFriendlyError(reason));
-      return false;
-    }
-  }
-
-  async function handleOpenNotification(
-    notification: Notification
-  ): Promise<void> {
-    if (
-      !token ||
-      notification.projectId === null ||
-      (notification.taskId === null && notification.bugReportId === null)
-    ) {
-      return;
-    }
-
-    setError(null);
-    setNotice(null);
-    setNotificationOpen(false);
-
-    if (selectedProject?.id === notification.projectId) {
-      if (notification.taskId !== null) {
-        openTaskDetail(notification.taskId);
-      } else if (notification.bugReportId !== null) {
-        openBugDetail(notification.bugReportId);
-      }
-      return;
-    }
-
-    setPendingNotificationTarget({
-      projectId: notification.projectId,
-      taskId: notification.taskId,
-      bugReportId: notification.bugReportId,
-    });
-    setBusyLabel("Opening item");
-    navigateToPath(getProjectPath(notification.projectId));
-
-    try {
-      await syncFromPath(token, { quiet: true });
-    } catch (reason) {
-      setPendingNotificationTarget(null);
-      setError(getFriendlyError(reason));
-      return;
-    } finally {
-      setBusyLabel(null);
-    }
-  }
-
-  async function handleAcceptNotification(
-    notification: Notification
-  ): Promise<void> {
-    if (!token || !notification.action) {
-      return;
-    }
-
-    setError(null);
-    setNotice(null);
-    setBusyLabel("Accepting invite");
-
-    try {
-      const response = await acceptNotification(token, notification.id);
-      startTransition(() => {
-        setWorkspace((current) =>
-          current
-            ? {
-                ...current,
-                notifications: current.notifications.map((item) =>
-                  item.id === notification.id ? response.notification : item
-                ),
-              }
-            : current
-        );
-      });
-      await syncFromPath(token, { quiet: true });
-      setNotice("Invite accepted.");
-    } catch (reason) {
-      setError(getFriendlyError(reason));
-    } finally {
-      setBusyLabel(null);
-    }
-  }
-
-  function openProject(
-    projectId: number,
-    section: ProjectSection = "board"
-  ): void {
-    if (!token) {
-      return;
-    }
-
-    setError(null);
-    setNotice(null);
-    setNotificationOpen(false);
-
-    if (selectedProject?.id === projectId) {
-      setProjectSection(section);
-      rememberProjectSelection(projectId);
-      rememberOrganizationSelection(selectedProject.organizationId);
-      navigateToPath(getProjectPath(projectId, section));
-      return;
-    }
-
-    setBusyLabel("Opening project");
-    navigateToPath(getProjectPath(projectId, section));
-    void syncFromPath(token, { quiet: true }).finally(() => setBusyLabel(null));
-  }
-
-  function openOrganization(
-    organizationId: number,
-    section: OrganizationSection = "projects"
-  ): void {
-    if (!token) {
-      return;
-    }
-
-    setNotificationOpen(false);
-    navigateToPath(getOrganizationPath(organizationId, section));
-    void syncFromPath(token, { quiet: true });
-  }
 
   function openCreateTaskForm(
     status: TaskStatus,
@@ -2133,110 +1104,6 @@ function WorkspaceApp() {
     }
   }
 
-  async function handleInviteOrganizationUser(
-    identifier: string,
-    role: ProjectRole
-  ): Promise<void> {
-    if (!token || !currentOrganization) {
-      return;
-    }
-
-    setBusyLabel("Inviting user");
-    setError(null);
-    setNotice(null);
-
-    try {
-      const response = await inviteOrganizationMember(token, currentOrganization.id, {
-        identifier,
-        role,
-      });
-      setOrganizationUsers(response.members);
-      await syncFromPath(token, { quiet: true });
-      setNotice("User invited.");
-    } catch (reason) {
-      setError(getFriendlyError(reason));
-      return;
-    } finally {
-      setBusyLabel(null);
-    }
-  }
-
-  async function handleChangeOrganizationUserRole(
-    membershipId: number,
-    role: ProjectRole
-  ): Promise<void> {
-    if (!token || !currentOrganization) {
-      return;
-    }
-
-    setBusyLabel("Changing organization role");
-    setError(null);
-    setNotice(null);
-
-    try {
-      const response = await updateOrganizationMemberRole(
-        token,
-        currentOrganization.id,
-        membershipId,
-        { role }
-      );
-      setOrganizationUsers(response.members);
-      await syncFromPath(token, { quiet: true });
-      setNotice("Role updated.");
-    } catch (reason) {
-      setError(getFriendlyError(reason));
-      return;
-    } finally {
-      setBusyLabel(null);
-    }
-  }
-
-  async function handleRemoveOrganizationUser(membershipId: number): Promise<void> {
-    if (!token || !currentOrganization) {
-      return;
-    }
-
-    setBusyLabel("Removing user");
-    setError(null);
-    setNotice(null);
-
-    try {
-      await removeOrganizationMember(token, currentOrganization.id, membershipId);
-      const response = await getOrganizationMembers(token, currentOrganization.id);
-      setOrganizationUsers(response.members);
-      await syncFromPath(token, { quiet: true });
-      setNotice("User removed.");
-    } catch (reason) {
-      setError(getFriendlyError(reason));
-      return;
-    } finally {
-      setBusyLabel(null);
-    }
-  }
-
-  async function handleCancelOrganizationInvite(membershipId: number): Promise<void> {
-    if (!token || !currentOrganization) {
-      return;
-    }
-
-    setBusyLabel("Canceling invite");
-    setError(null);
-    setNotice(null);
-
-    try {
-      await cancelOrganizationInvite(token, currentOrganization.id, membershipId);
-      const response = await getOrganizationMembers(token, currentOrganization.id);
-      setOrganizationUsers(response.members);
-      await syncFromPath(token, { quiet: true });
-      setNotice("Invite canceled.");
-    } catch (reason) {
-      setError(getFriendlyError(reason));
-      return;
-    } finally {
-      setBusyLabel(null);
-    }
-  }
-
   const topNav = (
     <TopNav
       busyLabel={busyLabel}
@@ -2268,85 +1135,37 @@ function WorkspaceApp() {
   );
 
   if (isBooting) {
-    return (
-      <Box
-        minH="100vh"
-        bg="var(--color-bg-app)"
-        display="grid"
-        placeItems="center"
-        px="4"
-      >
-        <SurfaceCard p={{ base: "6", lg: "10" }} w="full" maxW="640px">
-          <Stack gap="3">
-            <Text
-              fontSize="xs"
-              textTransform="uppercase"
-              letterSpacing="0.18em"
-              color="var(--color-text-muted)"
-            >
-              Team Project Manager
-            </Text>
-            <Heading size="2xl" color="var(--color-text-primary)">
-              Preparing your workspace
-            </Heading>
-            <Text color="var(--color-text-secondary)">
-              {busyLabel ?? "Loading authentication state..."}
-            </Text>
-          </Stack>
-        </SurfaceCard>
-      </Box>
-    );
+    return <BootingView busyLabel={busyLabel} />;
   }
 
   if (!workspace || !user) {
-    const publicRoute = parseRoute(window.location.pathname);
-
-    if (publicRoute.kind === "signup") {
-      return (
-        <SignupPage
-          busyLabel={busyLabel}
-          error={error}
-          notice={notice}
-          loginForm={loginForm}
-          signupForm={signupForm}
-          themeMode={themeMode}
-          onLoginFormChange={(field, value) =>
-            setLoginForm((current) => ({ ...current, [field]: value }))
-          }
-          onSignupFormChange={(field, value) =>
-            setSignupForm((current) => ({ ...current, [field]: value }))
-          }
-          onNavigateHome={() =>
-            window.location.assign(toBrowserPath(MARKETING_PATH))
-          }
-          onSubmitLogin={() => void handleSubmitLogin()}
-          onSubmitSignup={(connectGitHub) =>
-            void handleSubmitSignup(connectGitHub)
-          }
-          onToggleThemeMode={() =>
-            setThemeMode((current) => (current === "dark" ? "light" : "dark"))
-          }
-        />
-      );
+    if (currentRoute.kind !== "marketing" && currentRoute.kind !== "signup") {
+      return <BootingView busyLabel={busyLabel ?? "Loading workspace..."} />;
     }
 
     return (
-      <MarketingPage
+      <PublicRouteView
         busyLabel={busyLabel}
         error={error}
         notice={notice}
         loginForm={loginForm}
+        signupForm={signupForm}
         themeMode={themeMode}
+        isSignupRoute={currentRoute.kind === "signup"}
         onLoginFormChange={(field, value) =>
           setLoginForm((current) => ({ ...current, [field]: value }))
+        }
+        onSignupFormChange={(field, value) =>
+          setSignupForm((current) => ({ ...current, [field]: value }))
         }
         onNavigateHome={() =>
           window.location.assign(toBrowserPath(MARKETING_PATH))
         }
-        onNavigateToSignup={() =>
-          window.location.assign(toBrowserPath(SIGNUP_PATH))
+        onNavigateToSignup={() => window.location.assign(toBrowserPath(SIGNUP_PATH))}
+        onSubmitLogin={() => void submitLogin(loginForm)}
+        onSubmitSignup={(connectGitHub) =>
+          void submitSignup(signupForm, connectGitHub)
         }
-        onSubmitLogin={() => void handleSubmitLogin()}
         onToggleThemeMode={() =>
           setThemeMode((current) => (current === "dark" ? "light" : "dark"))
         }
@@ -2355,72 +1174,57 @@ function WorkspaceApp() {
   }
 
   if (!currentOrganization) {
-    return (
-      <AppShell topNav={topNav}>
-        <SurfaceCard p="5" bg="var(--color-bg-muted)">
-          <Text color="var(--color-text-muted)">Loading workspace...</Text>
-        </SurfaceCard>
-      </AppShell>
-    );
+    return <BootingView busyLabel="Loading workspace..." />;
   }
 
   if (selectedProject) {
-    const projectSidebar = (
-      <SideNav
-        items={projectNavItems}
-        activeItem={projectSection}
-        onSelect={(section) => openProject(selectedProject.id, section)}
-        topSlot={
-          <Stack gap="3">
-            <Text color="var(--color-text-subtle)" fontSize="sm">
-              {currentOrganization.displayName}
-            </Text>
-            <select
-              value={String(selectedProject.id)}
-              style={sidebarSelectStyle}
-              onChange={(event) => {
-                const nextProjectId = Number(event.target.value);
-                event.target.blur();
-                openProject(nextProjectId, projectSection);
-              }}
-            >
-              {currentOrganizationProjects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-          </Stack>
-        }
-        footerSlot={
-          <Button
-            w="full"
-            borderRadius="lg"
-            variant="outline"
-            borderColor="var(--color-border-strong)"
-            color="var(--color-text-primary)"
-            _hover={{
-              bg: "var(--color-bg-hover)",
-              borderColor: "var(--color-accent-border)",
-            }}
-            onClick={() => openOrganization(currentOrganization.id, "projects")}
-          >
-            {currentOrganization.isPersonal
-              ? "Back to your account"
-              : "Back to organization"}
-          </Button>
-        }
-      />
-    );
-
-    let projectContent = (
-      <ProjectBoardPage
-        createTaskForm={createTaskForm}
-        isCreateTaskOpen={showCreateTaskForm}
+    return (
+      <ProjectWorkspaceView
+        topNav={topNav}
+        currentOrganization={currentOrganization}
+        currentOrganizationProjects={currentOrganizationProjects}
+        projectNavItems={projectNavItems}
+        projectSection={projectSection}
         project={selectedProject}
+        user={user}
+        availableRepos={workspace.availableRepos}
+        busyLabel={busyLabel}
+        githubRepoErrorMessage={githubRepoErrorMessage}
+        hiddenCompletedProductBacklogTaskIds={
+          hiddenCompletedProductBacklogTaskIds
+        }
+        createTaskForm={createTaskForm}
+        createBugForm={createBugForm}
+        projectSettingsForm={projectSettingsForm}
+        importableGitHubIssues={importableGitHubIssues}
+        isLoadingImportableGitHubIssues={isLoadingImportableGitHubIssues}
+        showCreateTaskForm={showCreateTaskForm}
+        showCreateBugForm={showCreateBugForm}
+        showImportBugForm={showImportBugForm}
+        showEndSprintModal={showEndSprintModal}
+        showEndSprintActionModal={showEndSprintActionModal}
+        endSprintReview={endSprintReview}
+        endSprintUnfinishedAction={endSprintUnfinishedAction}
+        endSprintUnfinishedTasks={endSprintUnfinishedTasks}
+        selectedTask={selectedTask}
+        selectedBug={selectedBug}
+        selectedBranchTask={selectedBranchTask}
+        branchNameDraft={branchNameDraft}
+        baseBranchDraft={baseBranchDraft}
+        onOpenProject={openProject}
+        onOpenOrganization={(organizationId) =>
+          openOrganization(organizationId, "projects")
+        }
         onCreateTask={() => void handleCreateTask()}
+        onCreateBug={() => void handleCreateBug()}
         onCreateTaskFormChange={(field, value) =>
           setCreateTaskForm((current) => ({
+            ...current,
+            [field]: value,
+          }))
+        }
+        onCreateBugFormChange={(field, value) =>
+          setCreateBugForm((current) => ({
             ...current,
             [field]: value,
           }))
@@ -2431,11 +1235,15 @@ function WorkspaceApp() {
             markAsResolution: value,
           }))
         }
-        onOpenCreateTask={openCreateTaskForm}
-        onOpenTask={openTaskDetail}
         onToggleCreateTaskForm={() =>
           setShowCreateTaskForm((current) => !current)
         }
+        onToggleCreateBugForm={() =>
+          setShowCreateBugForm((current) => !current)
+        }
+        onOpenCreateTask={openCreateTaskForm}
+        onOpenTask={openTaskDetail}
+        onOpenBug={openBugDetail}
         onUpdateTaskPriority={(taskId, priority) =>
           void handleUpdateTaskPriority(taskId, priority)
         }
@@ -2445,6 +1253,12 @@ function WorkspaceApp() {
         onMoveTaskPlacement={(taskId, placement) =>
           void handleMoveTaskPlacement(taskId, placement)
         }
+        onUpdateBugPriority={(bugId, priority) =>
+          void handleUpdateBugPriority(bugId, priority)
+        }
+        onUpdateBugStatus={(bugId, status) =>
+          void handleUpdateBugStatus(bugId, status)
+        }
         onRenameSprint={(name) => void handleRenameSprint(name)}
         onOpenEndSprint={() => {
           setEndSprintUnfinishedAction("carryover");
@@ -2452,299 +1266,125 @@ function WorkspaceApp() {
           setShowEndSprintModal(true);
         }}
         onCreateTaskBranch={openTaskBranchPrompt}
+        onCleanupProductBacklogDoneTasks={
+          handleCleanupProductBacklogDoneTasks
+        }
+        onOpenImportBugForm={() => void handleOpenImportBugForm()}
+        onCloseImportBugForm={closeImportBugForm}
+        onImportBugFromGitHubIssue={(issue) =>
+          void handleImportBugFromGitHubIssue(issue)
+        }
+        onCreateTaskFromBug={openCreateTaskFromBug}
+        onAddProjectRepository={(repositoryId) =>
+          void handleAddProjectRepository(repositoryId)
+        }
+        onRemoveProjectRepository={(repositoryId) =>
+          void handleRemoveProjectRepository(repositoryId)
+        }
+        onProjectSettingsChange={(field, value) => {
+          projectSettingsDirtyFieldsRef.current.add(field);
+          setProjectSettingsForm((current) => ({
+            ...current,
+            [field]: value,
+          }));
+        }}
+        onSaveProjectSettings={() => void handleSaveProjectSettings()}
+        onDeleteSelectedProject={() => void handleDeleteSelectedProject()}
+        onConnectGitHub={() => void handleConnectGitHub()}
+        onCloseTaskDetail={() => setSelectedTaskId(null)}
+        onCloseBugDetail={() => setSelectedBugId(null)}
+        onSaveTaskDetails={handleSaveTaskDetails}
+        onSaveBugDetails={handleSaveBugDetails}
+        onAddTaskDetailComment={(taskId, payload) =>
+          void handleAddTaskDetailComment(taskId, payload)
+        }
+        onToggleTaskCommentReaction={(commentId, emoji) =>
+          void handleToggleTaskCommentReaction(commentId, emoji)
+        }
+        onAddBugDetailComment={(bugId, payload) =>
+          void handleAddBugDetailComment(bugId, payload)
+        }
+        onToggleBugCommentReaction={(commentId, emoji) =>
+          void handleToggleBugCommentReaction(commentId, emoji)
+        }
+        onBaseBranchChange={setBaseBranchDraft}
+        onBranchNameChange={setBranchNameDraft}
+        onCloseTaskBranchPrompt={closeTaskBranchPrompt}
+        onSubmitTaskBranch={() => void handleCreateTaskBranch()}
+        onEndSprintReviewChange={setEndSprintReview}
+        onEndSprintActionChange={setEndSprintUnfinishedAction}
+        onCloseEndSprintFlow={closeEndSprintFlow}
+        onSubmitEndSprintRequest={handleEndSprintRequest}
+        onSubmitEndSprint={(action) => void handleEndSprint(action)}
       />
-    );
-
-    if (projectSection === "tasks") {
-      projectContent = (
-        <ProjectTasksPage
-          createTaskForm={createTaskForm}
-          hiddenProductBacklogTaskIds={
-            hiddenCompletedProductBacklogTaskIds[selectedProject.id] ?? []
-          }
-          isCreateOpen={showCreateTaskForm}
-          project={selectedProject}
-          onCleanupProductBacklogDoneTasks={
-            handleCleanupProductBacklogDoneTasks
-          }
-          onCreateTask={() => void handleCreateTask()}
-          onCreateTaskFormChange={(field, value) =>
-            setCreateTaskForm((current) => ({
-              ...current,
-              [field]: value,
-            }))
-          }
-          onMarkTaskAsResolutionChange={(value) =>
-            setCreateTaskForm((current) => ({
-              ...current,
-              markAsResolution: value,
-            }))
-          }
-          onToggleCreateForm={() =>
-            setShowCreateTaskForm((current) => !current)
-          }
-          onOpenCreateTask={openCreateTaskForm}
-          onOpenTask={openTaskDetail}
-          onUpdateTaskPriority={(taskId, priority) =>
-            void handleUpdateTaskPriority(taskId, priority)
-          }
-          onUpdateTaskStatus={(taskId, status) =>
-            void handleUpdateTaskStatus(taskId, status)
-          }
-          onMoveTaskPlacement={(taskId, placement) =>
-            void handleMoveTaskPlacement(taskId, placement)
-          }
-          onRenameSprint={(name) => void handleRenameSprint(name)}
-          onCreateTaskBranch={openTaskBranchPrompt}
-        />
-      );
-    }
-
-    if (projectSection === "bugs") {
-      projectContent = (
-        <ProjectBugsPage
-          createBugForm={createBugForm}
-          githubIssues={importableGitHubIssues}
-          isCreateOpen={showCreateBugForm}
-          isImportOpen={showImportBugForm}
-          isImportLoading={isLoadingImportableGitHubIssues}
-          project={selectedProject}
-          onCloseImport={closeImportBugForm}
-          onCreateBug={() => void handleCreateBug()}
-          onCreateBugFormChange={(field, value) =>
-            setCreateBugForm((current) => ({
-              ...current,
-              [field]: value,
-            }))
-          }
-          onCreateTaskFromBug={openCreateTaskFromBug}
-          onImportIssue={(issue) => void handleImportBugFromGitHubIssue(issue)}
-          onOpenBug={openBugDetail}
-          onOpenImport={() => void handleOpenImportBugForm()}
-          onToggleCreateForm={() => setShowCreateBugForm((current) => !current)}
-          onUpdateBugPriority={(bugId, priority) =>
-            void handleUpdateBugPriority(bugId, priority)
-          }
-          onUpdateBugStatus={(bugId, status) =>
-            void handleUpdateBugStatus(bugId, status)
-          }
-        />
-      );
-    }
-
-    if (projectSection === "history" && selectedProject.useSprints) {
-      projectContent = <ProjectSprintHistoryPage project={selectedProject} />;
-    }
-
-    if (projectSection === "settings") {
-      projectContent = (
-        <ProjectSettingsPage
-          availableRepos={workspace.availableRepos}
-          busyLabel={busyLabel}
-          githubRepoError={githubRepoErrorMessage}
-          isGitHubConnected={user.githubConnected}
-          project={selectedProject}
-          projectSettingsForm={projectSettingsForm}
-          onAddRepository={(repositoryId) =>
-            void handleAddProjectRepository(repositoryId)
-          }
-          onConnectGitHub={() => void handleConnectGitHub()}
-          onDeleteProject={() => void handleDeleteSelectedProject()}
-          onProjectSettingsChange={(field, value) => {
-            projectSettingsDirtyFieldsRef.current.add(field);
-            setProjectSettingsForm((current) => ({
-              ...current,
-              [field]: value,
-            }));
-          }}
-          onRemoveRepository={(repositoryId) =>
-            void handleRemoveProjectRepository(repositoryId)
-          }
-          onSaveProjectSettings={() => void handleSaveProjectSettings()}
-        />
-      );
-    }
-
-    return (
-      <AppShell topNav={topNav} sidebar={projectSidebar}>
-        {projectContent}
-        <WorkItemDetailModal
-          isOpen={Boolean(selectedTask)}
-          project={selectedProject}
-          task={selectedTask}
-          onClose={() => setSelectedTaskId(null)}
-          onSaveTask={handleSaveTaskDetails}
-          onCreateTaskBranch={openTaskBranchPrompt}
-          onSaveBug={handleSaveBugDetails}
-          onAddTaskComment={(taskId, payload) =>
-            void handleAddTaskDetailComment(taskId, payload)
-          }
-          onToggleTaskCommentReaction={(commentId, emoji) =>
-            void handleToggleTaskCommentReaction(commentId, emoji)
-          }
-          onAddBugComment={(bugId, payload) =>
-            void handleAddBugDetailComment(bugId, payload)
-          }
-          onToggleBugCommentReaction={(commentId, emoji) =>
-            void handleToggleBugCommentReaction(commentId, emoji)
-          }
-        />
-        <WorkItemDetailModal
-          isOpen={Boolean(selectedBug)}
-          project={selectedProject}
-          bug={selectedBug}
-          onClose={() => setSelectedBugId(null)}
-          onSaveTask={handleSaveTaskDetails}
-          onCreateTaskBranch={openTaskBranchPrompt}
-          onSaveBug={handleSaveBugDetails}
-          onAddTaskComment={(taskId, payload) =>
-            void handleAddTaskDetailComment(taskId, payload)
-          }
-          onToggleTaskCommentReaction={(commentId, emoji) =>
-            void handleToggleTaskCommentReaction(commentId, emoji)
-          }
-          onAddBugComment={(bugId, payload) =>
-            void handleAddBugDetailComment(bugId, payload)
-          }
-          onToggleBugCommentReaction={(commentId, emoji) =>
-            void handleToggleBugCommentReaction(commentId, emoji)
-          }
-        />
-        <TaskBranchModal
-          baseBranch={baseBranchDraft}
-          branchName={branchNameDraft}
-          isOpen={Boolean(selectedBranchTask)}
-          project={selectedProject}
-          task={selectedBranchTask}
-          onBaseBranchChange={setBaseBranchDraft}
-          onBranchNameChange={setBranchNameDraft}
-          onClose={closeTaskBranchPrompt}
-          onSubmit={() => void handleCreateTaskBranch()}
-        />
-        <EndSprintModal
-          isOpen={showEndSprintModal}
-          project={selectedProject}
-          reviewText={endSprintReview}
-          onChange={setEndSprintReview}
-          onClose={closeEndSprintFlow}
-          onSubmit={handleEndSprintRequest}
-        />
-        <EndSprintIncompleteTasksModal
-          action={endSprintUnfinishedAction}
-          isOpen={showEndSprintActionModal}
-          sprintName={selectedProject.activeSprint?.name ?? ""}
-          tasks={endSprintUnfinishedTasks}
-          onActionChange={setEndSprintUnfinishedAction}
-          onClose={closeEndSprintFlow}
-          onSubmit={() => void handleEndSprint(endSprintUnfinishedAction)}
-        />
-      </AppShell>
     );
   }
 
-  const organizationSidebar = (
-    <SideNav
-      items={organizationNavItems}
-      activeItem={organizationSection}
-      onSelect={(section) => openOrganization(currentOrganization.id, section)}
-      topSlot={
-        <OrganizationSelector
-          createOrganizationForm={createOrganizationForm}
-          currentOrganization={currentOrganization}
-          isCreatingOrganization={busyLabel === "Adding organization"}
-          organizations={workspace.organizations}
-          showCreateForm={showCreateOrganizationForm}
-          onCreateOrganization={() => void handleCreateOrganization()}
-          onCreateOrganizationFormChange={(field, value) =>
-            setCreateOrganizationForm((current) => ({
-              ...current,
-              [field]: value,
-            }))
-          }
-          onOpenOrganization={(organizationId) =>
-            openOrganization(organizationId)
-          }
-          onToggleCreateForm={() =>
-            setShowCreateOrganizationForm((current) => !current)
-          }
-        />
-      }
-    />
-  );
-
-  let organizationContent = (
-    <OrganizationProjectsPage
+  return (
+    <OrganizationWorkspaceView
+      topNav={topNav}
       organization={currentOrganization}
       projects={currentOrganizationProjects}
+      organizations={workspace.organizations}
+      organizationNavItems={organizationNavItems}
+      organizationSection={organizationSection}
       availableRepos={workspace.availableRepos}
-      canCreateProject={
-        currentOrganization.role === "owner" || currentOrganization.role === "admin"
-      }
+      user={user}
+      busyLabel={busyLabel}
+      githubRepoErrorMessage={githubRepoErrorMessage}
+      showCreateOrganizationForm={showCreateOrganizationForm}
+      showCreateProjectForm={showCreateProjectForm}
+      createOrganizationForm={createOrganizationForm}
       createProjectForm={createProjectForm}
-      githubRepoError={githubRepoErrorMessage}
-      isGitHubConnected={user.githubConnected}
-      isCreatingProject={busyLabel === "Adding project"}
-      showCreateForm={showCreateProjectForm}
+      organizationSettingsForm={organizationSettingsForm}
+      organizationUsers={organizationUsers}
+      organizationUsersLoading={organizationUsersLoading}
+      onSelectSection={(section) => openOrganization(currentOrganization.id, section)}
+      onOpenOrganization={(organizationId) => openOrganization(organizationId)}
+      onOpenProject={(projectId) => openProject(projectId)}
       onConnectGitHub={() => void handleConnectGitHub()}
+      onCreateOrganization={() => void handleCreateOrganization()}
       onCreateProject={() => void handleCreateProject()}
+      onCreateOrganizationFormChange={(field, value) =>
+        setCreateOrganizationForm((current) => ({
+          ...current,
+          [field]: value,
+        }))
+      }
       onCreateProjectFormChange={(field, value) =>
         setCreateProjectForm((current) => ({
           ...current,
           [field]: value,
         }))
       }
-      onOpenProject={(projectId) => openProject(projectId)}
-      onToggleCreateForm={() => setShowCreateProjectForm((current) => !current)}
+      onOrganizationSettingsChange={(field, value) =>
+        setOrganizationSettingsForm((current) => ({
+          ...current,
+          [field]: value,
+        }))
+      }
+      onToggleCreateOrganizationForm={() =>
+        setShowCreateOrganizationForm((current) => !current)
+      }
+      onToggleCreateProjectForm={() =>
+        setShowCreateProjectForm((current) => !current)
+      }
+      onDeleteOrganization={() => void handleDeleteOrganization()}
+      onLeaveOrganization={() => void handleLeaveCurrentOrganization()}
+      onSaveOrganizationSettings={() => void handleSaveOrganizationSettings()}
+      onInviteUser={(identifier, role) =>
+        void handleInviteOrganizationUser(identifier, role)
+      }
+      onChangeRole={(membershipId, role) =>
+        void handleChangeOrganizationUserRole(membershipId, role)
+      }
+      onRemoveUser={(membershipId) =>
+        void handleRemoveOrganizationUser(membershipId)
+      }
+      onCancelInvite={(membershipId) =>
+        void handleCancelOrganizationInvite(membershipId)
+      }
     />
-  );
-
-  if (!currentOrganization.isPersonal && organizationSection === "users") {
-    organizationContent = (
-      <OrganizationUsersPage
-        isInviting={busyLabel === "Inviting user"}
-        isLoading={organizationUsersLoading}
-        members={organizationUsers}
-        organizationRole={currentOrganization.role}
-        onCancelInvite={(membershipId) =>
-          void handleCancelOrganizationInvite(membershipId)
-        }
-        onChangeRole={(membershipId, role) =>
-          void handleChangeOrganizationUserRole(membershipId, role)
-        }
-        onInviteUser={(identifier, role) =>
-          void handleInviteOrganizationUser(identifier, role)
-        }
-        onRemoveUser={(membershipId) =>
-          void handleRemoveOrganizationUser(membershipId)
-        }
-      />
-    );
-  }
-
-  if (!currentOrganization.isPersonal && organizationSection === "settings") {
-    organizationContent = (
-      <OrganizationSettingsPage
-        busyLabel={busyLabel}
-        organization={currentOrganization}
-        role={currentOrganization.role}
-        organizationSettingsForm={organizationSettingsForm}
-        onDeleteOrganization={() => void handleDeleteOrganization()}
-        onLeaveOrganization={() => void handleLeaveCurrentOrganization()}
-        onOrganizationSettingsChange={(field, value) =>
-          setOrganizationSettingsForm((current) => ({
-            ...current,
-            [field]: value,
-          }))
-        }
-        onSaveOrganizationSettings={() => void handleSaveOrganizationSettings()}
-      />
-    );
-  }
-
-  return (
-    <AppShell topNav={topNav} sidebar={organizationSidebar}>
-      {organizationContent}
-    </AppShell>
   );
 }
 
