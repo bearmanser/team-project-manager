@@ -9,11 +9,11 @@ import {
 
 import type { Notification, User } from "../types";
 import { getInitials } from "../utils";
+import { NotificationPanel } from "../features/notifications/components/NotificationPanel";
 import { ActionIcon } from "./ActionIcon";
 import { DropdownMenu } from "./DropdownMenu";
 import { BrandWordmark, HeaderActionButton } from "./HeaderElements";
 import { MoonIcon, SunIcon } from "./icons";
-import { NotificationPanel } from "./NotificationPanel";
 import { StatusAlert } from "./StatusAlert";
 
 type TopNavProps = {
