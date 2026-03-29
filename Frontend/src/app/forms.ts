@@ -13,11 +13,13 @@ export const initialSignupForm = {
     password: "",
     confirmPassword: "",
 };
+export type SignupForm = typeof initialSignupForm;
 
 export const initialLoginForm = {
     identifier: "",
     password: "",
 };
+export type LoginForm = typeof initialLoginForm;
 
 export const initialOrganizationForm = {
     name: "",
@@ -40,6 +42,7 @@ export const initialTaskForm = {
     bugReportTitle: "",
     markAsResolution: false,
 };
+export type TaskForm = typeof initialTaskForm;
 
 export const initialBugForm = {
     title: "",
@@ -47,6 +50,7 @@ export const initialBugForm = {
     status: "open" as BugStatus,
     priority: "medium" as PriorityLevel,
 };
+export type BugForm = typeof initialBugForm;
 
 export type OrganizationSettingsForm = {
     name: string;

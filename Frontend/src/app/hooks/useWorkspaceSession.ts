@@ -1,12 +1,8 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
 import {
-  AUTH_TOKEN_INVALID_EVENT,
-  ApiError,
   disconnectGitHub,
-  getProject,
-  getWorkspace,
   login,
   signup,
   startGitHubOauth,
@@ -16,21 +12,34 @@ import type { OrganizationSection, ProjectSection } from "../../view-models";
 import {
   MARKETING_PATH,
   ORGANIZATIONS_PATH,
+  SELECTED_ORGANIZATION_STORAGE_KEY,
+  SELECTED_PROJECT_STORAGE_KEY,
   TOKEN_STORAGE_KEY,
 } from "../constants";
 import { getFriendlyError } from "../errors";
-import { initialLoginForm, initialSignupForm } from "../forms";
+import {
+  initialLoginForm,
+  initialSignupForm,
+  type LoginForm,
+  type SignupForm,
+} from "../forms";
 import {
   getOrganizationPath,
   getProjectPath,
   normalizePath,
-  parseRoute,
   stripAppBasePath,
   toBrowserPath,
 } from "../routing";
-import { mergeProjectIntoWorkspace, resolveOrganizationSelection } from "../workspace";
+import { useWorkspaceRouteSync } from "./useWorkspaceRouteSync";
+import { useWorkspaceSessionEffects } from "./useWorkspaceSessionEffects";
 
 type UseWorkspaceSessionParams = {
+  applyProjectSettingsFromProject: (
+    project: ProjectDetail,
+    options?: { resetDirty?: boolean },
+  ) => void;
+  clearProjectSelection: () => void;
+  clearProjectSettingsDraft: (projectId?: number | null) => void;
   completeGitHubOauthOnce: (
     sessionToken: string,
     code: string,
@@ -40,134 +49,146 @@ type UseWorkspaceSessionParams = {
     repos: WorkspaceResponse["availableRepos"];
     githubRepoError: string | null;
   }>;
-  token: string | null;
-  user: User | null;
-  setCurrentPath: Dispatch<SetStateAction<string>>;
   selectedOrganizationId: number | null;
-  selectedProjectId: number | null;
   selectedProject: ProjectDetail | null;
-  workspace: WorkspaceResponse | null;
-  setToken: Dispatch<SetStateAction<string | null>>;
-  setWorkspace: Dispatch<SetStateAction<WorkspaceResponse | null>>;
-  setSelectedOrganizationId: Dispatch<SetStateAction<number | null>>;
-  setSelectedProjectId: Dispatch<SetStateAction<number | null>>;
-  setSelectedProject: Dispatch<SetStateAction<ProjectDetail | null>>;
+  selectedProjectId: number | null;
+  setBusyLabel: Dispatch<SetStateAction<string | null>>;
+  setCurrentPath: Dispatch<SetStateAction<string>>;
+  setError: Dispatch<SetStateAction<string | null>>;
+  setIsBooting: Dispatch<SetStateAction<boolean>>;
+  setLoginForm: Dispatch<SetStateAction<LoginForm>>;
+  setNotice: Dispatch<SetStateAction<string | null>>;
+  setNotificationOpen: Dispatch<SetStateAction<boolean>>;
   setOrganizationSection: Dispatch<SetStateAction<OrganizationSection>>;
   setProjectSection: Dispatch<SetStateAction<ProjectSection>>;
-  setBusyLabel: Dispatch<SetStateAction<string | null>>;
-  setError: Dispatch<SetStateAction<string | null>>;
-  setNotice: Dispatch<SetStateAction<string | null>>;
-  setIsBooting: Dispatch<SetStateAction<boolean>>;
-  setNotificationOpen: Dispatch<SetStateAction<boolean>>;
-  setSignupForm: Dispatch<
-    SetStateAction<{
-      username: string;
-      email: string;
-      password: string;
-      confirmPassword: string;
-    }>
-  >;
-  setLoginForm: Dispatch<
-    SetStateAction<{
-      identifier: string;
-      password: string;
-    }>
-  >;
-  applyProjectSettingsFromProject: (
-    project: ProjectDetail,
-    options?: { resetDirty?: boolean },
-  ) => void;
-  clearProjectSettingsDraft: (projectId?: number | null) => void;
-  clearProjectSelection: () => void;
+  setSelectedOrganizationId: Dispatch<SetStateAction<number | null>>;
+  setSelectedProject: Dispatch<SetStateAction<ProjectDetail | null>>;
+  setSelectedProjectId: Dispatch<SetStateAction<number | null>>;
+  setSignupForm: Dispatch<SetStateAction<SignupForm>>;
+  setToken: Dispatch<SetStateAction<string | null>>;
+  setWorkspace: Dispatch<SetStateAction<WorkspaceResponse | null>>;
+  token: string | null;
+  user: User | null;
+  workspace: WorkspaceResponse | null;
 };
 
 export function useWorkspaceSession({
+  applyProjectSettingsFromProject,
+  clearProjectSelection,
+  clearProjectSettingsDraft,
   completeGitHubOauthOnce,
-  token,
-  user,
-  setCurrentPath,
   selectedOrganizationId,
-  selectedProjectId,
   selectedProject,
-  workspace,
-  setToken,
-  setWorkspace,
-  setSelectedOrganizationId,
-  setSelectedProjectId,
-  setSelectedProject,
+  selectedProjectId,
+  setBusyLabel,
+  setCurrentPath,
+  setError,
+  setIsBooting,
+  setLoginForm,
+  setNotice,
+  setNotificationOpen,
   setOrganizationSection,
   setProjectSection,
-  setBusyLabel,
-  setError,
-  setNotice,
-  setIsBooting,
-  setNotificationOpen,
+  setSelectedOrganizationId,
+  setSelectedProject,
+  setSelectedProjectId,
   setSignupForm,
-  setLoginForm,
-  applyProjectSettingsFromProject,
-  clearProjectSettingsDraft,
-  clearProjectSelection,
+  setToken,
+  setWorkspace,
+  token,
+  user,
+  workspace,
 }: UseWorkspaceSessionParams) {
-  const routeSyncRequestIdRef = useRef(0);
+  const storeToken = useCallback(
+    (nextToken: string | null): void => {
+      if (nextToken) {
+        window.localStorage.setItem(TOKEN_STORAGE_KEY, nextToken);
+      } else {
+        window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+      }
+      setToken(nextToken);
+    },
+    [setToken],
+  );
 
-  const storeToken = useCallback((nextToken: string | null): void => {
-    if (nextToken) {
-      window.localStorage.setItem(TOKEN_STORAGE_KEY, nextToken);
-    } else {
-      window.localStorage.removeItem(TOKEN_STORAGE_KEY);
-    }
-    setToken(nextToken);
-  }, [setToken]);
+  const rememberOrganizationSelection = useCallback(
+    (organizationId: number | null): void => {
+      if (organizationId === null) {
+        window.localStorage.removeItem(SELECTED_ORGANIZATION_STORAGE_KEY);
+      } else {
+        window.localStorage.setItem(
+          SELECTED_ORGANIZATION_STORAGE_KEY,
+          String(organizationId),
+        );
+      }
+      setSelectedOrganizationId(organizationId);
+    },
+    [setSelectedOrganizationId],
+  );
 
-  const rememberOrganizationSelection = useCallback((organizationId: number | null): void => {
-    if (organizationId === null) {
-      window.localStorage.removeItem("team-project-manager.selected-organization");
-    } else {
-      window.localStorage.setItem(
-        "team-project-manager.selected-organization",
-        String(organizationId),
-      );
-    }
-    setSelectedOrganizationId(organizationId);
-  }, [setSelectedOrganizationId]);
+  const rememberProjectSelection = useCallback(
+    (projectId: number | null): void => {
+      if (projectId === null) {
+        window.localStorage.removeItem(SELECTED_PROJECT_STORAGE_KEY);
+      } else {
+        window.localStorage.setItem(
+          SELECTED_PROJECT_STORAGE_KEY,
+          String(projectId),
+        );
+      }
+      setSelectedProjectId(projectId);
+    },
+    [setSelectedProjectId],
+  );
 
-  const rememberProjectSelection = useCallback((projectId: number | null): void => {
-    if (projectId === null) {
-      window.localStorage.removeItem("team-project-manager.selected-project");
-    } else {
-      window.localStorage.setItem(
-        "team-project-manager.selected-project",
-        String(projectId),
-      );
-    }
-    setSelectedProjectId(projectId);
-  }, [setSelectedProjectId]);
+  const navigateToPath = useCallback(
+    (path: string, replace = false): void => {
+      const normalizedPath = normalizePath(path);
+      const currentPath = stripAppBasePath(window.location.pathname);
+      const browserPath = toBrowserPath(normalizedPath);
+      if (normalizedPath === currentPath && !replace) {
+        return;
+      }
 
-  const navigateToPath = useCallback((path: string, replace = false): void => {
-    const normalizedPath = normalizePath(path);
-    const currentPath = stripAppBasePath(window.location.pathname);
-    const browserPath = toBrowserPath(normalizedPath);
-    if (normalizedPath === currentPath && !replace) {
-      return;
-    }
+      if (replace) {
+        window.history.replaceState({}, document.title, browserPath);
+      } else {
+        window.history.pushState({}, document.title, browserPath);
+      }
 
-    if (replace) {
-      window.history.replaceState({}, document.title, browserPath);
-    } else {
-      window.history.pushState({}, document.title, browserPath);
-    }
+      setCurrentPath(window.location.pathname);
+    },
+    [setCurrentPath],
+  );
 
-    setCurrentPath(window.location.pathname);
-  }, [setCurrentPath]);
+  const { runProjectMutation, syncFromPath } = useWorkspaceRouteSync({
+    applyProjectSettingsFromProject,
+    clearProjectSelection,
+    navigateToPath,
+    rememberOrganizationSelection,
+    rememberProjectSelection,
+    selectedOrganizationId,
+    selectedProject,
+    selectedProjectId,
+    setBusyLabel,
+    setError,
+    setNotice,
+    setNotificationOpen,
+    setOrganizationSection,
+    setProjectSection,
+    setSelectedProject,
+    setWorkspace,
+    token,
+    workspace,
+  });
 
   const clearSession = useCallback((): void => {
     storeToken(null);
     rememberOrganizationSelection(null);
     rememberProjectSelection(null);
     setWorkspace(null);
-    setSelectedProject(null);
+    clearProjectSelection();
     setOrganizationSection("projects");
-    setProjectSection("board");
     setNotice(null);
     setError(null);
     setBusyLabel(null);
@@ -175,6 +196,7 @@ export function useWorkspaceSession({
     clearProjectSettingsDraft();
     navigateToPath(MARKETING_PATH, true);
   }, [
+    clearProjectSelection,
     clearProjectSettingsDraft,
     navigateToPath,
     rememberOrganizationSelection,
@@ -184,498 +206,128 @@ export function useWorkspaceSession({
     setNotificationOpen,
     setNotice,
     setOrganizationSection,
-    setProjectSection,
-    setSelectedProject,
     setWorkspace,
     storeToken,
   ]);
 
-  function isActiveRouteSyncRequest(routeSyncRequestId?: number): boolean {
-    return (
-      routeSyncRequestId === undefined ||
-      routeSyncRequestId === routeSyncRequestIdRef.current
-    );
-  }
-
-  async function loadProjectDetail(
-    sessionToken: string,
-    projectId: number,
-    routeSyncRequestId?: number,
-  ): Promise<ProjectDetail> {
-    const response = await getProject(sessionToken, projectId);
-    if (!isActiveRouteSyncRequest(routeSyncRequestId)) {
-      return response.project;
-    }
-    setSelectedProject(response.project);
-    applyProjectSettingsFromProject(response.project);
-    setWorkspace((current) =>
-      mergeProjectIntoWorkspace(current, response.project),
-    );
-    rememberProjectSelection(projectId);
-    rememberOrganizationSelection(response.project.organizationId);
-    return response.project;
-  }
-
-  async function hydrateWorkspace(
-    sessionToken: string,
-    options: {
-      preferredOrganizationId?: number | null;
-      preferredProjectId?: number | null;
-      projectOverride?: ProjectDetail | null;
-      quiet?: boolean;
-    } = {},
-    routeSyncRequestId?: number,
-  ): Promise<{
-    resolvedOrganizationId: number | null;
-    resolvedProjectId: number | null;
-  }> {
-    if (!options.quiet && isActiveRouteSyncRequest(routeSyncRequestId)) {
-      setBusyLabel("Loading workspace");
-    }
-
-    const workspaceData = await getWorkspace(sessionToken);
-    if (isActiveRouteSyncRequest(routeSyncRequestId)) {
-      setWorkspace(workspaceData);
-    }
-
-    const requestedProjectId = Object.prototype.hasOwnProperty.call(
-      options,
-      "preferredProjectId",
-    )
-      ? options.preferredProjectId ?? null
-      : selectedProjectId;
-    const resolvedProjectId = workspaceData.projects.some(
-      (project) => project.id === requestedProjectId,
-    )
-      ? requestedProjectId
-      : null;
-
-    if (resolvedProjectId !== null) {
-      const projectOverride = options.projectOverride;
-      if (projectOverride && projectOverride.id === resolvedProjectId) {
-        if (isActiveRouteSyncRequest(routeSyncRequestId)) {
-          rememberProjectSelection(resolvedProjectId);
-          rememberOrganizationSelection(projectOverride.organizationId);
-          setSelectedProject(projectOverride);
-          applyProjectSettingsFromProject(projectOverride);
-        }
-      } else {
-        await loadProjectDetail(
-          sessionToken,
-          resolvedProjectId,
-          routeSyncRequestId,
-        );
-      }
-
-      if (!options.quiet && isActiveRouteSyncRequest(routeSyncRequestId)) {
-        setBusyLabel(null);
-      }
-
-      return {
-        resolvedOrganizationId:
-          options.projectOverride?.id === resolvedProjectId
-            ? options.projectOverride.organizationId
-            : workspaceData.projects.find(
-                (project) => project.id === resolvedProjectId,
-              )?.organizationId ?? null,
-        resolvedProjectId,
-      };
-    }
-
-    if (isActiveRouteSyncRequest(routeSyncRequestId)) {
-      rememberProjectSelection(null);
-      setSelectedProject(null);
-    }
-
-    const requestedOrganizationId = Object.prototype.hasOwnProperty.call(
-      options,
-      "preferredOrganizationId",
-    )
-      ? options.preferredOrganizationId ?? null
-      : selectedOrganizationId;
-    const resolvedOrganizationId = resolveOrganizationSelection(
-      workspaceData.organizations,
-      requestedOrganizationId,
-    );
-
-    if (isActiveRouteSyncRequest(routeSyncRequestId)) {
-      rememberOrganizationSelection(resolvedOrganizationId);
-    }
-
-    if (!options.quiet && isActiveRouteSyncRequest(routeSyncRequestId)) {
-      setBusyLabel(null);
-    }
-
-    return {
-      resolvedOrganizationId,
-      resolvedProjectId: null,
-    };
-  }
-
-  async function syncFromPath(
-    sessionToken: string,
-    options: { quiet?: boolean } = {},
-  ): Promise<void> {
-    const routeSyncRequestId = ++routeSyncRequestIdRef.current;
-    const route = parseRoute(window.location.pathname);
-    setNotificationOpen(false);
-
-    if (route.kind === "marketing" || route.kind === "signup") {
-      navigateToPath(ORGANIZATIONS_PATH, true);
-      await syncFromPath(sessionToken, options);
-      return;
-    }
-
-    if (route.kind === "organizations") {
-      setOrganizationSection("projects");
-      clearProjectSelection();
-      const result = await hydrateWorkspace(
-        sessionToken,
-        {
-          preferredProjectId: null,
-          quiet: options.quiet,
-        },
-        routeSyncRequestId,
-      );
-      if (!isActiveRouteSyncRequest(routeSyncRequestId)) {
-        return;
-      }
-      if (result.resolvedOrganizationId !== null) {
-        navigateToPath(getOrganizationPath(result.resolvedOrganizationId), true);
-      }
-      return;
-    }
-
-    if (route.kind === "organization") {
-      setOrganizationSection(route.section);
-      clearProjectSelection();
-      const result = await hydrateWorkspace(
-        sessionToken,
-        {
-          preferredOrganizationId: route.organizationId,
-          preferredProjectId: null,
-          quiet: options.quiet,
-        },
-        routeSyncRequestId,
-      );
-      if (!isActiveRouteSyncRequest(routeSyncRequestId)) {
-        return;
-      }
-      if (result.resolvedOrganizationId !== route.organizationId) {
-        navigateToPath(
-          result.resolvedOrganizationId
-            ? getOrganizationPath(result.resolvedOrganizationId)
-            : ORGANIZATIONS_PATH,
-          true,
-        );
-      }
-      return;
-    }
-
-    if (route.kind === "project") {
-      setProjectSection(route.section);
-
-      if (selectedProject?.id === route.projectId) {
-        rememberProjectSelection(route.projectId);
-        rememberOrganizationSelection(selectedProject.organizationId);
-        return;
-      }
-
-      const knownProject =
-        workspace?.projects.some((project) => project.id === route.projectId) ??
-        false;
-      if (knownProject) {
-        try {
-          await loadProjectDetail(
-            sessionToken,
-            route.projectId,
-            routeSyncRequestId,
-          );
-          if (!isActiveRouteSyncRequest(routeSyncRequestId)) {
-            return;
-          }
-          return;
-        } catch (reason) {
-          if (!(reason instanceof ApiError) || reason.status !== 404) {
-            throw reason;
-          }
-        }
-      }
-
-      const result = await hydrateWorkspace(
-        sessionToken,
-        {
-          preferredOrganizationId: null,
-          preferredProjectId: route.projectId,
-          quiet: options.quiet,
-        },
-        routeSyncRequestId,
-      );
-      if (!isActiveRouteSyncRequest(routeSyncRequestId)) {
-        return;
-      }
-      if (result.resolvedProjectId !== route.projectId) {
-        navigateToPath(
-          result.resolvedOrganizationId
-            ? getOrganizationPath(result.resolvedOrganizationId)
-            : ORGANIZATIONS_PATH,
-          true,
-        );
-      }
-    }
-  }
-
-  const syncFromPathRef = useRef(syncFromPath);
-
-  useEffect(() => {
-    syncFromPathRef.current = syncFromPath;
-  });
-
-  async function runProjectMutation(
-    label: string,
-    action: () => Promise<{ project: ProjectDetail }>,
-    successNotice: string,
-  ): Promise<boolean> {
-    if (!token) {
-      return false;
-    }
-
-    setBusyLabel(label);
-    setError(null);
-    setNotice(null);
-
-    try {
-      const response = await action();
-      setSelectedProject(response.project);
-      applyProjectSettingsFromProject(response.project, { resetDirty: true });
-      rememberProjectSelection(response.project.id);
-      rememberOrganizationSelection(response.project.organizationId);
-      await hydrateWorkspace(token, {
-        preferredOrganizationId: response.project.organizationId,
-        preferredProjectId: response.project.id,
-        projectOverride: response.project,
-        quiet: true,
-      });
-      setNotice(successNotice);
-      return true;
-    } catch (reason) {
-      setError(getFriendlyError(reason));
-      return false;
-    } finally {
-      setBusyLabel(null);
-    }
-  }
-
-  async function beginGitHubConnection(sessionToken: string): Promise<void> {
-    const response = await startGitHubOauth(sessionToken);
-    window.location.assign(response.authorizationUrl);
-  }
-
-  useEffect(() => {
-    function handleAuthTokenInvalid(event: Event): void {
-      const message =
-        event instanceof CustomEvent &&
-        typeof event.detail?.message === "string"
-          ? event.detail.message
-          : "Your session has expired. Please sign in again.";
-
-      clearSession();
-      setError(message);
-    }
-
-    window.addEventListener(AUTH_TOKEN_INVALID_EVENT, handleAuthTokenInvalid);
-    return () =>
-      window.removeEventListener(
-        AUTH_TOKEN_INVALID_EVENT,
-        handleAuthTokenInvalid,
-      );
-  }, [clearSession, setError]);
-
-  useEffect(() => {
-    async function bootstrapWorkspace(): Promise<void> {
-      const sessionToken = window.localStorage.getItem(TOKEN_STORAGE_KEY);
-      const route = parseRoute(window.location.pathname);
-      const params = new URLSearchParams(window.location.search);
-
-      if (route.kind === "githubCallback") {
-        const providerError =
-          params.get("error_description") ?? params.get("error");
-        if (providerError) {
-          setError(providerError);
-          navigateToPath(ORGANIZATIONS_PATH, true);
-          setIsBooting(false);
-          return;
-        }
-
-        const code = params.get("code");
-        const state = params.get("state");
-
-        if (!sessionToken || !code || !state) {
-          clearSession();
-          setError("Finish signing in before connecting GitHub.");
-          navigateToPath(MARKETING_PATH, true);
-          setIsBooting(false);
-          return;
-        }
-
-        setBusyLabel("Connecting GitHub");
-        try {
-          const response = await completeGitHubOauthOnce(sessionToken, code, state);
-          setWorkspace((current) =>
-            current
-              ? {
-                  ...current,
-                  user: response.user,
-                  availableRepos: response.repos,
-                  githubRepoError: response.githubRepoError,
-                }
-              : current,
-          );
-          navigateToPath(ORGANIZATIONS_PATH, true);
-          try {
-            await syncFromPathRef.current(sessionToken, { quiet: true });
-          } catch (reason) {
-            setError(getFriendlyError(reason));
-          }
-          setNotice("GitHub connected.");
-        } catch (reason) {
-          navigateToPath(ORGANIZATIONS_PATH, true);
-          setError(getFriendlyError(reason));
-        } finally {
-          setBusyLabel(null);
-          setIsBooting(false);
-        }
-        return;
-      }
-
-      if (!sessionToken) {
-        if (route.kind !== "marketing" && route.kind !== "signup") {
-          navigateToPath(MARKETING_PATH, true);
-        }
-        setIsBooting(false);
-        return;
-      }
-
-      try {
-        if (route.kind === "marketing" || route.kind === "signup") {
-          navigateToPath(ORGANIZATIONS_PATH, true);
-        }
-        await syncFromPathRef.current(sessionToken, { quiet: true });
-      } catch (reason) {
-        clearSession();
-        setError(getFriendlyError(reason));
-      } finally {
-        setIsBooting(false);
-      }
-    }
-
-    void bootstrapWorkspace();
-  }, [
+  useWorkspaceSessionEffects({
     clearSession,
     completeGitHubOauthOnce,
     navigateToPath,
     setBusyLabel,
+    setCurrentPath,
     setError,
     setIsBooting,
     setNotice,
     setWorkspace,
-  ]);
+    syncFromPath,
+    token,
+  });
 
-  useEffect(() => {
-    if (!token) {
-      return;
-    }
-
-    const sessionToken = token;
-
-    function handlePopState(): void {
-      setCurrentPath(window.location.pathname);
-      void syncFromPathRef.current(sessionToken, { quiet: true });
-    }
-
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, [setCurrentPath, token]);
-
-  async function submitSignup(
-    signupForm: {
-      username: string;
-      email: string;
-      password: string;
-      confirmPassword: string;
+  const beginGitHubConnection = useCallback(
+    async (sessionToken: string): Promise<void> => {
+      const response = await startGitHubOauth(sessionToken);
+      window.location.assign(response.authorizationUrl);
     },
-    connectGitHub: boolean,
-  ): Promise<void> {
-    if (signupForm.password !== signupForm.confirmPassword) {
-      setError("Passwords must match before creating the account.");
-      return;
-    }
+    [],
+  );
 
-    setError(null);
-    setNotice(null);
-    setIsBooting(true);
-    setBusyLabel(
-      connectGitHub
-        ? "Creating account and preparing GitHub"
-        : "Creating account",
-    );
-
-    try {
-      const response = await signup({
-        username: signupForm.username.trim(),
-        email: signupForm.email.trim(),
-        password: signupForm.password,
-      });
-      storeToken(response.accessToken);
-      setSignupForm(initialSignupForm);
-      setLoginForm({ identifier: response.user.email, password: "" });
-      navigateToPath(ORGANIZATIONS_PATH, true);
-
-      if (connectGitHub) {
-        await beginGitHubConnection(response.accessToken);
+  const submitSignup = useCallback(
+    async (signupForm: SignupForm, connectGitHub: boolean): Promise<void> => {
+      if (signupForm.password !== signupForm.confirmPassword) {
+        setError("Passwords must match before creating the account.");
         return;
       }
 
-      await syncFromPath(response.accessToken, { quiet: true });
-      setNotice("Account created. Your account workspace is ready.");
-    } catch (reason) {
-      clearSession();
-      setError(getFriendlyError(reason));
-    } finally {
-      setBusyLabel(null);
-      setIsBooting(false);
-    }
-  }
+      setError(null);
+      setNotice(null);
+      setIsBooting(true);
+      setBusyLabel(
+        connectGitHub
+          ? "Creating account and preparing GitHub"
+          : "Creating account",
+      );
 
-  async function submitLogin(loginForm: {
-    identifier: string;
-    password: string;
-  }): Promise<void> {
-    setError(null);
-    setNotice(null);
-    setIsBooting(true);
-    setBusyLabel("Signing in");
+      try {
+        const response = await signup({
+          username: signupForm.username.trim(),
+          email: signupForm.email.trim(),
+          password: signupForm.password,
+        });
+        storeToken(response.accessToken);
+        setSignupForm(initialSignupForm);
+        setLoginForm({ identifier: response.user.email, password: "" });
+        navigateToPath(ORGANIZATIONS_PATH, true);
 
-    try {
-      const response = await login({
-        identifier: loginForm.identifier.trim(),
-        password: loginForm.password,
-      });
-      storeToken(response.accessToken);
-      setLoginForm(initialLoginForm);
-      navigateToPath(ORGANIZATIONS_PATH, true);
-      await syncFromPath(response.accessToken, { quiet: true });
-      setNotice("Welcome back.");
-    } catch (reason) {
-      clearSession();
-      setError(getFriendlyError(reason));
-    } finally {
-      setBusyLabel(null);
-      setIsBooting(false);
-    }
-  }
+        if (connectGitHub) {
+          await beginGitHubConnection(response.accessToken);
+          return;
+        }
 
-  async function handleConnectGitHub(): Promise<void> {
+        await syncFromPath(response.accessToken, { quiet: true });
+        setNotice("Account created. Your account workspace is ready.");
+      } catch (reason) {
+        clearSession();
+        setError(getFriendlyError(reason));
+      } finally {
+        setBusyLabel(null);
+        setIsBooting(false);
+      }
+    },
+    [
+      beginGitHubConnection,
+      clearSession,
+      navigateToPath,
+      setBusyLabel,
+      setError,
+      setIsBooting,
+      setLoginForm,
+      setNotice,
+      setSignupForm,
+      storeToken,
+      syncFromPath,
+    ],
+  );
+
+  const submitLogin = useCallback(
+    async (loginForm: LoginForm): Promise<void> => {
+      setError(null);
+      setNotice(null);
+      setIsBooting(true);
+      setBusyLabel("Signing in");
+
+      try {
+        const response = await login({
+          identifier: loginForm.identifier.trim(),
+          password: loginForm.password,
+        });
+        storeToken(response.accessToken);
+        setLoginForm(initialLoginForm);
+        navigateToPath(ORGANIZATIONS_PATH, true);
+        await syncFromPath(response.accessToken, { quiet: true });
+        setNotice("Welcome back.");
+      } catch (reason) {
+        clearSession();
+        setError(getFriendlyError(reason));
+      } finally {
+        setBusyLabel(null);
+        setIsBooting(false);
+      }
+    },
+    [
+      clearSession,
+      navigateToPath,
+      setBusyLabel,
+      setError,
+      setIsBooting,
+      setLoginForm,
+      setNotice,
+      storeToken,
+      syncFromPath,
+    ],
+  );
+
+  const handleConnectGitHub = useCallback(async (): Promise<void> => {
     if (!token) {
       return;
     }
@@ -694,9 +346,16 @@ export function useWorkspaceSession({
       setError(getFriendlyError(reason));
       setBusyLabel(null);
     }
-  }
+  }, [
+    beginGitHubConnection,
+    setBusyLabel,
+    setError,
+    setNotice,
+    token,
+    user?.githubConnected,
+  ]);
 
-  async function handleDisconnectGitHub(): Promise<void> {
+  const handleDisconnectGitHub = useCallback(async (): Promise<void> => {
     if (!token) {
       return;
     }
@@ -723,70 +382,92 @@ export function useWorkspaceSession({
     } finally {
       setBusyLabel(null);
     }
-  }
+  }, [setBusyLabel, setError, setNotice, setWorkspace, token]);
 
-  function openProject(
-    projectId: number,
-    section: ProjectSection = "board",
-  ): void {
-    if (!token) {
-      return;
-    }
+  const openProject = useCallback(
+    (projectId: number, section: ProjectSection = "board"): void => {
+      if (!token) {
+        return;
+      }
 
-    setError(null);
-    setNotice(null);
-    setNotificationOpen(false);
+      setError(null);
+      setNotice(null);
+      setNotificationOpen(false);
 
-    if (selectedProject?.id === projectId) {
-      setProjectSection(section);
-      rememberProjectSelection(projectId);
-      rememberOrganizationSelection(selectedProject.organizationId);
+      if (selectedProject?.id === projectId) {
+        setProjectSection(section);
+        rememberProjectSelection(projectId);
+        rememberOrganizationSelection(selectedProject.organizationId);
+        navigateToPath(getProjectPath(projectId, section));
+        return;
+      }
+
+      setBusyLabel("Opening project");
       navigateToPath(getProjectPath(projectId, section));
-      return;
-    }
+      void syncFromPath(token, { quiet: true }).finally(() => setBusyLabel(null));
+    },
+    [
+      navigateToPath,
+      rememberOrganizationSelection,
+      rememberProjectSelection,
+      selectedProject,
+      setBusyLabel,
+      setError,
+      setNotice,
+      setNotificationOpen,
+      setProjectSection,
+      syncFromPath,
+      token,
+    ],
+  );
 
-    setBusyLabel("Opening project");
-    navigateToPath(getProjectPath(projectId, section));
-    void syncFromPath(token, { quiet: true }).finally(() => setBusyLabel(null));
-  }
+  const openOrganization = useCallback(
+    (
+      organizationId: number,
+      section: OrganizationSection = "projects",
+    ): void => {
+      if (!token) {
+        return;
+      }
 
-  function openOrganization(
-    organizationId: number,
-    section: OrganizationSection = "projects",
-  ): void {
-    if (!token) {
-      return;
-    }
+      setNotificationOpen(false);
+      const organizationPath = getOrganizationPath(organizationId, section);
+      const organizationExistsInWorkspace =
+        workspace?.organizations.some(
+          (organization) => organization.id === organizationId,
+        ) ?? false;
 
-    setNotificationOpen(false);
-    const organizationPath = getOrganizationPath(organizationId, section);
-    const organizationExistsInWorkspace =
-      workspace?.organizations.some(
-        (organization) => organization.id === organizationId,
-      ) ?? false;
+      if (organizationExistsInWorkspace) {
+        rememberOrganizationSelection(organizationId);
+        clearProjectSelection();
+        setOrganizationSection(section);
+        navigateToPath(organizationPath);
+        return;
+      }
 
-    if (organizationExistsInWorkspace) {
-      rememberOrganizationSelection(organizationId);
-      clearProjectSelection();
-      setOrganizationSection(section);
       navigateToPath(organizationPath);
-      return;
-    }
-
-    navigateToPath(organizationPath);
-    void syncFromPath(token, { quiet: true });
-  }
+      void syncFromPath(token, { quiet: true });
+    },
+    [
+      clearProjectSelection,
+      navigateToPath,
+      rememberOrganizationSelection,
+      setNotificationOpen,
+      setOrganizationSection,
+      syncFromPath,
+      token,
+      workspace?.organizations,
+    ],
+  );
 
   return {
     clearSession,
     handleConnectGitHub,
     handleDisconnectGitHub,
-    hydrateWorkspace,
     navigateToPath,
     openOrganization,
     openProject,
     rememberOrganizationSelection,
-    rememberProjectSelection,
     runProjectMutation,
     submitLogin,
     submitSignup,
