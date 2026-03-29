@@ -294,7 +294,6 @@ export function useWorkspaceSession({
     async (loginForm: LoginForm): Promise<void> => {
       setError(null);
       setNotice(null);
-      setIsBooting(true);
       setBusyLabel("Signing in");
 
       try {
@@ -308,19 +307,15 @@ export function useWorkspaceSession({
         await syncFromPath(AUTHENTICATED_SESSION_MARKER, { quiet: true });
         setNotice("Welcome back.");
       } catch (reason) {
-        clearSession();
         setError(getFriendlyError(reason));
       } finally {
         setBusyLabel(null);
-        setIsBooting(false);
       }
     },
     [
-      clearSession,
       navigateToPath,
       setBusyLabel,
       setError,
-      setIsBooting,
       setLoginForm,
       setNotice,
       setAuthenticatedSession,
