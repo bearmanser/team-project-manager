@@ -10,7 +10,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_http_methods
 
-from .auth import create_access_token, jwt_required
+from .auth import clear_auth_cookies, jwt_required, set_auth_cookies
 from .github import (
     GitHubAPIError,
     build_github_authorization_url,
@@ -73,13 +73,10 @@ def _serialize_repo(repo: dict) -> dict:
 
 
 def _auth_response(user, status: int = 200) -> JsonResponse:
-    return JsonResponse(
-        {
-            "accessToken": create_access_token(user.id),
-            "user": _serialize_user(user),
-        },
-        status=status,
-    )
+    response = JsonResponse({"user": _serialize_user(user)}, status=status)
+    set_auth_cookies(response, user.id)
+    response["Cache-Control"] = "no-store"
+    return response
 
 
 def _get_login_user(identifier: str):
@@ -145,6 +142,15 @@ def login_view(request):
 
     _get_profile(user)
     return _auth_response(user)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def logout_view(request):
+    response = JsonResponse({"success": True})
+    clear_auth_cookies(response)
+    response["Cache-Control"] = "no-store"
+    return response
 
 
 @require_GET

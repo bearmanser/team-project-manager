@@ -108,7 +108,27 @@ GITHUB_OAUTH_REDIRECT_URI = os.getenv(
     "GITHUB_OAUTH_REDIRECT_URI",
     f"{FRONTEND_URL}/oauth/github/callback",
 )
-JWT_EXPIRATION_SECONDS = int(os.getenv("JWT_EXPIRATION_SECONDS", "86400"))
+ACCESS_TOKEN_LIFETIME_SECONDS = int(os.getenv("ACCESS_TOKEN_LIFETIME_SECONDS", "900"))
+REFRESH_TOKEN_LIFETIME_SECONDS = int(
+    os.getenv("REFRESH_TOKEN_LIFETIME_SECONDS", str(7 * 24 * 60 * 60))
+)
+ACCESS_TOKEN_ROTATION_LEEWAY_SECONDS = int(
+    os.getenv("ACCESS_TOKEN_ROTATION_LEEWAY_SECONDS", "300")
+)
+AUTH_ACCESS_COOKIE_NAME = os.getenv("AUTH_ACCESS_COOKIE_NAME", "team_project_manager_access")
+AUTH_REFRESH_COOKIE_NAME = os.getenv(
+    "AUTH_REFRESH_COOKIE_NAME",
+    "team_project_manager_refresh",
+)
+AUTH_COOKIE_PATH = os.getenv("AUTH_COOKIE_PATH", "/api/")
+AUTH_COOKIE_DOMAIN = os.getenv("AUTH_COOKIE_DOMAIN", "").strip() or None
+AUTH_COOKIE_SECURE = os.getenv(
+    "AUTH_COOKIE_SECURE",
+    "False" if DEBUG else "True",
+).lower() == "true"
+AUTH_COOKIE_SAMESITE = os.getenv("AUTH_COOKIE_SAMESITE", "Strict").strip().capitalize()
+if AUTH_COOKIE_SAMESITE not in {"Lax", "Strict", "None"}:
+    AUTH_COOKIE_SAMESITE = "Strict"
 PROJECT_EVENTS_RETRY_MS = int(os.getenv("PROJECT_EVENTS_RETRY_MS", "2000"))
 PROJECT_EVENTS_POLL_INTERVAL_SECONDS = float(os.getenv("PROJECT_EVENTS_POLL_INTERVAL_SECONDS", "1.5"))
 PROJECT_EVENTS_STREAM_MAX_SECONDS = float(os.getenv("PROJECT_EVENTS_STREAM_MAX_SECONDS", "15"))

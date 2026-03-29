@@ -84,24 +84,25 @@ export function createTaskBranch(
     );
 }
 
-export function startGitHubOauth(
-    token: string,
-): Promise<GitHubOAuthStartResponse> {
-    return request<GitHubOAuthStartResponse>("/api/github/oauth/start/", {}, token);
+export function startGitHubOauth(): Promise<GitHubOAuthStartResponse> {
+    return request<GitHubOAuthStartResponse>(
+        "/api/github/oauth/start/",
+        {},
+        "authenticated-session",
+    );
 }
 
-export function disconnectGitHub(token: string): Promise<UserResponse> {
+export function disconnectGitHub(): Promise<UserResponse> {
     return request<UserResponse>(
         "/api/github/disconnect/",
         {
             method: "POST",
         },
-        token,
+        "authenticated-session",
     );
 }
 
 export function completeGitHubOauth(
-    token: string,
     payload: { code: string; state: string },
 ): Promise<GitHubConnectResponse> {
     return request<GitHubConnectResponse>(
@@ -110,6 +111,6 @@ export function completeGitHubOauth(
             method: "POST",
             body: JSON.stringify(payload),
         },
-        token,
+        "authenticated-session",
     );
 }

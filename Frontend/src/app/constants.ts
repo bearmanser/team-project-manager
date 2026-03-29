@@ -1,4 +1,3 @@
-export const TOKEN_STORAGE_KEY = "team-project-manager.jwt";
 export const SELECTED_ORGANIZATION_STORAGE_KEY =
     "team-project-manager.selected-organization";
 export const SELECTED_PROJECT_STORAGE_KEY =

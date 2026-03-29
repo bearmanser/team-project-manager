@@ -1,16 +1,15 @@
 import { useEffect, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
-import { AUTH_TOKEN_INVALID_EVENT } from "../../api";
+import { AUTH_TOKEN_INVALID_EVENT, ApiError, getWorkspace } from "../../api";
 import type { User, WorkspaceResponse } from "../../types";
-import { MARKETING_PATH, ORGANIZATIONS_PATH, TOKEN_STORAGE_KEY } from "../constants";
+import { MARKETING_PATH, ORGANIZATIONS_PATH } from "../constants";
 import { getFriendlyError } from "../errors";
 import { parseRoute } from "../routing";
 
 type UseWorkspaceSessionEffectsParams = {
   clearSession: () => void;
   completeGitHubOauthOnce: (
-    sessionToken: string,
     code: string,
     state: string,
   ) => Promise<{
@@ -24,6 +23,7 @@ type UseWorkspaceSessionEffectsParams = {
   setError: Dispatch<SetStateAction<string | null>>;
   setIsBooting: Dispatch<SetStateAction<boolean>>;
   setNotice: Dispatch<SetStateAction<string | null>>;
+  setToken: Dispatch<SetStateAction<string | null>>;
   setWorkspace: Dispatch<SetStateAction<WorkspaceResponse | null>>;
   syncFromPath: (
     sessionToken: string,
@@ -31,6 +31,8 @@ type UseWorkspaceSessionEffectsParams = {
   ) => Promise<void>;
   token: string | null;
 };
+
+const AUTHENTICATED_SESSION_MARKER = "authenticated-session";
 
 export function useWorkspaceSessionEffects({
   clearSession,
@@ -41,6 +43,7 @@ export function useWorkspaceSessionEffects({
   setError,
   setIsBooting,
   setNotice,
+  setToken,
   setWorkspace,
   syncFromPath,
   token,
@@ -53,6 +56,10 @@ export function useWorkspaceSessionEffects({
 
   useEffect(() => {
     function handleAuthTokenInvalid(event: Event): void {
+      if (!token) {
+        return;
+      }
+
       const message =
         event instanceof CustomEvent &&
         typeof event.detail?.message === "string"
@@ -69,13 +76,14 @@ export function useWorkspaceSessionEffects({
         AUTH_TOKEN_INVALID_EVENT,
         handleAuthTokenInvalid,
       );
-  }, [clearSession, setError]);
+  }, [clearSession, setError, token]);
 
   useEffect(() => {
     async function bootstrapWorkspace(): Promise<void> {
-      const sessionToken = window.localStorage.getItem(TOKEN_STORAGE_KEY);
       const route = parseRoute(window.location.pathname);
       const params = new URLSearchParams(window.location.search);
+      const isPublicRoute =
+        route.kind === "marketing" || route.kind === "signup";
 
       if (route.kind === "githubCallback") {
         const providerError =
@@ -90,7 +98,7 @@ export function useWorkspaceSessionEffects({
         const code = params.get("code");
         const state = params.get("state");
 
-        if (!sessionToken || !code || !state) {
+        if (!code || !state) {
           clearSession();
           setError("Finish signing in before connecting GitHub.");
           navigateToPath(MARKETING_PATH, true);
@@ -100,7 +108,8 @@ export function useWorkspaceSessionEffects({
 
         setBusyLabel("Connecting GitHub");
         try {
-          const response = await completeGitHubOauthOnce(sessionToken, code, state);
+          const response = await completeGitHubOauthOnce(code, state);
+          setToken(AUTHENTICATED_SESSION_MARKER);
           setWorkspace((current) =>
             current
               ? {
@@ -113,13 +122,21 @@ export function useWorkspaceSessionEffects({
           );
           navigateToPath(ORGANIZATIONS_PATH, true);
           try {
-            await syncFromPathRef.current(sessionToken, { quiet: true });
+            await syncFromPathRef.current(AUTHENTICATED_SESSION_MARKER, {
+              quiet: true,
+            });
           } catch (reason) {
             setError(getFriendlyError(reason));
           }
           setNotice("GitHub connected.");
         } catch (reason) {
-          navigateToPath(ORGANIZATIONS_PATH, true);
+          if (reason instanceof ApiError && reason.status === 401) {
+            clearSession();
+            navigateToPath(MARKETING_PATH, true);
+          } else {
+            setToken(AUTHENTICATED_SESSION_MARKER);
+            navigateToPath(ORGANIZATIONS_PATH, true);
+          }
           setError(getFriendlyError(reason));
         } finally {
           setBusyLabel(null);
@@ -128,22 +145,28 @@ export function useWorkspaceSessionEffects({
         return;
       }
 
-      if (!sessionToken) {
-        if (route.kind !== "marketing" && route.kind !== "signup") {
-          navigateToPath(MARKETING_PATH, true);
-        }
-        setIsBooting(false);
-        return;
-      }
-
       try {
-        if (route.kind === "marketing" || route.kind === "signup") {
+        if (isPublicRoute) {
+          await getWorkspace(AUTHENTICATED_SESSION_MARKER);
+          setToken(AUTHENTICATED_SESSION_MARKER);
           navigateToPath(ORGANIZATIONS_PATH, true);
+          await syncFromPathRef.current(AUTHENTICATED_SESSION_MARKER, {
+            quiet: true,
+          });
+        } else {
+          await syncFromPathRef.current(AUTHENTICATED_SESSION_MARKER, {
+            quiet: true,
+          });
+          setToken(AUTHENTICATED_SESSION_MARKER);
         }
-        await syncFromPathRef.current(sessionToken, { quiet: true });
       } catch (reason) {
-        clearSession();
-        setError(getFriendlyError(reason));
+        setToken(null);
+        if (!isPublicRoute) {
+          clearSession();
+          if (!(reason instanceof ApiError && reason.status === 401)) {
+            setError(getFriendlyError(reason));
+          }
+        }
       } finally {
         setIsBooting(false);
       }
@@ -158,6 +181,7 @@ export function useWorkspaceSessionEffects({
     setError,
     setIsBooting,
     setNotice,
+    setToken,
     setWorkspace,
   ]);
 

@@ -100,11 +100,8 @@ export function useProjectLiveSync({
     }
 
     const stream = new EventSource(
-      buildApiUrl(
-        `/api/projects/${selectedProjectId}/events/?token=${encodeURIComponent(
-          token,
-        )}`,
-      ),
+      buildApiUrl(`/api/projects/${selectedProjectId}/events/`),
+      { withCredentials: true },
     );
 
     const parseUpdatedAt = (event: Event): string | null => {

@@ -22,6 +22,12 @@ export function login(payload: {
     });
 }
 
+export function logout(): Promise<{ success: boolean }> {
+    return request<{ success: boolean }>("/api/auth/logout/", {
+        method: "POST",
+    });
+}
+
 export function getCurrentUser(token: string): Promise<UserResponse> {
     return request<UserResponse>("/api/auth/me/", {}, token);
 }

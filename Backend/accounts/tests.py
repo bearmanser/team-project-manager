@@ -1,14 +1,111 @@
 import json
 from unittest.mock import patch
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core import signing
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
-from accounts.auth import create_access_token
+from accounts.auth import create_access_token, create_refresh_token
 from accounts.github import GitHubAPIError
 
 from .models import UserProfile
+
+
+class AuthenticationCookieTests(TestCase):
+    def test_login_sets_http_only_access_and_refresh_cookies(self):
+        user_model = get_user_model()
+        user_model.objects.create_user(
+            username="cookie-user",
+            email="cookie-user@example.com",
+            password="test-password-123",
+        )
+
+        response = self.client.post(
+            "/api/auth/login/",
+            data=json.dumps(
+                {
+                    "identifier": "cookie-user",
+                    "password": "test-password-123",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertNotIn("accessToken", payload)
+        self.assertEqual(payload["user"]["username"], "cookie-user")
+
+        access_cookie = response.cookies[settings.AUTH_ACCESS_COOKIE_NAME]
+        refresh_cookie = response.cookies[settings.AUTH_REFRESH_COOKIE_NAME]
+        self.assertTrue(access_cookie["httponly"])
+        self.assertTrue(refresh_cookie["httponly"])
+        self.assertEqual(
+            int(access_cookie["max-age"]),
+            settings.ACCESS_TOKEN_LIFETIME_SECONDS,
+        )
+        self.assertEqual(
+            int(refresh_cookie["max-age"]),
+            settings.REFRESH_TOKEN_LIFETIME_SECONDS,
+        )
+
+    def test_expired_access_cookie_is_refreshed_from_refresh_cookie(self):
+        user_model = get_user_model()
+        user = user_model.objects.create_user(
+            username="refresh-user",
+            email="refresh-user@example.com",
+            password="test-password-123",
+        )
+
+        with override_settings(ACCESS_TOKEN_LIFETIME_SECONDS=-1):
+            expired_access_token = create_access_token(user.id)
+
+        self.client.cookies[settings.AUTH_ACCESS_COOKIE_NAME] = expired_access_token
+        self.client.cookies[settings.AUTH_REFRESH_COOKIE_NAME] = create_refresh_token(
+            user.id
+        )
+
+        response = self.client.get("/api/auth/me/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["user"]["username"], "refresh-user")
+        self.assertIn(settings.AUTH_ACCESS_COOKIE_NAME, response.cookies)
+        self.assertNotEqual(
+            response.cookies[settings.AUTH_ACCESS_COOKIE_NAME].value,
+            expired_access_token,
+        )
+
+    def test_logout_clears_auth_cookies(self):
+        user_model = get_user_model()
+        user_model.objects.create_user(
+            username="logout-user",
+            email="logout-user@example.com",
+            password="test-password-123",
+        )
+
+        self.client.post(
+            "/api/auth/login/",
+            data=json.dumps(
+                {
+                    "identifier": "logout-user",
+                    "password": "test-password-123",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        response = self.client.post("/api/auth/logout/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            int(response.cookies[settings.AUTH_ACCESS_COOKIE_NAME]["max-age"]),
+            0,
+        )
+        self.assertEqual(
+            int(response.cookies[settings.AUTH_REFRESH_COOKIE_NAME]["max-age"]),
+            0,
+        )
 
 
 class GitHubDisconnectTests(TestCase):

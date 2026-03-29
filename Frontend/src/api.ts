@@ -7,6 +7,7 @@ export {
     getCurrentUser,
     getWorkspace,
     login,
+    logout,
     signup,
 } from "./features/auth/api";
 export {

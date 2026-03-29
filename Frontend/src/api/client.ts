@@ -50,7 +50,12 @@ function isAuthTokenInvalidError(
         return false;
     }
 
-    return (payload as { error?: unknown }).error === "Invalid or expired token.";
+    const error = (payload as { error?: unknown }).error;
+    return (
+        error === "Authentication required." ||
+        error === "Invalid or expired token." ||
+        error === "User not found."
+    );
 }
 
 function notifyAuthTokenInvalid(detail: AuthTokenInvalidEventDetail): void {
@@ -91,12 +96,9 @@ export async function request<T>(
         headers.set("Content-Type", "application/json");
     }
 
-    if (token) {
-        headers.set("Authorization", `Bearer ${token}`);
-    }
-
     const response = await fetch(buildApiUrl(path), {
         ...options,
+        credentials: "include",
         headers,
     });
 
@@ -119,7 +121,7 @@ export async function request<T>(
     }
 
     if (!response.ok) {
-        if (isAuthTokenInvalidError(response.status, payload)) {
+        if (token && isAuthTokenInvalidError(response.status, payload)) {
             notifyAuthTokenInvalid({ message: payload.error });
         }
 

@@ -8,14 +8,14 @@ export function useGitHubOauthCallback() {
         null,
     );
 
-    return useCallback((sessionToken: string, code: string, state: string) => {
-        const requestKey = `${sessionToken}:${code}:${state}`;
+    return useCallback((code: string, state: string) => {
+        const requestKey = `${code}:${state}`;
         if (
             requestKeyRef.current !== requestKey ||
             !requestPromiseRef.current
         ) {
             requestKeyRef.current = requestKey;
-            requestPromiseRef.current = completeGitHubOauth(sessionToken, {
+            requestPromiseRef.current = completeGitHubOauth({
                 code,
                 state,
             });

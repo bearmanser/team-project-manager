@@ -4,6 +4,7 @@ import type { Dispatch, SetStateAction } from "react";
 import {
   disconnectGitHub,
   login,
+  logout,
   signup,
   startGitHubOauth,
 } from "../../api";
@@ -14,7 +15,6 @@ import {
   ORGANIZATIONS_PATH,
   SELECTED_ORGANIZATION_STORAGE_KEY,
   SELECTED_PROJECT_STORAGE_KEY,
-  TOKEN_STORAGE_KEY,
 } from "../constants";
 import { getFriendlyError } from "../errors";
 import {
@@ -41,7 +41,6 @@ type UseWorkspaceSessionParams = {
   clearProjectSelection: () => void;
   clearProjectSettingsDraft: (projectId?: number | null) => void;
   completeGitHubOauthOnce: (
-    sessionToken: string,
     code: string,
     state: string,
   ) => Promise<{
@@ -72,6 +71,8 @@ type UseWorkspaceSessionParams = {
   workspace: WorkspaceResponse | null;
 };
 
+const AUTHENTICATED_SESSION_MARKER = "authenticated-session";
+
 export function useWorkspaceSession({
   applyProjectSettingsFromProject,
   clearProjectSelection,
@@ -99,14 +100,9 @@ export function useWorkspaceSession({
   user,
   workspace,
 }: UseWorkspaceSessionParams) {
-  const storeToken = useCallback(
-    (nextToken: string | null): void => {
-      if (nextToken) {
-        window.localStorage.setItem(TOKEN_STORAGE_KEY, nextToken);
-      } else {
-        window.localStorage.removeItem(TOKEN_STORAGE_KEY);
-      }
-      setToken(nextToken);
+  const setAuthenticatedSession = useCallback(
+    (isAuthenticated: boolean): void => {
+      setToken(isAuthenticated ? AUTHENTICATED_SESSION_MARKER : null);
     },
     [setToken],
   );
@@ -183,7 +179,10 @@ export function useWorkspaceSession({
   });
 
   const clearSession = useCallback((): void => {
-    storeToken(null);
+    if (token) {
+      void logout().catch(() => undefined);
+    }
+    setAuthenticatedSession(false);
     rememberOrganizationSelection(null);
     rememberProjectSelection(null);
     setWorkspace(null);
@@ -206,8 +205,9 @@ export function useWorkspaceSession({
     setNotificationOpen,
     setNotice,
     setOrganizationSection,
+    setAuthenticatedSession,
     setWorkspace,
-    storeToken,
+    token,
   ]);
 
   useWorkspaceSessionEffects({
@@ -219,14 +219,15 @@ export function useWorkspaceSession({
     setError,
     setIsBooting,
     setNotice,
+    setToken,
     setWorkspace,
     syncFromPath,
     token,
   });
 
   const beginGitHubConnection = useCallback(
-    async (sessionToken: string): Promise<void> => {
-      const response = await startGitHubOauth(sessionToken);
+    async (): Promise<void> => {
+      const response = await startGitHubOauth();
       window.location.assign(response.authorizationUrl);
     },
     [],
@@ -254,17 +255,17 @@ export function useWorkspaceSession({
           email: signupForm.email.trim(),
           password: signupForm.password,
         });
-        storeToken(response.accessToken);
+        setAuthenticatedSession(true);
         setSignupForm(initialSignupForm);
         setLoginForm({ identifier: response.user.email, password: "" });
         navigateToPath(ORGANIZATIONS_PATH, true);
 
         if (connectGitHub) {
-          await beginGitHubConnection(response.accessToken);
+          await beginGitHubConnection();
           return;
         }
 
-        await syncFromPath(response.accessToken, { quiet: true });
+        await syncFromPath(AUTHENTICATED_SESSION_MARKER, { quiet: true });
         setNotice("Account created. Your account workspace is ready.");
       } catch (reason) {
         clearSession();
@@ -284,7 +285,7 @@ export function useWorkspaceSession({
       setLoginForm,
       setNotice,
       setSignupForm,
-      storeToken,
+      setAuthenticatedSession,
       syncFromPath,
     ],
   );
@@ -297,14 +298,14 @@ export function useWorkspaceSession({
       setBusyLabel("Signing in");
 
       try {
-        const response = await login({
+        await login({
           identifier: loginForm.identifier.trim(),
           password: loginForm.password,
         });
-        storeToken(response.accessToken);
+        setAuthenticatedSession(true);
         setLoginForm(initialLoginForm);
         navigateToPath(ORGANIZATIONS_PATH, true);
-        await syncFromPath(response.accessToken, { quiet: true });
+        await syncFromPath(AUTHENTICATED_SESSION_MARKER, { quiet: true });
         setNotice("Welcome back.");
       } catch (reason) {
         clearSession();
@@ -322,7 +323,7 @@ export function useWorkspaceSession({
       setIsBooting,
       setLoginForm,
       setNotice,
-      storeToken,
+      setAuthenticatedSession,
       syncFromPath,
     ],
   );
@@ -341,7 +342,7 @@ export function useWorkspaceSession({
     );
 
     try {
-      await beginGitHubConnection(token);
+      await beginGitHubConnection();
     } catch (reason) {
       setError(getFriendlyError(reason));
       setBusyLabel(null);
@@ -365,7 +366,7 @@ export function useWorkspaceSession({
     setBusyLabel("Disconnecting GitHub");
 
     try {
-      const response = await disconnectGitHub(token);
+      const response = await disconnectGitHub();
       setWorkspace((current) =>
         current
           ? {

@@ -2,6 +2,7 @@ import json
 from datetime import timedelta
 
 from asgiref.sync import async_to_sync
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.utils import timezone
@@ -458,10 +459,12 @@ class ProjectEventsViewTests(TestCase):
             role=ProjectMembership.ROLE_OWNER,
             added_by=self.user,
         )
-        self.token = create_access_token(self.user.id)
+        self.client.cookies[settings.AUTH_ACCESS_COOKIE_NAME] = create_access_token(
+            self.user.id
+        )
 
     def _open_stream(self):
-        return self.client.get(f"/api/projects/{self.project.id}/events/?token={self.token}")
+        return self.client.get(f"/api/projects/{self.project.id}/events/")
 
     @staticmethod
     async def _collect_chunks(stream, count: int) -> str:

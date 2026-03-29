@@ -19,7 +19,6 @@ import {
   SELECTED_PROJECT_STORAGE_KEY,
   SIGNUP_PATH,
   THEME_MODE_STORAGE_KEY,
-  TOKEN_STORAGE_KEY,
 } from "./constants";
 import {
   initialLoginForm,
@@ -55,9 +54,7 @@ function WorkspaceApp() {
   );
   const [signupForm, setSignupForm] = useState(initialSignupForm);
   const [loginForm, setLoginForm] = useState(initialLoginForm);
-  const [token, setToken] = useState<string | null>(() =>
-    window.localStorage.getItem(TOKEN_STORAGE_KEY),
-  );
+  const [token, setToken] = useState<string | null>(null);
   const [currentPath, setCurrentPath] = useState(() => window.location.pathname);
   const [workspace, setWorkspace] = useState<WorkspaceResponse | null>(null);
   const [selectedProject, setSelectedProject] = useState<ProjectDetail | null>(
