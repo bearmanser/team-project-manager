@@ -1,145 +1,213 @@
 # Team Project Manager
 
-**Team Project Manager** is a project management and bug-tracking software built for software development teams and agile workflows. It brings planning, collaboration, and development tracking together in one place, making it easier to manage work from idea to deployment.
+Team Project Manager is a full-stack project management application for software teams. It combines organization and project workspaces, task and bug tracking, sprint support, team permissions, notifications, and GitHub integration in a single workflow.
 
-👉 **Live version:** [https://www.grinderstudio.no/team-project-manager](https://www.grinderstudio.no/team-project-manager)
+Live demo: [https://www.grinderstudio.no/team-project-manager](https://www.grinderstudio.no/team-project-manager)
 
-![Team Project Manager example](./example-image.png)
----
+![Team Project Manager screenshot](./example-image.png)
 
-## Overview
+## Highlights
 
-This application is designed to help teams organize their work in a structured and practical way. It combines task management, bug tracking, sprint planning, and GitHub integration into a single platform.
+- Organization and project workspaces
+- Task boards with status and priority management
+- Bug tracking with resolution links to tasks
+- Optional sprint-based planning and sprint history
+- Role-based memberships for organizations and projects
+- Comments, reactions, mentions, and notifications
+- GitHub OAuth, repository connection, issue linking, and branch creation
 
-Whether you're working in sprints or using a continuous workflow, the system adapts to how your team prefers to operate.
+## Tech Stack
 
-At its core, this is a tool built around how software teams actually work day-to-day, not just a generic task manager.
+### Frontend
 
----
+- React 19
+- TypeScript
+- Vite
+- Chakra UI
 
-## Key Features
+### Backend
 
-* Create and manage organizations and projects
-* Track tasks and bug reports in a structured workflow
-* Plan and manage sprints or use a continuous delivery approach
-* Assign work with role-based permissions
-* Collaborate through comments and mentions
-* Receive notifications for updates and assignments
-* Connect GitHub accounts and repositories
-* Link GitHub issues directly to tasks
-* Create branches from within tasks
-
----
-
-## Frontend
-
-The frontend is located in [`Frontend`](./Frontend) and is what users interact with in the browser.
-
-**Built with:**
-
-* React 19
-* TypeScript
-* Vite
-* Chakra UI
-
-**Starts with:**
-npm run dev
-
-**Responsibilities:**
-
-* Authentication (login and signup)
-* Navigation between organizations and projects
-* Task boards, sprint views, and bug tracking interfaces
-* Creating and editing work items through modals
-* Notifications and theme handling
-
-The frontend acts as the presentation layer, communicating with the backend through API requests and updating the UI based on the current project state.
-
----
-
-## Backend
-
-The backend is located in [`Backend`](./Backend) and handles all core logic, data management, and integrations.
-
-**Built with:**
-
-* Django 6
-* Python 3.13
-* SQLite
-* Gunicorn
-* Docker
-
-**Starts with:**
-uvicorn config.asgi:application --reload --host 0.0.0.0 --port 8000
-
-**Responsibilities:**
-
-* Authentication and authorization
-* Data handling for projects, tasks, and organizations
-* Sprint management
-* Comments, activity tracking, and notifications
-* GitHub integration (OAuth, repositories, issues, branches)
-
----
-
-## Core Concepts
-
-The system is structured around a few main entities:
-
-* **Organization** – A workspace containing multiple projects
-* **Project** – The main working area for a team
-* **Task** – Planned or ongoing work
-* **Bug Report** – Issues or defects that need fixing
-* **Sprint** – Optional time-based work cycles
-* **Project Membership** – Roles and permissions
-* **Notification & Activity** – Collaboration and updates
-
----
+- Django 6
+- Python 3.13
+- SQLite
+- Uvicorn / Gunicorn
+- Docker
 
 ## Architecture
 
-The application follows a clean client-server architecture:
+The repository is split into two applications:
 
-1. The frontend handles the user interface and interactions
-2. The backend processes requests, applies business logic, and manages data
-3. Data is exchanged through JSON APIs
+- [`Frontend`](./Frontend): the browser client and user interface
+- [`Backend`](./Backend): the Django API, business logic, persistence, and GitHub integration
 
-**How it works in practice:**
+The frontend communicates with the backend over JSON API endpoints under `/api/`. The backend stores application data in SQLite by default and exposes project event streaming for near real-time UI refreshes.
 
-* Users authenticate and receive a token
-* The frontend uses that token to access protected endpoints
-* The backend validates permissions before processing requests
-* Updated data is returned and rendered in the UI
+## Getting Started
 
-There is also a lightweight event system that allows the frontend to detect updates without requiring a full page reload, which is pretty fucking nice for responsiveness.
+### Prerequisites
 
----
+- Node.js LTS and npm
+- Python 3.13
+- Git
 
-## Technology Highlights
+### 1. Set up the backend
 
-* Full-stack web development with React and Django
-* Strong use of TypeScript for type safety
-* REST API design with structured domain modeling
-* JWT-based authentication
-* GitHub OAuth and repository integration
-* Role-based access control
-* Support for agile workflows (sprints and backlog)
-* Docker-based backend setup
-* Frontend optimized for modern deployment platforms
+```bash
+cd Backend
+python -m venv .venv
+```
 
----
+Activate the virtual environment:
 
-## Repository Structure
+```powershell
+.venv\Scripts\Activate.ps1
+```
+
+```bash
+source .venv/bin/activate
+```
+
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Create a local environment file:
+
+```bash
+cp .env.example .env
+```
+
+Apply database migrations:
+
+```bash
+python manage.py migrate
+```
+
+Start the backend:
+
+```bash
+python manage.py runserver
+```
+
+The backend runs at `http://127.0.0.1:8000`.
+
+### 2. Set up the frontend
+
+```bash
+cd Frontend
+npm install
+cp .env.example .env
+```
+
+Start the frontend:
+
+```bash
+npm run dev
+```
+
+The frontend runs at `http://127.0.0.1:5173`.
+
+### 3. Open the app
+
+With both services running:
+
+- Frontend: `http://127.0.0.1:5173`
+- Backend API: `http://127.0.0.1:8000/api/`
+
+You can create an account locally through the application UI.
+
+## Environment Configuration
+
+### Frontend
+
+The frontend reads its configuration from Vite environment variables.
+
+| Variable | Purpose | Default local value |
+| --- | --- | --- |
+| `VITE_API_BASE_URL` | Base URL for backend API requests | `http://127.0.0.1:8000` |
+| `VITE_APP_BASE_PATH` | Base path for routing and deployment | `/` |
+
+### Backend
+
+The backend loads variables from [`Backend/.env.example`](./Backend/.env.example).
+
+| Variable | Purpose |
+| --- | --- |
+| `DEBUG` | Enables Django debug mode |
+| `SECRET_KEY` | Django secret key |
+| `ALLOWED_HOSTS` | Allowed backend hostnames |
+| `TIME_ZONE` | Application time zone |
+| `SQLITE_PATH` | SQLite database file path |
+| `FRONTEND_URL` | Frontend URL used for redirects |
+| `FRONTEND_ORIGIN` | Primary frontend origin |
+| `CORS_ALLOWED_ORIGINS` | Allowed browser origins for API access |
+| `JWT_EXPIRATION_SECONDS` | JWT session lifetime |
+| `GITHUB_CLIENT_ID` | GitHub OAuth app client ID |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuth app client secret |
+| `GITHUB_OAUTH_REDIRECT_URI` | OAuth callback URL |
+
+## Optional GitHub Integration
+
+GitHub integration is only required if you want to:
+
+- connect GitHub accounts
+- attach a repository to a project
+- import GitHub issues as bugs
+- create task branches from the app
+
+For local development, configure the GitHub OAuth values in `Backend/.env` and use this callback URL:
+
+`http://127.0.0.1:5173/oauth/github/callback`
+
+## Docker
+
+The backend includes a Dockerfile for containerized deployment.
+
+Build the image:
+
+```bash
+docker build -t team-project-manager-api ./Backend
+```
+
+Run the container:
+
+```bash
+docker run --rm -p 8000:8000 --env-file Backend/.env -v team-project-manager-data:/data team-project-manager-api
+```
+
+The container entrypoint automatically runs migrations and collects static files before starting Gunicorn.
+
+## Development Commands
+
+### Frontend
+
+```bash
+npm run dev
+npm run build
+npm run lint
+```
+
+### Backend
+
+```bash
+python manage.py runserver
+python manage.py migrate
+python manage.py test
+```
+
+## Repository Layout
 
 ```text
 team-project-manager/
-|- Backend/    Django API, models, auth, GitHub integration, database setup
-|- Frontend/   React app, pages, components, API client, theme system
-|- example-image.png
+|-- Backend/            Django API, models, auth, GitHub integration, Docker setup
+|-- Frontend/           React application, routing, UI, API client
+|-- example-image.png   Project screenshot
 ```
 
----
+## Notes
 
-## Summary
-
-Team Project Manager is a full-stack application that demonstrates how modern project management tools can be built specifically for software teams. It combines planning, tracking, and development workflows into a cohesive system, making it useful both as a real tool and as a technical project showcasing end-to-end development.
+- `.env` files are gitignored and should be created locally from the provided examples.
+- The backend uses SQLite by default, which keeps local setup simple and self-contained.
+- Production frontend and backend example env files are included for deployment reference.
