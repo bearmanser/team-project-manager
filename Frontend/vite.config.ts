@@ -1,4 +1,5 @@
-﻿import react from "@vitejs/plugin-react";
+/// <reference types="vitest/config" />
+import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
 
 function normalizeBasePath(basePath: string): string {
@@ -8,7 +9,9 @@ function normalizeBasePath(basePath: string): string {
     return "/";
   }
 
-  const withLeadingSlash = trimmedPath.startsWith("/") ? trimmedPath : `/${trimmedPath}`;
+  const withLeadingSlash = trimmedPath.startsWith("/")
+    ? trimmedPath
+    : `/${trimmedPath}`;
   return withLeadingSlash.endsWith("/") ? withLeadingSlash : `${withLeadingSlash}/`;
 }
 
@@ -23,6 +26,10 @@ export default defineConfig(({ mode }) => {
       proxy: {
         "/api": "http://127.0.0.1:8000",
       },
+    },
+    test: {
+      environment: "jsdom",
+      setupFiles: "./src/test/setup.ts",
     },
   };
 });
