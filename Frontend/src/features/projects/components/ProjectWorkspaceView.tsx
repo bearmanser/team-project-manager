@@ -1,9 +1,11 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
-import { Button, Stack, Text } from "@chakra-ui/react";
+import { Button, Flex, Stack, Text } from "@chakra-ui/react";
 
 import { AppShell } from "../../../components/AppShell";
+import { ModalFrame } from "../../../components/ModalFrame";
 import { SideNav } from "../../../components/SideNav";
+import { CreateTaskModal } from "../modals/CreateTaskModal";
 import { EndSprintIncompleteTasksModal } from "../modals/EndSprintIncompleteTasksModal";
 import { EndSprintModal } from "../modals/EndSprintModal";
 import { TaskBranchModal } from "../modals/TaskBranchModal";
@@ -138,6 +140,7 @@ type ProjectWorkspaceViewProps = {
       resolvedBugIds: number[];
     }>,
   ) => Promise<boolean>;
+  onDeleteTask: (taskId: number) => Promise<boolean>;
   onSaveBugDetails: (
     bugId: number,
     payload: Partial<{
@@ -147,6 +150,7 @@ type ProjectWorkspaceViewProps = {
       priority: string;
     }>,
   ) => Promise<boolean>;
+  onDeleteBug: (bugId: number) => Promise<boolean>;
   onAddTaskDetailComment: (
     taskId: number,
     payload: {
@@ -242,7 +246,9 @@ export function ProjectWorkspaceView({
   onCloseTaskDetail,
   onCloseBugDetail,
   onSaveTaskDetails,
+  onDeleteTask,
   onSaveBugDetails,
+  onDeleteBug,
   onAddTaskDetailComment,
   onToggleTaskCommentReaction,
   onAddBugDetailComment,
@@ -257,6 +263,33 @@ export function ProjectWorkspaceView({
   onSubmitEndSprintRequest,
   onSubmitEndSprint,
 }: ProjectWorkspaceViewProps) {
+  const [taskPendingDelete, setTaskPendingDelete] = useState<Task | null>(null);
+  const [bugPendingDelete, setBugPendingDelete] = useState<BugReport | null>(null);
+
+  async function confirmTaskDelete(): Promise<void> {
+    if (!taskPendingDelete) {
+      return;
+    }
+
+    const didDelete = await onDeleteTask(taskPendingDelete.id);
+    if (didDelete) {
+      setTaskPendingDelete(null);
+      onCloseTaskDetail();
+    }
+  }
+
+  async function confirmBugDelete(): Promise<void> {
+    if (!bugPendingDelete) {
+      return;
+    }
+
+    const didDelete = await onDeleteBug(bugPendingDelete.id);
+    if (didDelete) {
+      setBugPendingDelete(null);
+      onCloseBugDetail();
+    }
+  }
+
   const projectSidebar = (
     <SideNav
       items={projectNavItems}
@@ -307,15 +340,9 @@ export function ProjectWorkspaceView({
 
   let projectContent = (
     <ProjectBoardPage
-      createTaskForm={createTaskForm}
-      isCreateTaskOpen={showCreateTaskForm}
       project={project}
-      onCreateTask={onCreateTask}
-      onCreateTaskFormChange={onCreateTaskFormChange}
-      onMarkTaskAsResolutionChange={onMarkTaskAsResolutionChange}
       onOpenCreateTask={onOpenCreateTask}
       onOpenTask={onOpenTask}
-      onToggleCreateTaskForm={onToggleCreateTaskForm}
       onUpdateTaskPriority={onUpdateTaskPriority}
       onUpdateTaskStatus={onUpdateTaskStatus}
       onMoveTaskPlacement={onMoveTaskPlacement}
@@ -328,17 +355,11 @@ export function ProjectWorkspaceView({
   if (projectSection === "tasks") {
     projectContent = (
       <ProjectTasksPage
-        createTaskForm={createTaskForm}
         hiddenProductBacklogTaskIds={
           hiddenCompletedProductBacklogTaskIds[project.id] ?? []
         }
-        isCreateOpen={showCreateTaskForm}
         project={project}
         onCleanupProductBacklogDoneTasks={onCleanupProductBacklogDoneTasks}
-        onCreateTask={onCreateTask}
-        onCreateTaskFormChange={onCreateTaskFormChange}
-        onMarkTaskAsResolutionChange={onMarkTaskAsResolutionChange}
-        onToggleCreateForm={onToggleCreateTaskForm}
         onOpenCreateTask={onOpenCreateTask}
         onOpenTask={onOpenTask}
         onUpdateTaskPriority={onUpdateTaskPriority}
@@ -405,8 +426,10 @@ export function ProjectWorkspaceView({
         task={selectedTask}
         onClose={onCloseTaskDetail}
         onSaveTask={onSaveTaskDetails}
+        onRequestDeleteTask={setTaskPendingDelete}
         onCreateTaskBranch={onCreateTaskBranch}
         onSaveBug={onSaveBugDetails}
+        onRequestDeleteBug={setBugPendingDelete}
         onAddTaskComment={onAddTaskDetailComment}
         onToggleTaskCommentReaction={onToggleTaskCommentReaction}
         onAddBugComment={onAddBugDetailComment}
@@ -418,12 +441,23 @@ export function ProjectWorkspaceView({
         bug={selectedBug}
         onClose={onCloseBugDetail}
         onSaveTask={onSaveTaskDetails}
+        onRequestDeleteTask={setTaskPendingDelete}
         onCreateTaskBranch={onCreateTaskBranch}
         onSaveBug={onSaveBugDetails}
+        onRequestDeleteBug={setBugPendingDelete}
         onAddTaskComment={onAddTaskDetailComment}
         onToggleTaskCommentReaction={onToggleTaskCommentReaction}
         onAddBugComment={onAddBugDetailComment}
         onToggleBugCommentReaction={onToggleBugCommentReaction}
+      />
+      <CreateTaskModal
+        form={createTaskForm}
+        isOpen={showCreateTaskForm}
+        project={project}
+        onClose={onToggleCreateTaskForm}
+        onCreateTask={onCreateTask}
+        onFormChange={onCreateTaskFormChange}
+        onMarkAsResolutionChange={onMarkTaskAsResolutionChange}
       />
       <TaskBranchModal
         baseBranch={baseBranchDraft}
@@ -453,6 +487,87 @@ export function ProjectWorkspaceView({
         onClose={onCloseEndSprintFlow}
         onSubmit={() => onSubmitEndSprint(endSprintUnfinishedAction)}
       />
+      <ModalFrame
+        title="Delete task"
+        description={
+          taskPendingDelete
+            ? `Delete "${taskPendingDelete.title}"? This cannot be undone.`
+            : undefined
+        }
+        isOpen={Boolean(taskPendingDelete)}
+        onClose={() => setTaskPendingDelete(null)}
+      >
+        <Stack gap="4">
+          <Text color="var(--color-text-secondary)">
+            The task, its comments, branch reference, and related notifications
+            will be removed from this project.
+          </Text>
+          <Flex justify="flex-end" gap="3" wrap="wrap">
+            <Button
+              borderRadius="lg"
+              variant="outline"
+              borderColor="var(--color-border-strong)"
+              color="var(--color-text-primary)"
+              _hover={{ bg: "var(--color-bg-hover)" }}
+              onClick={() => setTaskPendingDelete(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              borderRadius="lg"
+              borderWidth="1px"
+              borderColor="var(--color-danger-border)"
+              bg="var(--color-danger-bg)"
+              color="var(--color-danger-heading)"
+              _hover={{ bg: "var(--color-danger-bg-soft)" }}
+              onClick={() => void confirmTaskDelete()}
+            >
+              Delete task
+            </Button>
+          </Flex>
+        </Stack>
+      </ModalFrame>
+      <ModalFrame
+        title="Delete bug"
+        description={
+          bugPendingDelete
+            ? `Delete "${bugPendingDelete.title}"? This cannot be undone.`
+            : undefined
+        }
+        isOpen={Boolean(bugPendingDelete)}
+        onClose={() => setBugPendingDelete(null)}
+      >
+        <Stack gap="4">
+          <Text color="var(--color-text-secondary)">
+            The bug report, comments, linked issues, and related notifications
+            will be removed. Tasks created from it will remain as standalone
+            tasks.
+          </Text>
+          <Flex justify="flex-end" gap="3" wrap="wrap">
+            <Button
+              borderRadius="lg"
+              variant="outline"
+              borderColor="var(--color-border-strong)"
+              color="var(--color-text-primary)"
+              _hover={{ bg: "var(--color-bg-hover)" }}
+              onClick={() => setBugPendingDelete(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              borderRadius="lg"
+              borderWidth="1px"
+              borderColor="var(--color-danger-border)"
+              bg="var(--color-danger-bg)"
+              color="var(--color-danger-heading)"
+              _hover={{ bg: "var(--color-danger-bg-soft)" }}
+              onClick={() => void confirmBugDelete()}
+            >
+              Delete bug
+            </Button>
+          </Flex>
+        </Stack>
+      </ModalFrame>
     </AppShell>
   );
 }

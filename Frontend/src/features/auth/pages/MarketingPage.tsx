@@ -27,6 +27,7 @@ type MarketingPageProps = {
   themeMode: "light" | "dark";
   onLoginFormChange: (field: "identifier" | "password", value: string) => void;
   onNavigateHome: () => void;
+  onNavigateToDemo: () => void;
   onNavigateToSignup: () => void;
   onSubmitLogin: () => void;
   onToggleThemeMode: () => void;
@@ -86,6 +87,7 @@ export function MarketingPage({
   themeMode,
   onLoginFormChange,
   onNavigateHome,
+  onNavigateToDemo,
   onNavigateToSignup,
   onSubmitLogin,
   onToggleThemeMode,
@@ -227,6 +229,19 @@ export function MarketingPage({
                     bg="var(--color-accent)"
                     color="var(--color-text-inverse)"
                     _hover={{ bg: "var(--color-accent-hover)" }}
+                    onClick={onNavigateToDemo}
+                  >
+                    Try employer demo
+                  </Button>
+                  <Button
+                    borderRadius="12px"
+                    variant="outline"
+                    borderColor="var(--color-border-strong)"
+                    color="var(--color-text-primary)"
+                    _hover={{
+                      bg: "var(--color-bg-hover)",
+                      borderColor: "var(--color-accent-border)",
+                    }}
                     onClick={onNavigateToSignup}
                   >
                     Create your free workspace

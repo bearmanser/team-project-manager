@@ -61,6 +61,8 @@ def project_tasks_view(request, project_id: int):
             assignee_ids.append(int(value))
         except (TypeError, ValueError):
             continue
+    if project.organization and project.organization.is_personal:
+        assignee_ids = [request.user.id]
     bug_report_id = payload.get("bugReportId")
     mark_as_resolution = bool(payload.get("markAsResolution"))
 
@@ -330,6 +332,33 @@ def task_update_view(request, task_id: int):
                 )
 
     close_bugs_from_resolution_task(task, request.user)
+    return _project_response(project, request.user, membership)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@jwt_required
+def task_delete_view(request, task_id: int):
+    task = Task.objects.filter(id=task_id).select_related("project", "bug_report").first()
+    if task is None:
+        return json_error("Task not found.", 404)
+
+    project, membership, error = load_project(task.project_id, request.user)
+    if error:
+        return error
+    if not role_at_least(membership, ProjectMembership.ROLE_MEMBER):
+        return json_error("Only project members can delete tasks.", 403)
+
+    task_title = task.title
+    bug_report = task.bug_report
+    task.delete()
+    record_activity(
+        project,
+        request.user,
+        "task.deleted",
+        f'Deleted task "{task_title}".',
+        bug_report=bug_report if bug_report and BugReport.objects.filter(id=bug_report.id).exists() else None,
+    )
     return _project_response(project, request.user, membership)
 
 

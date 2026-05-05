@@ -4,6 +4,7 @@ import { TopNav } from "../components/TopNav";
 import { PublicRouteView } from "../features/auth/components/PublicRouteView";
 import { useThemeMode } from "../features/auth/hooks/useThemeMode";
 import { useGitHubOauthCallback } from "../features/github/hooks/useGitHubOauthCallback";
+import { DemoProjectPage } from "../features/demo/DemoProjectPage";
 import { useNotificationPanel } from "../features/notifications/hooks/useNotificationPanel";
 import { useNotificationController } from "../features/notifications/hooks/useNotificationController";
 import { OrganizationWorkspaceView } from "../features/organizations/components/OrganizationWorkspaceView";
@@ -15,6 +16,7 @@ import type { ProjectDetail, WorkspaceResponse } from "../types";
 import type { OrganizationSection, ProjectSection } from "../view-models";
 import {
   MARKETING_PATH,
+  DEMO_PATH,
   SELECTED_ORGANIZATION_STORAGE_KEY,
   SELECTED_PROJECT_STORAGE_KEY,
   SIGNUP_PATH,
@@ -303,8 +305,23 @@ function WorkspaceApp() {
     return <BootingView busyLabel={busyLabel} />;
   }
 
+  if (currentRoute.kind === "demo") {
+    return (
+      <DemoProjectPage
+        themeMode={themeMode}
+        onExitDemo={() => window.location.assign(toBrowserPath(MARKETING_PATH))}
+        onToggleThemeMode={() =>
+          setThemeMode((current) => (current === "dark" ? "light" : "dark"))
+        }
+      />
+    );
+  }
+
   if (!workspace || !user) {
-    if (currentRoute.kind !== "marketing" && currentRoute.kind !== "signup") {
+    if (
+      currentRoute.kind !== "marketing" &&
+      currentRoute.kind !== "signup"
+    ) {
       return <BootingView busyLabel={busyLabel ?? "Loading workspace..."} />;
     }
 
@@ -326,6 +343,7 @@ function WorkspaceApp() {
         onNavigateHome={() =>
           window.location.assign(toBrowserPath(MARKETING_PATH))
         }
+        onNavigateToDemo={() => window.location.assign(toBrowserPath(DEMO_PATH))}
         onNavigateToSignup={() => window.location.assign(toBrowserPath(SIGNUP_PATH))}
         onSubmitLogin={() => void submitLogin(loginForm)}
         onSubmitSignup={(connectGitHub) =>
@@ -463,7 +481,9 @@ function WorkspaceApp() {
         onCloseTaskDetail={() => projectWorkspaceState.setSelectedTaskId(null)}
         onCloseBugDetail={() => projectWorkspaceState.setSelectedBugId(null)}
         onSaveTaskDetails={projectWorkspaceActions.handleSaveTaskDetails}
+        onDeleteTask={projectWorkspaceActions.handleDeleteTask}
         onSaveBugDetails={projectWorkspaceActions.handleSaveBugDetails}
+        onDeleteBug={projectWorkspaceActions.handleDeleteBug}
         onAddTaskDetailComment={(taskId, payload) =>
           void projectWorkspaceActions.handleAddTaskDetailComment(taskId, payload)
         }

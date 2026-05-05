@@ -23,6 +23,7 @@ type PublicRouteViewProps = {
     value: string,
   ) => void;
   onNavigateHome: () => void;
+  onNavigateToDemo: () => void;
   onNavigateToSignup: () => void;
   onSubmitLogin: () => void;
   onSubmitSignup: (connectGitHub: boolean) => void;
@@ -40,6 +41,7 @@ export function PublicRouteView({
   onLoginFormChange,
   onSignupFormChange,
   onNavigateHome,
+  onNavigateToDemo,
   onNavigateToSignup,
   onSubmitLogin,
   onSubmitSignup,
@@ -73,6 +75,7 @@ export function PublicRouteView({
       themeMode={themeMode}
       onLoginFormChange={onLoginFormChange}
       onNavigateHome={onNavigateHome}
+      onNavigateToDemo={onNavigateToDemo}
       onNavigateToSignup={onNavigateToSignup}
       onSubmitLogin={onSubmitLogin}
       onToggleThemeMode={onToggleThemeMode}

@@ -313,6 +313,31 @@ def bug_update_view(request, bug_id: int):
 @csrf_exempt
 @require_http_methods(["POST"])
 @jwt_required
+def bug_delete_view(request, bug_id: int):
+    bug_report = BugReport.objects.filter(id=bug_id).select_related("project", "reporter").first()
+    if bug_report is None:
+        return json_error("Bug report not found.", 404)
+
+    project, membership, error = load_project(bug_report.project_id, request.user)
+    if error:
+        return error
+    if not can_edit_bug(membership, bug_report, request.user):
+        return json_error("You do not have permission to delete this bug report.", 403)
+
+    bug_title = bug_report.title
+    bug_report.delete()
+    record_activity(
+        project,
+        request.user,
+        "bug.deleted",
+        f'Deleted bug report "{bug_title}".',
+    )
+    return _project_response(project, request.user, membership)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@jwt_required
 def bug_comment_view(request, bug_id: int):
     bug_report = BugReport.objects.filter(id=bug_id).select_related("project").first()
     if bug_report is None:

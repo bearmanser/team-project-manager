@@ -1,5 +1,6 @@
 import type { OrganizationSection, ProjectSection } from "../view-models";
 import {
+    DEMO_PATH,
     LOGIN_PATH,
     MARKETING_PATH,
     ORGANIZATIONS_PATH,
@@ -8,6 +9,7 @@ import {
 
 export type AppRoute =
     | { kind: "marketing" }
+    | { kind: "demo" }
     | { kind: "signup" }
     | { kind: "organizations" }
     | {
@@ -70,6 +72,9 @@ export function parseRoute(pathname: string): AppRoute {
     }
     if (normalizedPath === MARKETING_PATH || normalizedPath === LOGIN_PATH) {
         return { kind: "marketing" };
+    }
+    if (normalizedPath === DEMO_PATH) {
+        return { kind: "demo" };
     }
     if (normalizedPath === SIGNUP_PATH) {
         return { kind: "signup" };

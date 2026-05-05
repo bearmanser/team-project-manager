@@ -1,6 +1,7 @@
 from .bugs import (
     bug_comment_reaction_view,
     bug_comment_view,
+    bug_delete_view,
     bug_issue_link_view,
     bug_resolution_view,
     bug_update_view,
@@ -42,6 +43,7 @@ from .tasks import (
     task_branch_view,
     task_comment_reaction_view,
     task_comment_view,
+    task_delete_view,
     task_issue_link_view,
     task_update_view,
 )

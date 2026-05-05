@@ -7,8 +7,10 @@ import {
   addTaskComment,
   createBugReport,
   createTask,
+  deleteBugReport,
   createTaskBranch,
   deleteProject,
+  deleteTask,
   endProjectSprint,
   getProjectGitHubIssues,
   importBugFromGitHubIssue,
@@ -288,6 +290,21 @@ export function useProjectWorkspaceActions({
     [runProjectMutation, token],
   );
 
+  const handleDeleteTask = useCallback(
+    async (taskId: number): Promise<boolean> => {
+      if (!token) {
+        return false;
+      }
+
+      return runProjectMutation(
+        "Deleting task",
+        () => deleteTask(token, taskId),
+        "Task deleted.",
+      );
+    },
+    [runProjectMutation, token],
+  );
+
   const openTaskBranchPrompt = useCallback(
     (task: Task): void => {
       const repository = selectedProject?.repositories[0] ?? null;
@@ -460,6 +477,21 @@ export function useProjectWorkspaceActions({
         "Saving bug report",
         () => updateBugReport(token, bugId, payload),
         "Bug saved.",
+      );
+    },
+    [runProjectMutation, token],
+  );
+
+  const handleDeleteBug = useCallback(
+    async (bugId: number): Promise<boolean> => {
+      if (!token) {
+        return false;
+      }
+
+      return runProjectMutation(
+        "Deleting bug report",
+        () => deleteBugReport(token, bugId),
+        "Bug report deleted.",
       );
     },
     [runProjectMutation, token],
@@ -687,6 +719,8 @@ export function useProjectWorkspaceActions({
     handleCreateTask,
     handleCreateTaskBranch,
     handleDeleteSelectedProject,
+    handleDeleteBug,
+    handleDeleteTask,
     handleEndSprint,
     handleEndSprintRequest,
     handleImportBugFromGitHubIssue,

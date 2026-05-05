@@ -58,6 +58,7 @@ type WorkItemDetailModalProps = {
       resolvedBugIds: number[];
     }>
   ) => Promise<boolean>;
+  onRequestDeleteTask: (task: Task) => void;
   onCreateTaskBranch: (task: Task) => void;
   onSaveBug: (
     bugId: number,
@@ -68,6 +69,7 @@ type WorkItemDetailModalProps = {
       priority: string;
     }>
   ) => Promise<boolean>;
+  onRequestDeleteBug: (bug: BugReport) => void;
   onAddTaskComment: (
     taskId: number,
     payload: {
@@ -188,10 +190,13 @@ function WorkItemDetailModalContent({
   isOpen,
   project,
   task,
+  bug,
   onClose,
   onSaveTask,
+  onRequestDeleteTask,
   onCreateTaskBranch,
   onSaveBug,
+  onRequestDeleteBug,
   onAddTaskComment,
   onAddBugComment,
   onToggleTaskCommentReaction,
@@ -223,6 +228,7 @@ function WorkItemDetailModalContent({
     Boolean(task) &&
     project.permissions.canEditTasks &&
     project.repositories.length > 0;
+  const canDeleteItem = kind === "task" ? project.permissions.canEditTasks : true;
   const titleLabel = kind === "task" ? "Task name" : "Bug title";
 
   const commentIds = useMemo(
@@ -946,37 +952,54 @@ function WorkItemDetailModalContent({
             </Stack>
 
             <Stack gap="1.5" pt="1" mt={{ xl: "auto" }}>
-              <Flex
-                justify={canCreateTaskBranch ? "space-between" : "flex-end"}
-                gap="3"
-                wrap="wrap"
-              >
-              {kind === "task" && task ? (
+              <Flex justify="space-between" gap="3" wrap="wrap">
+                <Flex gap="3" wrap="wrap">
+                  {kind === "task" && task ? (
+                    <Button
+                      borderRadius="full"
+                      variant="outline"
+                      borderColor="var(--color-border-strong)"
+                      color="var(--color-text-primary)"
+                      _hover={{ bg: "var(--color-bg-hover)" }}
+                      onClick={() => onCreateTaskBranch(task)}
+                      disabled={!canCreateTaskBranch}
+                    >
+                      Create git branch
+                    </Button>
+                  ) : null}
+                  <Button
+                    borderRadius="full"
+                    variant="outline"
+                    borderColor="var(--color-danger-border)"
+                    color="var(--color-danger-text)"
+                    _hover={{ bg: "var(--color-danger-bg-soft)" }}
+                    onClick={() => {
+                      if (kind === "task" && task) {
+                        onRequestDeleteTask(task);
+                        return;
+                      }
+                      if (kind === "bug" && bug) {
+                        onRequestDeleteBug(bug);
+                      }
+                    }}
+                    disabled={!canDeleteItem}
+                  >
+                    {kind === "task" ? "Delete task" : "Delete bug"}
+                  </Button>
+                </Flex>
                 <Button
                   borderRadius="full"
                   variant="outline"
                   borderColor="var(--color-border-strong)"
                   color="var(--color-text-primary)"
                   _hover={{ bg: "var(--color-bg-hover)" }}
-                  onClick={() => onCreateTaskBranch(task)}
-                  disabled={!canCreateTaskBranch}
+                  onClick={() => {
+                    void handleSave();
+                  }}
+                  disabled={!canSave}
                 >
-                  Create git branch
+                  Save changes
                 </Button>
-              ) : null}
-              <Button
-                borderRadius="full"
-                variant="outline"
-                borderColor="var(--color-border-strong)"
-                color="var(--color-text-primary)"
-                _hover={{ bg: "var(--color-bg-hover)" }}
-                onClick={() => {
-                  void handleSave();
-                }}
-                disabled={!canSave}
-              >
-                Save changes
-              </Button>
               </Flex>
               <Text
                 color="var(--color-text-muted)"

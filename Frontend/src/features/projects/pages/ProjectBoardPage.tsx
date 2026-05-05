@@ -8,7 +8,6 @@ import { EditTextIcon, MoreIcon, PlusIcon } from "../../../components/icons";
 import { ModalFrame } from "../../../components/ModalFrame";
 import { PriorityPill } from "../../../components/PriorityPill";
 import { SurfaceCard } from "../../../components/SurfaceCard";
-import { CreateTaskModal } from "../modals/CreateTaskModal";
 import type { BacklogPlacement, BoardColumn, PriorityLevel, ProjectDetail, Sprint, Task, TaskStatus } from "../../../types";
 import {
     getPriorityLabel,
@@ -24,28 +23,10 @@ import {
 } from "../../../utils";
 
 type ProjectBoardPageProps = {
-    createTaskForm: {
-        title: string;
-        description: string;
-        status: TaskStatus;
-        priority: PriorityLevel;
-        placement: BacklogPlacement;
-        bugReportId: number | null;
-        bugReportTitle: string;
-        markAsResolution: boolean;
-    };
-    isCreateTaskOpen: boolean;
     project: ProjectDetail;
-    onCreateTask: () => void;
-    onCreateTaskFormChange: (
-        field: "title" | "description" | "status" | "priority" | "placement",
-        value: string,
-    ) => void;
-    onMarkTaskAsResolutionChange: (value: boolean) => void;
     onOpenCreateTask: (status: TaskStatus, placement?: BacklogPlacement) => void;
     onOpenTask: (taskId: number) => void;
     onRenameSprint: (name: string) => void;
-    onToggleCreateTaskForm: () => void;
     onUpdateTaskPriority: (taskId: number, priority: PriorityLevel) => void;
     onUpdateTaskStatus: (taskId: number, status: TaskStatus) => void;
     onMoveTaskPlacement: (taskId: number, placement: BacklogPlacement) => void;
@@ -162,16 +143,10 @@ function SprintBoardHeading({
 }
 
 export function ProjectBoardPage({
-    createTaskForm,
-    isCreateTaskOpen,
     project,
-    onCreateTask,
-    onCreateTaskFormChange,
-    onMarkTaskAsResolutionChange,
     onOpenCreateTask,
     onOpenTask,
     onRenameSprint,
-    onToggleCreateTaskForm,
     onUpdateTaskPriority,
     onUpdateTaskStatus,
     onMoveTaskPlacement,
@@ -521,16 +496,6 @@ export function ProjectBoardPage({
                         })}
                     </Grid>
                 </SurfaceCard>
-
-                <CreateTaskModal
-                    form={createTaskForm}
-                    isOpen={isCreateTaskOpen}
-                    project={project}
-                    onClose={onToggleCreateTaskForm}
-                    onCreateTask={onCreateTask}
-                    onFormChange={onCreateTaskFormChange}
-                    onMarkAsResolutionChange={onMarkTaskAsResolutionChange}
-                />
             </Flex>
 
             <ModalFrame

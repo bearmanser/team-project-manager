@@ -201,6 +201,19 @@ export function updateTask(
     );
 }
 
+export function deleteTask(
+    token: string,
+    taskId: number,
+): Promise<ProjectResponse> {
+    return request<ProjectResponse>(
+        `/api/tasks/${taskId}/delete/`,
+        {
+            method: "POST",
+        },
+        token,
+    );
+}
+
 export function addTaskComment(
     token: string,
     taskId: number,
@@ -270,6 +283,19 @@ export function updateBugReport(
         {
             method: "POST",
             body: JSON.stringify(payload),
+        },
+        token,
+    );
+}
+
+export function deleteBugReport(
+    token: string,
+    bugId: number,
+): Promise<ProjectResponse> {
+    return request<ProjectResponse>(
+        `/api/bugs/${bugId}/delete/`,
+        {
+            method: "POST",
         },
         token,
     );

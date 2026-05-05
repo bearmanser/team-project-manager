@@ -37,24 +37,9 @@ function renderProjectTasksPage() {
 
   renderWithProviders(
     <ProjectTasksPage
-      createTaskForm={{
-        title: "",
-        description: "",
-        status: "todo",
-        priority: "medium",
-        placement: "product",
-        bugReportId: null,
-        bugReportTitle: "",
-        markAsResolution: false,
-      }}
       hiddenProductBacklogTaskIds={[]}
-      isCreateOpen={false}
       project={project}
       onCleanupProductBacklogDoneTasks={vi.fn()}
-      onCreateTask={vi.fn()}
-      onCreateTaskFormChange={vi.fn()}
-      onMarkTaskAsResolutionChange={vi.fn()}
-      onToggleCreateForm={vi.fn()}
       onOpenCreateTask={onOpenCreateTask}
       onOpenTask={onOpenTask}
       onUpdateTaskPriority={onUpdateTaskPriority}

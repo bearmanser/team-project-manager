@@ -676,4 +676,150 @@ class TaskNotificationTests(TestCase):
         self.assertTrue(notification.is_closed)
 
 
+class PersonalWorkspaceTaskAssignmentTests(TestCase):
+    def test_created_task_assigns_owner_in_personal_workspace(self):
+        user_model = get_user_model()
+        owner = user_model.objects.create_user(
+            username="personal-task-owner",
+            email="personal-task-owner@example.com",
+            password="test-password-123",
+        )
+        personal_organization = Organization.objects.create(
+            name=f"{owner.username} workspace",
+            description="Your personal workspace.",
+            owner=owner,
+            is_personal=True,
+        )
+        project = Project.objects.create(
+            name="Solo Launch",
+            description="",
+            organization=personal_organization,
+            owner=owner,
+        )
+        ProjectMembership.objects.create(
+            project=project,
+            user=owner,
+            role=ProjectMembership.ROLE_OWNER,
+            added_by=owner,
+        )
+
+        response = self.client.post(
+            f"/api/projects/{project.id}/tasks/",
+            data=json.dumps(
+                {
+                    "title": "Review onboarding flow",
+                    "description": "Check the first-run project setup.",
+                    "assigneeIds": [],
+                }
+            ),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {create_access_token(owner.id)}",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        task = Task.objects.get(project=project, title="Review onboarding flow")
+        self.assertEqual(list(task.assignees.values_list("id", flat=True)), [owner.id])
+
+        payload = response.json()
+        created_task = next(
+            item for item in payload["project"]["tasks"] if item["id"] == task.id
+        )
+        self.assertEqual([user["id"] for user in created_task["assignees"]], [owner.id])
+
+
+class WorkItemDeleteTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.owner = user_model.objects.create_user(
+            username="delete-owner",
+            email="delete-owner@example.com",
+            password="test-password-123",
+        )
+        self.member = user_model.objects.create_user(
+            username="delete-member",
+            email="delete-member@example.com",
+            password="test-password-123",
+        )
+        self.organization = Organization.objects.create(
+            name="Delete Org",
+            description="",
+            owner=self.owner,
+        )
+        self.project = Project.objects.create(
+            name="Delete Project",
+            description="",
+            organization=self.organization,
+            owner=self.owner,
+        )
+        ProjectMembership.objects.create(
+            project=self.project,
+            user=self.owner,
+            role=ProjectMembership.ROLE_OWNER,
+            added_by=self.owner,
+        )
+        ProjectMembership.objects.create(
+            project=self.project,
+            user=self.member,
+            role=ProjectMembership.ROLE_MEMBER,
+            added_by=self.owner,
+        )
+        self.owner_token = create_access_token(self.owner.id)
+        self.member_token = create_access_token(self.member.id)
+
+    def test_project_member_can_delete_task(self):
+        task = Task.objects.create(
+            project=self.project,
+            title="Remove obsolete task",
+            description="",
+            status=Task.STATUS_TODO,
+            priority=Task.PRIORITY_MEDIUM,
+            creator=self.owner,
+        )
+
+        response = self.client.post(
+            f"/api/tasks/{task.id}/delete/",
+            HTTP_AUTHORIZATION=f"Bearer {self.member_token}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Task.objects.filter(id=task.id).exists())
+        self.assertNotIn(
+            task.id,
+            [item["id"] for item in response.json()["project"]["tasks"]],
+        )
+
+    def test_bug_reporter_can_delete_bug(self):
+        bug_report = BugReport.objects.create(
+            project=self.project,
+            title="Remove obsolete bug",
+            description="",
+            reporter=self.member,
+            status=BugReport.STATUS_OPEN,
+            priority=BugReport.PRIORITY_MEDIUM,
+        )
+        task = Task.objects.create(
+            project=self.project,
+            bug_report=bug_report,
+            title="Task from bug",
+            description="",
+            status=Task.STATUS_TODO,
+            priority=Task.PRIORITY_MEDIUM,
+            creator=self.owner,
+        )
+
+        response = self.client.post(
+            f"/api/bugs/{bug_report.id}/delete/",
+            HTTP_AUTHORIZATION=f"Bearer {self.member_token}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(BugReport.objects.filter(id=bug_report.id).exists())
+        task.refresh_from_db()
+        self.assertIsNone(task.bug_report_id)
+        self.assertNotIn(
+            bug_report.id,
+            [item["id"] for item in response.json()["project"]["bugReports"]],
+        )
+
+
 

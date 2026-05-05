@@ -15,7 +15,6 @@ import { ActionIcon } from "../../../components/ActionIcon";
 import { EditTextIcon } from "../../../components/icons";
 import { StatusPill } from "../../../components/StatusPill";
 import { SurfaceCard } from "../../../components/SurfaceCard";
-import { CreateTaskModal } from "../modals/CreateTaskModal";
 import type {
   BacklogPlacement,
   PriorityLevel,
@@ -39,30 +38,12 @@ import {
 } from "../../../utils";
 
 type ProjectTasksPageProps = {
-  createTaskForm: {
-    title: string;
-    description: string;
-    status: TaskStatus;
-    priority: PriorityLevel;
-    placement: BacklogPlacement;
-    bugReportId: number | null;
-    bugReportTitle: string;
-    markAsResolution: boolean;
-  };
   hiddenProductBacklogTaskIds: number[];
-  isCreateOpen: boolean;
   project: ProjectDetail;
   onCleanupProductBacklogDoneTasks: (
     projectId: number,
     taskIds: number[]
   ) => void;
-  onCreateTask: () => void;
-  onCreateTaskFormChange: (
-    field: "title" | "description" | "status" | "priority" | "placement",
-    value: string
-  ) => void;
-  onMarkTaskAsResolutionChange: (value: boolean) => void;
-  onToggleCreateForm: () => void;
   onOpenCreateTask: (status: TaskStatus, placement?: BacklogPlacement) => void;
   onOpenTask: (taskId: number) => void;
   onUpdateTaskPriority: (taskId: number, priority: PriorityLevel) => void;
@@ -336,15 +317,9 @@ function SprintTasksSectionHeader({
 }
 
 export function ProjectTasksPage({
-  createTaskForm,
   hiddenProductBacklogTaskIds,
-  isCreateOpen,
   project,
   onCleanupProductBacklogDoneTasks,
-  onCreateTask,
-  onCreateTaskFormChange,
-  onMarkTaskAsResolutionChange,
-  onToggleCreateForm,
   onOpenCreateTask,
   onOpenTask,
   onUpdateTaskPriority,
@@ -424,7 +399,7 @@ export function ProjectTasksPage({
           description:
             "Keep tasks lightweight, update status and priority inline, and add new work from the create button instead of a permanent form.",
           tasks,
-          onCreate: () => onToggleCreateForm(),
+          onCreate: () => onOpenCreateTask("todo", "product"),
         },
       ];
 
@@ -588,16 +563,6 @@ export function ProjectTasksPage({
           );
         })}
       </Grid>
-
-      <CreateTaskModal
-        form={createTaskForm}
-        isOpen={isCreateOpen}
-        project={project}
-        onClose={onToggleCreateForm}
-        onCreateTask={onCreateTask}
-        onFormChange={onCreateTaskFormChange}
-        onMarkAsResolutionChange={onMarkTaskAsResolutionChange}
-      />
     </Flex>
   );
 }
