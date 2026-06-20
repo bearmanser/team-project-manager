@@ -38,7 +38,8 @@ Live demo: [https://www.grinderstudio.no/team-project-manager](https://www.grind
 The repository is split into two applications:
 
 - [`Frontend`](./Frontend): the browser client and user interface
-- [`Backend`](./Backend): the Django API, business logic, persistence, and GitHub integration
+- [`Backend`](./Backend): the original Django API, business logic, persistence, and GitHub integration
+- [`BackendDotNet`](./BackendDotNet): the ASP.NET Core replacement API with the same `/api/` contract and compatible SQLite schema
 
 The frontend communicates with the backend over JSON API endpoints under `/api/`. The backend stores application data in SQLite by default and exposes project event streaming for near real-time UI refreshes.
 
@@ -129,7 +130,7 @@ The frontend reads its configuration from Vite environment variables.
 | `VITE_API_BASE_URL` | Base URL for backend API requests | `http://127.0.0.1:8000` |
 | `VITE_APP_BASE_PATH` | Base path for routing and deployment | `/` |
 
-### Backend
+### Django Backend
 
 The backend loads variables from [`Backend/.env.example`](./Backend/.env.example).
 
@@ -197,11 +198,21 @@ python manage.py migrate
 python manage.py test
 ```
 
+### .NET Backend
+
+```bash
+cd BackendDotNet
+dotnet restore
+dotnet build
+dotnet run --urls http://127.0.0.1:8000
+```
+
 ## Repository Layout
 
 ```text
 team-project-manager/
-|-- Backend/            Django API, models, auth, GitHub integration, Docker setup
+|-- Backend/            Original Django API, models, auth, GitHub integration, Docker setup
+|-- BackendDotNet/      ASP.NET Core replacement API
 |-- Frontend/           React application, routing, UI, API client
 |-- example-image.png   Project screenshot
 ```
